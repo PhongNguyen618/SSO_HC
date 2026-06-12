@@ -188,17 +188,20 @@
                     <td style="text-align: right; font-family: monospace;">{{ act.pace_min_km }} min/km</td>
                     <td style="text-align: right; color: var(--text-muted);">{{ act.elevation_gain_m }} m</td>
                     <td style="text-align: right; color: var(--color-orange); font-weight: 700;">
-                        {% if act.is_suspicious %}
-                        <span style="text-decoration: line-through; opacity: 0.5;">{{ "{:,}".format(act.kcal_burned).replace(",", ".") }}</span>
-                        {% else %}
                         {{ "{:,}".format(act.kcal_burned).replace(",", ".") }}
-                        {% endif %}
                     </td>
                     <td style="text-align: center;">
                         {% if act.is_suspicious %}
-                        <span class="warning-tag" title="{{ act.suspicion_reason }}">
-                            <i class="fa-solid fa-triangle-exclamation"></i> Nghi vấn: {{ act.suspicion_reason }}
-                        </span>
+                        <div style="display: flex; flex-direction: column; align-items: center; gap: 0.2rem;">
+                            <span class="warning-tag" title="{{ act.suspicion_reason }}">
+                                <i class="fa-solid fa-triangle-exclamation"></i> Nghi vấn: {{ act.suspicion_reason }}
+                            </span>
+                            {% if is_admin %}
+                            <button onclick="deleteActivity('{{ act.id }}')" class="btn btn-danger btn-sm" style="padding: 0.15rem 0.4rem; font-size: 0.7rem; display: inline-flex; align-items: center; gap: 0.2rem; background: rgba(220, 53, 69, 0.2); border: 1px solid rgba(220, 53, 69, 0.4); color: #ff6b6b; border-radius: 4px; cursor: pointer;">
+                                <i class="fa-solid fa-trash-can"></i> Xóa
+                            </button>
+                            {% endif %}
+                        </div>
                         {% else %}
                         <span class="gender-badge female" style="background: rgba(60, 186, 146, 0.1); color: var(--color-green);">
                             <i class="fa-solid fa-circle-check"></i> Hợp lệ
@@ -326,6 +329,35 @@
         sportCtx.fillStyle = "#9f9cb2";
         sportCtx.textAlign = "center";
         sportCtx.fillText("Không có dữ liệu quãng đường", 150, 125);
+    }
+
+    // Hàm xóa hoạt động cho Admin
+    function deleteActivity(activityId) {
+        if (!confirm("Bạn có chắc chắn muốn xóa hoạt động này? Hành động này sẽ loại bỏ vĩnh viễn dữ liệu hoạt động khỏi cơ sở dữ liệu và không thể khôi phục.")) {
+            return;
+        }
+        
+        fetch(`/admin/activity/delete/${activityId}`, {
+            method: 'POST'
+        })
+        .then(response => {
+            if (response.status === 401) {
+                alert("Bạn không có quyền Admin hoặc phiên đăng nhập đã hết hạn!");
+                return;
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data && data.status === 'success') {
+                alert("Đã xóa hoạt động thành công!");
+                window.location.reload();
+            } else {
+                alert("Lỗi khi xóa hoạt động: " + (data ? data.error : "Không rõ nguyên nhân"));
+            }
+        })
+        .catch(err => {
+            alert("Lỗi hệ thống: " + err.message);
+        });
     }
 </script>
 {% endblock %}

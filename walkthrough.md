@@ -16,6 +16,7 @@ Dự án là web app Strava SSO_HC dùng FastAPI, SQLAlchemy và SQLite. Giao di
 - Trang Admin có cấu hình API Strava, METs, giải thưởng, anti-cheat, quy chế, banner, import historical Excel, export Excel, huy hiệu và sự kiện lịch sử.
 - Trang Quy Chế và Welcome Banner động theo cấu hình Admin.
 - Tích hợp ảnh QR Code Group vào trang Quy chế và hiển thị hướng dẫn tham gia nhóm khi đăng ký tài khoản thành công (có thể cập nhật/tải lên ảnh QR trực tiếp từ trang Admin).
+- Các hoạt động nghi vấn (is_suspicious) mặc định vẫn được tính calo và thành tích tổng; tích hợp nút "Xóa" hoạt động cho Admin trực tiếp tại trang hồ sơ cá nhân của VĐV để loại bỏ các hoạt động gian lận thực tế khỏi DB.
 - Tích hợp nhận diện thương hiệu NSMO: font Be Vietnam Pro, logo và bảng màu pastel.
 
 ### 6. Trang Tổng Quan Phân Tích (Analytics Dashboard) Cho Admin (Giai đoạn 3)

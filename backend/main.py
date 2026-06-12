@@ -129,7 +129,7 @@ def index(
     
     # 0. Xử lý khung thời gian mặc định (7 ngày từ ngày có hoạt động mới nhất)
     if not start_date or not end_date:
-        max_date_str = db.query(func.max(Activity.activity_date)).filter(Activity.is_suspicious == False).scalar()
+        max_date_str = db.query(func.max(Activity.activity_date)).scalar()
         if max_date_str:
             try:
                 end_dt = datetime.strptime(max_date_str, "%Y-%m-%d")
@@ -147,10 +147,10 @@ def index(
 
     # 1. Thống kê tổng quan (Kpi Cards) theo khung thời gian
     total_kcal = db.query(func.sum(Activity.kcal_burned))\
-        .filter(Activity.is_suspicious == False, Activity.activity_date >= start_date, Activity.activity_date <= end_date)\
+        .filter(Activity.activity_date >= start_date, Activity.activity_date <= end_date)\
         .scalar() or 0
     total_dist = db.query(func.sum(Activity.distance_km))\
-        .filter(Activity.is_suspicious == False, Activity.activity_date >= start_date, Activity.activity_date <= end_date)\
+        .filter(Activity.activity_date >= start_date, Activity.activity_date <= end_date)\
         .scalar() or 0
     total_athletes = db.query(Athlete).filter(Athlete.is_active == True).count()
     
@@ -164,7 +164,7 @@ def index(
         func.sum(Activity.moving_time_min).label("total_time"),
         func.sum(Activity.kcal_burned).label("total_kcal")
     ).join(Activity, Athlete.id == Activity.athlete_id)\
-     .filter(Athlete.is_active == True, Activity.is_suspicious == False, Activity.activity_date >= start_date, Activity.activity_date <= end_date)\
+     .filter(Athlete.is_active == True, Activity.activity_date >= start_date, Activity.activity_date <= end_date)\
      .group_by(Athlete.id)\
      .order_by(func.sum(Activity.kcal_burned).desc()).all()
      
@@ -192,7 +192,7 @@ def index(
         Athlete.department,
         func.sum(Activity.kcal_burned).label("total_kcal")
     ).join(Activity, Athlete.id == Activity.athlete_id)\
-     .filter(Athlete.is_active == True, Activity.is_suspicious == False, Activity.activity_date >= start_date, Activity.activity_date <= end_date)\
+     .filter(Athlete.is_active == True, Activity.activity_date >= start_date, Activity.activity_date <= end_date)\
      .group_by(Athlete.department).all()
      
     dept_stats = []
@@ -220,7 +220,7 @@ def index(
             func.sum(Activity.kcal_burned).label("total_kcal"),
             func.sum(Activity.distance_km).label("total_dist")
         ).join(Activity, Athlete.id == Activity.athlete_id)\
-         .filter(Athlete.is_active == True, Athlete.gender == gender, Activity.is_suspicious == False, Activity.activity_date >= start_date, Activity.activity_date <= end_date)\
+         .filter(Athlete.is_active == True, Athlete.gender == gender, Activity.activity_date >= start_date, Activity.activity_date <= end_date)\
          .group_by(Athlete.id, Activity.sport_type)\
          .order_by(Activity.sport_type, func.sum(Activity.kcal_burned).desc()).all()
          
@@ -455,11 +455,11 @@ def profile_page(request: Request, athlete_id: int, db: Session = Depends(get_db
     if not athlete:
         raise HTTPException(status_code=404, detail="Không tìm thấy Vận động viên.")
 
-    # 1. Lấy danh sách hoạt động (loại bỏ gian lận khỏi thống kê tổng nhưng vẫn hiện để cảnh báo)
+    # 1. Lấy danh sách hoạt động
     activities = db.query(Activity).filter(Activity.athlete_id == athlete.id)\
                    .order_by(Activity.activity_date.desc()).all()
                    
-    valid_activities = [a for a in activities if not a.is_suspicious]
+    valid_activities = activities
     
     # 2. Tính toán các KPI
     total_kcal = sum(a.kcal_burned for a in valid_activities)
@@ -516,6 +516,9 @@ def profile_page(request: Request, athlete_id: int, db: Session = Depends(get_db
         db=db
     )
 
+    # Kiểm tra quyền Admin
+    is_admin = get_admin_session(request, db) is not None
+
     return templates.TemplateResponse(
         request=request,
         name="profile.html",
@@ -532,7 +535,8 @@ def profile_page(request: Request, athlete_id: int, db: Session = Depends(get_db
             "chart_kcal": chart_kcal,
             "chart_sports": chart_sports,
             "chart_sport_dists": chart_sport_dists,
-            "badges": badges
+            "badges": badges,
+            "is_admin": is_admin
         }
     )
 
@@ -583,15 +587,15 @@ def admin_dashboard(request: Request, error: str = None, success: str = None, db
     # --- LOGIC THỐNG KÊ PHÂN TÍCH CHO ADMIN ---
     # 1. Chỉ số KPIs tổng hợp
     total_active_athletes = db.query(Athlete).filter(Athlete.is_active == True).count()
-    total_valid_activities = db.query(Activity).filter(Activity.is_suspicious == False).count()
-    total_kcal_burned = db.query(func.sum(Activity.kcal_burned)).filter(Activity.is_suspicious == False).scalar() or 0.0
-    total_distance = db.query(func.sum(Activity.distance_km)).filter(Activity.is_suspicious == False).scalar() or 0.0
-    total_moving_time_min = db.query(func.sum(Activity.moving_time_min)).filter(Activity.is_suspicious == False).scalar() or 0.0
+    total_valid_activities = db.query(Activity).count()
+    total_kcal_burned = db.query(func.sum(Activity.kcal_burned)).scalar() or 0.0
+    total_distance = db.query(func.sum(Activity.distance_km)).scalar() or 0.0
+    total_moving_time_min = db.query(func.sum(Activity.moving_time_min)).scalar() or 0.0
     total_hours = total_moving_time_min / 60.0
 
     # 2. Thống kê Calo theo tuần (12 tuần gần nhất) và tháng (6 tháng gần nhất)
     import datetime
-    max_date_str_db = db.query(func.max(Activity.activity_date)).filter(Activity.is_suspicious == False).scalar()
+    max_date_str_db = db.query(func.max(Activity.activity_date)).scalar()
     if max_date_str_db:
         try:
             max_date = datetime.datetime.strptime(max_date_str_db, "%Y-%m-%d").date()
@@ -612,7 +616,6 @@ def admin_dashboard(request: Request, error: str = None, success: str = None, db
     start_week_date_str = start_week_date.strftime("%Y-%m-%d")
     
     week_activities = db.query(Activity.activity_date, Activity.kcal_burned)\
-        .filter(Activity.is_suspicious == False)\
         .filter(Activity.activity_date >= start_week_date_str)\
         .filter(Activity.activity_date <= max_date_str)\
         .all()
@@ -651,7 +654,6 @@ def admin_dashboard(request: Request, error: str = None, success: str = None, db
     start_month_date_str = f"{start_month_str}-01"
 
     month_activities = db.query(Activity.activity_date, Activity.kcal_burned)\
-        .filter(Activity.is_suspicious == False)\
         .filter(Activity.activity_date >= start_month_date_str)\
         .filter(Activity.activity_date <= max_date_str)\
         .all()
@@ -676,7 +678,7 @@ def admin_dashboard(request: Request, error: str = None, success: str = None, db
         func.count(Activity.id).label("count"),
         func.sum(Activity.kcal_burned).label("kcal"),
         func.sum(Activity.distance_km).label("dist")
-    ).filter(Activity.is_suspicious == False).group_by(Activity.sport_type).all()
+    ).group_by(Activity.sport_type).all()
 
     sport_labels = []
     sport_kcal = []
@@ -1190,6 +1192,25 @@ async def trigger_historical_import(
         
     return JSONResponse(content=res)
 
+@app.post("/admin/activity/delete/{activity_id}")
+def delete_activity(activity_id: str, request: Request, db: Session = Depends(get_db)):
+    """API xóa hoạt động, chỉ dành cho Admin."""
+    admin_session = get_admin_session(request, db)
+    if not admin_session:
+        return JSONResponse(status_code=401, content={"error": "Chưa đăng nhập admin"})
+        
+    activity = db.query(Activity).filter(Activity.id == activity_id).first()
+    if not activity:
+        return JSONResponse(status_code=404, content={"error": "Không tìm thấy hoạt động"})
+        
+    try:
+        db.delete(activity)
+        db.commit()
+        return JSONResponse(content={"status": "success", "message": "Xóa hoạt động thành công"})
+    except Exception as e:
+        db.rollback()
+        return JSONResponse(status_code=500, content={"error": f"Lỗi xóa hoạt động: {str(e)}"})
+
 @app.get("/admin/export-excel")
 def export_excel(
     request: Request,
@@ -1211,7 +1232,7 @@ def export_excel(
 
     # 0. Xử lý khung thời gian mặc định (giống trang chủ)
     if not start_date or not end_date:
-        max_date_str = db.query(func.max(Activity.activity_date)).filter(Activity.is_suspicious == False).scalar()
+        max_date_str = db.query(func.max(Activity.activity_date)).scalar()
         if max_date_str:
             try:
                 end_dt = datetime.strptime(max_date_str, "%Y-%m-%d")
@@ -1237,7 +1258,7 @@ def export_excel(
         func.sum(Activity.moving_time_min).label("total_time"),
         func.sum(Activity.kcal_burned).label("total_kcal")
     ).join(Activity, Athlete.id == Activity.athlete_id)\
-     .filter(Athlete.is_active == True, Activity.is_suspicious == False, Activity.activity_date >= start_date, Activity.activity_date <= end_date)\
+     .filter(Athlete.is_active == True, Activity.activity_date >= start_date, Activity.activity_date <= end_date)\
      .group_by(Athlete.id)\
      .order_by(func.sum(Activity.kcal_burned).desc()).all()
 
@@ -1265,7 +1286,7 @@ def export_excel(
         Athlete.department,
         func.sum(Activity.kcal_burned).label("total_kcal")
     ).join(Activity, Athlete.id == Activity.athlete_id)\
-     .filter(Athlete.is_active == True, Activity.is_suspicious == False, Activity.activity_date >= start_date, Activity.activity_date <= end_date)\
+     .filter(Athlete.is_active == True, Activity.activity_date >= start_date, Activity.activity_date <= end_date)\
      .group_by(Athlete.department).all()
      
     dept_stats = []
@@ -1299,7 +1320,7 @@ def export_excel(
             func.sum(Activity.kcal_burned).label("total_kcal"),
             func.sum(Activity.distance_km).label("total_dist")
         ).join(Activity, Athlete.id == Activity.athlete_id)\
-         .filter(Athlete.is_active == True, Athlete.gender == gender, Activity.is_suspicious == False, Activity.activity_date >= start_date, Activity.activity_date <= end_date)\
+         .filter(Athlete.is_active == True, Athlete.gender == gender, Activity.activity_date >= start_date, Activity.activity_date <= end_date)\
          .group_by(Athlete.id, Activity.sport_type)\
          .order_by(Activity.sport_type, func.sum(Activity.kcal_burned).desc()).all()
         return stats
