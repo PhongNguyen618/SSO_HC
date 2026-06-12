@@ -3,6 +3,7 @@ import requests
 import hashlib
 from datetime import datetime
 from sqlalchemy.orm import Session
+from fastapi import UploadFile
 from backend.database import SessionLocal, Config, Athlete, Activity
 from backend.calculations import get_mets_value, calculate_kcal, check_suspicious_activity
 
@@ -234,161 +235,147 @@ def link_unlinked_activities(db: Session, athlete: Athlete):
     db.commit()
     print(f"Sync Engine: Linked {len(unlinked)} old activities for athlete {athlete.full_name}.")
 
-def import_historical_data(db: Session) -> dict:
+async def import_excel_files(files: list[UploadFile], db: Session) -> dict:
     """
-    Quét qua các thư mục Tong ket nam 2025 và Tong ket nam 2026,
-    đọc tất cả các file Excel ngày, tính toán METs/KCAL và lưu hoạt động vào SQLite.
+    Nhận danh sách các file Excel tải lên từ trình duyệt,
+    đọc trực tiếp và nạp dữ liệu hoạt động vào SQLite.
     """
-    import os
     import pandas as pd
+    import io
+    import re
     
-    folders = ["Tong ket nam 2025", "Tong ket nam 2026"]
     imported_count = 0
     skipped_count = 0
     errors = []
     
-    # 0. Cache danh sách vận động viên để tối ưu hóa truy vấn tốc độ cao
+    # Cache danh sách vận động viên để tối ưu hóa truy vấn tốc độ cao
     athletes = db.query(Athlete).all()
     athlete_map = {a.strava_name.strip().lower(): a for a in athletes}
     
-    for folder in folders:
-        if not os.path.exists(folder):
-            print(f"Historical Import: Folder {folder} not found. Skipping.")
+    for file in files:
+        if not file.filename.endswith(".xlsx"):
             continue
             
-        print(f"Historical Import: Scanning folder {folder}...")
-        for month_dir in os.listdir(folder):
-            month_path = os.path.join(folder, month_dir)
-            if not os.path.isdir(month_path) or not month_dir.startswith("Tong ket thang "):
-                continue
+        try:
+            # Đọc file in-memory
+            file_bytes = await file.read()
+            xl = pd.ExcelFile(io.BytesIO(file_bytes))
+            
+            sheet_name = "SSO_HC"
+            if sheet_name not in xl.sheet_names:
+                sheet_name = xl.sheet_names[0]
                 
-            for filename in os.listdir(month_path):
-                if not filename.endswith(".xlsx"):
+            df = pd.read_excel(io.BytesIO(file_bytes), sheet_name=sheet_name)
+            
+            # Chuẩn hóa tên cột
+            col_map = {c.strip(): c for c in df.columns}
+            
+            for _, row in df.iterrows():
+                name_raw = str(row.get(col_map.get("Tên Vận động viên"), "")).strip()
+                act_name = str(row.get(col_map.get("Tên Hoạt động"), "Activity")).strip()
+                act_type = str(row.get(col_map.get("Loại Hoạt động"), "Walk")).strip()
+                sport_type = str(row.get(col_map.get("Loại Thể thao"), "Walk")).strip()
+                
+                dist_val = row.get(col_map.get("Khoảng cách (km)"))
+                dist_km = float(dist_val) if pd.notna(dist_val) else 0.0
+                
+                mov_val = row.get(col_map.get("Thời gian Di chuyển (phút)"))
+                mov_time = float(mov_val) if pd.notna(mov_val) else 0.0
+                
+                ela_val = row.get(col_map.get("Thời gian Tổng cộng (phút)"))
+                ela_time = float(ela_val) if pd.notna(ela_val) else mov_time
+                
+                pace_val = row.get(col_map.get("Pace (min/km)"))
+                pace = float(pace_val) if pd.notna(pace_val) else 0.0
+                
+                elev_val = row.get(col_map.get("Elevation Gain (m)"))
+                elev = float(elev_val) if pd.notna(elev_val) else 0.0
+                
+                date_val = row.get(col_map.get("Ngày"))
+                
+                # Chuẩn hóa ngày
+                activity_date = None
+                if pd.notna(date_val):
+                    if isinstance(date_val, datetime):
+                        activity_date = date_val.strftime("%Y-%m-%d")
+                    elif hasattr(date_val, 'strftime'):
+                        activity_date = date_val.strftime("%Y-%m-%d")
+                    else:
+                        date_str = str(date_val).strip()
+                        for fmt in ("%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y"):
+                            try:
+                                activity_date = datetime.strptime(date_str, fmt).strftime("%Y-%m-%d")
+                                break
+                            except ValueError:
+                                continue
+                if not activity_date:
+                    file_date_part = file.filename.replace(".xlsx", "").strip()
+                    try:
+                        match = re.search(r'\d{2}-\d{2}-\d{4}', file_date_part)
+                        if match:
+                            activity_date = datetime.strptime(match.group(), "%d-%m-%Y").strftime("%Y-%m-%d")
+                        else:
+                            activity_date = datetime.now().strftime("%Y-%m-%d")
+                    except Exception:
+                        activity_date = datetime.now().strftime("%Y-%m-%d")
+                
+                # Nghi vấn gian lận
+                susp_val = row.get(col_map.get("Nghi_ngo_Gian_lan"))
+                is_suspicious = False
+                suspicion_reason = None
+                if pd.notna(susp_val) and str(susp_val).strip() != "" and str(susp_val).strip().lower() != "nan":
+                    is_suspicious = True
+                    suspicion_reason = str(susp_val).strip()
+                    
+                if not name_raw or (dist_km == 0.0 and mov_time == 0.0):
                     continue
                     
-                file_path = os.path.join(month_path, filename)
-                try:
-                    xl = pd.ExcelFile(file_path)
-                    sheet_name = "SSO_HC"
-                    if sheet_name not in xl.sheet_names:
-                        sheet_name = xl.sheet_names[0]
-                        
-                    df = pd.read_excel(file_path, sheet_name=sheet_name)
+                composite_key = f"{name_raw}_{act_name}_{activity_date}_{dist_km}_{mov_time}"
+                activity_id = hashlib.sha256(composite_key.encode('utf-8')).hexdigest()
+                
+                exists = db.query(Activity).filter(Activity.id == activity_id).first()
+                if exists:
+                    skipped_count += 1
+                    continue
                     
-                    # Chuẩn hóa tên cột (loại bỏ khoảng trắng)
-                    col_map = {c.strip(): c for c in df.columns}
-                    
-                    for _, row in df.iterrows():
-                        # Trích xuất các trường
-                        name_raw = str(row.get(col_map.get("Tên Vận động viên"), "")).strip()
-                        act_name = str(row.get(col_map.get("Tên Hoạt động"), "Activity")).strip()
-                        act_type = str(row.get(col_map.get("Loại Hoạt động"), "Walk")).strip()
-                        sport_type = str(row.get(col_map.get("Loại Thể thao"), "Walk")).strip()
-                        
-                        dist_val = row.get(col_map.get("Khoảng cách (km)"))
-                        dist_km = float(dist_val) if pd.notna(dist_val) else 0.0
-                        
-                        mov_val = row.get(col_map.get("Thời gian Di chuyển (phút)"))
-                        mov_time = float(mov_val) if pd.notna(mov_val) else 0.0
-                        
-                        ela_val = row.get(col_map.get("Thời gian Tổng cộng (phút)"))
-                        ela_time = float(ela_val) if pd.notna(ela_val) else mov_time
-                        
-                        pace_val = row.get(col_map.get("Pace (min/km)"))
-                        pace = float(pace_val) if pd.notna(pace_val) else 0.0
-                        
-                        elev_val = row.get(col_map.get("Elevation Gain (m)"))
-                        elev = float(elev_val) if pd.notna(elev_val) else 0.0
-                        
-                        date_val = row.get(col_map.get("Ngày"))
-                        
-                        # Chuẩn hóa ngày
-                        activity_date = None
-                        if pd.notna(date_val):
-                            if isinstance(date_val, datetime):
-                                activity_date = date_val.strftime("%Y-%m-%d")
-                            elif hasattr(date_val, 'strftime'):
-                                activity_date = date_val.strftime("%Y-%m-%d")
-                            else:
-                                date_str = str(date_val).strip()
-                                for fmt in ("%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y"):
-                                    try:
-                                        activity_date = datetime.strptime(date_str, fmt).strftime("%Y-%m-%d")
-                                        break
-                                    except ValueError:
-                                        continue
-                        if not activity_date:
-                            # Fallback lấy ngày từ tên file
-                            file_date_part = filename.replace(".xlsx", "").strip()
-                            try:
-                                activity_date = datetime.strptime(file_date_part, "%d-%m-%Y").strftime("%Y-%m-%d")
-                            except Exception:
-                                activity_date = datetime.now().strftime("%Y-%m-%d")
-                        
-                        # Nghi vấn gian lận
-                        susp_val = row.get(col_map.get("Nghi_ngo_Gian_lan"))
-                        is_suspicious = False
-                        suspicion_reason = None
-                        if pd.notna(susp_val) and str(susp_val).strip() != "" and str(susp_val).strip().lower() != "nan":
-                            is_suspicious = True
-                            suspicion_reason = str(susp_val).strip()
-                            
-                        # Bỏ qua dòng trống hoặc không có số liệu di chuyển
-                        if not name_raw or (dist_km == 0.0 and mov_time == 0.0):
-                            continue
-                            
-                        # Tạo khóa băm duy nhất cho hoạt động
-                        composite_key = f"{name_raw}_{act_name}_{activity_date}_{dist_km}_{mov_time}"
-                        activity_id = hashlib.sha256(composite_key.encode('utf-8')).hexdigest()
-                        
-                        # Kiểm tra trùng lặp
-                        exists = db.query(Activity).filter(Activity.id == activity_id).first()
-                        if exists:
-                            skipped_count += 1
-                            continue
-                            
-                        # Tìm và liên kết VĐV
-                        ath = athlete_map.get(name_raw.lower())
-                        athlete_id = ath.id if ath else None
-                        weight = ath.weight if ath else 60.0
-                        
-                        # Tính METs và KCAL
-                        speed_kmh = (dist_km / (mov_time / 60.0)) if mov_time > 0 else 0.0
-                        actual_time_min = ela_time if mov_time < 1.0 else mov_time
-                        
-                        mets_val = get_mets_value(sport_type, speed_kmh, db, dist_km, elev)
-                        kcal_val = calculate_kcal(mets_val, weight, actual_time_min, elev, sport_type)
-                        
-                        # Tạo mới
-                        new_act = Activity(
-                            id=activity_id,
-                            athlete_id=athlete_id,
-                            athlete_name_raw=name_raw,
-                            name=act_name,
-                            type=act_type,
-                            sport_type=sport_type,
-                            distance_km=dist_km,
-                            moving_time_min=mov_time,
-                            elapsed_time_min=ela_time,
-                            pace_min_km=pace,
-                            elevation_gain_m=elev,
-                            activity_date=activity_date,
-                            kcal_burned=kcal_val,
-                            mets_value=mets_val,
-                            is_suspicious=is_suspicious,
-                            suspicion_reason=suspicion_reason
-                        )
-                        db.add(new_act)
-                        imported_count += 1
-                        
-                    # Commit từng file Excel để giảm thiểu tải bộ nhớ
-                    db.commit()
-                except Exception as e:
-                    db.rollback()
-                    err_msg = f"Error reading file {file_path}: {e}"
-                    print(err_msg)
-                    errors.append(err_msg)
-                    
+                ath = athlete_map.get(name_raw.lower())
+                athlete_id = ath.id if ath else None
+                weight = ath.weight if ath else 60.0
+                
+                speed_kmh = (dist_km / (mov_time / 60.0)) if mov_time > 0 else 0.0
+                actual_time_min = ela_time if mov_time < 1.0 else mov_time
+                
+                mets_val = get_mets_value(sport_type, speed_kmh, db, dist_km, elev)
+                kcal_val = calculate_kcal(mets_val, weight, actual_time_min, elev, sport_type)
+                
+                new_act = Activity(
+                    id=activity_id,
+                    athlete_id=athlete_id,
+                    athlete_name_raw=name_raw,
+                    name=act_name,
+                    type=act_type,
+                    sport_type=sport_type,
+                    distance_km=dist_km,
+                    moving_time_min=mov_time,
+                    elapsed_time_min=ela_time,
+                    pace_min_km=pace,
+                    elevation_gain_m=elev,
+                    activity_date=activity_date,
+                    kcal_burned=kcal_val,
+                    mets_value=mets_val,
+                    is_suspicious=is_suspicious,
+                    suspicion_reason=suspicion_reason
+                )
+                db.add(new_act)
+                imported_count += 1
+                
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            err_msg = f"Lỗi đọc file {file.filename}: {e}"
+            print(err_msg)
+            errors.append(err_msg)
+            
     return {
         "status": "success",
         "imported_count": imported_count,

@@ -18,7 +18,7 @@ load_dotenv()
 
 from backend.database import SessionLocal, init_db, get_db, Config, Athlete, Activity, MetsRule, RewardRule, hash_password
 from backend.calculations import get_award_info
-from backend.sync_engine import sync_club_activities, get_config_dict, update_config, link_unlinked_activities, import_historical_data
+from backend.sync_engine import sync_club_activities, get_config_dict, update_config, link_unlinked_activities, import_excel_files
 from backend.auth import get_admin_session, COOKIE_NAME, verify_password
 
 app = FastAPI(title="Strava SSO HC Web App")
@@ -1168,13 +1168,17 @@ def edit_badges_rules(
         return RedirectResponse(f"/admin?error=Lỗi cập nhật huy hiệu: {str(e)}", status_code=303)
 
 @app.post("/admin/import-historical")
-def trigger_historical_import(request: Request, db: Session = Depends(get_db)):
-    """API kích hoạt quét và import dữ liệu Excel quá khứ (2025 & 2026)."""
+async def trigger_historical_import(
+    request: Request,
+    files: list[UploadFile] = File(default=[]),
+    db: Session = Depends(get_db)
+):
+    """API kích hoạt import danh sách file Excel tải lên từ trình duyệt."""
     admin_session = get_admin_session(request, db)
     if not admin_session:
         return JSONResponse(status_code=401, content={"error": "Chưa đăng nhập admin"})
         
-    res = import_historical_data(db)
+    res = await import_excel_files(files, db)
     
     # Tự động liên kết các hoạt động lịch sử vừa import với các vận động viên tương ứng trong DB
     try:
