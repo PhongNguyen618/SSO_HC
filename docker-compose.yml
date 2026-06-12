@@ -1,0 +1,19 @@
+
+services:
+  web:
+    build: .
+    image: sso_hc_web:latest
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=sqlite:///./SSO_HC.db
+      - STRAVA_CLIENT_ID=${STRAVA_CLIENT_ID}
+      - STRAVA_CLIENT_SECRET=${STRAVA_CLIENT_SECRET}
+      - STRAVA_CLUB_ID=${STRAVA_CLUB_ID}
+      - DEFAULT_ADMIN_USER=${DEFAULT_ADMIN_USER:-admin}
+      - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD:-admin}
+      - STRAVA_WEBHOOK_VERIFY_TOKEN=${STRAVA_WEBHOOK_VERIFY_TOKEN:-SSO_HC_VERIFY_TOKEN}
+    volumes:
+      - ./:/app
+      - ./static/uploads:/app/static/uploads
+    restart: unless-stopped

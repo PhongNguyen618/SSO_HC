@@ -1,0 +1,88 @@
+# AI Coding Assistant Rules - Strava SSO_HC Web App
+
+File này chứa các quy tắc thiết kế, phát triển và mẫu câu lệnh (Prompt Templates) dành riêng cho các AI Coding Assistant (Cursor, Roo Code, Copilot, Gemini...) khi tiếp tục phát triển dự án này.
+
+---
+
+## 1. Nguyên tắc Kỹ thuật Bắt buộc (Hard Rules)
+
+1.  **Kiến trúc Frontend (No Node.js/NPM):**
+    *   **Không** cài đặt Node.js, NPM, Vite, React hoặc bất kỳ JS framework nào khác.
+    *   Toàn bộ giao diện là **Jinja2 Templates** (tập tin `.html` nằm trong thư mục `/templates/`) được render trực tiếp từ FastAPI Backend.
+2.  **Quy chuẩn Styling (No TailwindCSS):**
+    *   **Không** sử dụng TailwindCSS.
+    *   Toàn bộ style giao diện phải được khai báo bằng **Vanilla CSS** nằm trong tệp tin `static/css/style.css`.
+    *   Giao diện thiết kế theo phong cách **Glassmorphism hiện đại** (Dark background, glass card với blur effect, gradient glowing borders).
+3.  **Vẽ biểu đồ (Data Visualization):**
+    *   Sử dụng thư viện **Chart.js** được nhúng trực tiếp qua thẻ `<script>` từ CDN trong tệp HTML.
+4.  **Log Console (No Non-ASCII Characters):**
+    *   **Tuyệt đối không** sử dụng chữ tiếng Việt có dấu trong các câu lệnh `print(...)` ở các file Python để tránh lỗi `UnicodeEncodeError` (`cp1252`) trên terminal Windows.
+    *   Tất cả log in ra console của Python phải viết bằng tiếng Anh không dấu. Chữ tiếng Việt có dấu chỉ được viết trong các file HTML hoặc chuỗi ký tự hiển thị ra giao diện người dùng.
+5.  **Không Hardcode cấu hình:**
+    *   Mọi thông số như Client ID, Client Secret, Club ID, hệ số METs, mốc giải thưởng, và ngưỡng chống gian lận phải được truy vấn động từ database SQLite qua SQLAlchemy Models.
+
+---
+
+## 2. Mẫu Câu Lệnh Phát Triển (Prompt Templates)
+
+Sử dụng các mẫu câu lệnh dưới đây để ra lệnh cho AI khi bạn muốn nâng cấp dự án:
+
+### Mẫu 0: Khởi đầu dự án / Nạp đầy đủ bối cảnh cho AI
+```markdown
+Bạn đang làm việc trên dự án web app Strava SSO_HC.
+
+Hãy đọc và tuân thủ toàn bộ quy tắc trong file `.cursorrules` trước khi phân tích hoặc chỉnh sửa mã nguồn.
+
+Bối cảnh dự án:
+1. Backend sử dụng FastAPI, SQLAlchemy và SQLite.
+2. Frontend không dùng Node.js, NPM, Vite, React hoặc bất kỳ JavaScript framework nào.
+3. Toàn bộ giao diện được render bằng Jinja2 Templates trong thư mục `templates/`.
+4. Styling dùng Vanilla CSS trong `static/css/style.css`, theo phong cách Glassmorphism hiện đại.
+5. Biểu đồ dữ liệu dùng Chart.js nhúng từ CDN trong file HTML.
+6. Các thông số cấu hình như Strava Client ID, Client Secret, Club ID, METs, mốc giải thưởng và ngưỡng chống gian lận phải được đọc động từ database SQLite qua SQLAlchemy Models, không hardcode.
+7. Không dùng chữ tiếng Việt có dấu trong các câu lệnh `print(...)` ở Python backend để tránh lỗi UnicodeEncodeError trên Windows terminal.
+8. Chữ tiếng Việt có dấu chỉ được dùng trong HTML hoặc nội dung hiển thị cho người dùng.
+
+Trước khi thực hiện bất kỳ thay đổi nào, hãy:
+1. Đọc cấu trúc thư mục dự án.
+2. Xác định các file liên quan trong `backend/`, `templates/`, `static/css/` hoặc `static/js/`.
+3. Kiểm tra cách code hiện tại đang tổ chức logic, cấu hình và giao diện.
+4. Đưa ra kế hoạch ngắn gọn gồm mục tiêu, file cần sửa, tiêu chí hoàn thành.
+5. Chỉ chỉnh sửa theo đúng kiến trúc hiện có, không thêm framework frontend hoặc build tool mới.
+
+Khi hoàn thành, hãy kiểm tra lại:
+1. Không có Node.js/NPM/Tailwind/React/Vite được thêm vào.
+2. Không có cấu hình quan trọng bị hardcode.
+3. Không có `print(...)` Python chứa tiếng Việt có dấu.
+4. Giao diện vẫn đồng bộ phong cách Glassmorphism.
+5. Các thay đổi phù hợp với FastAPI + Jinja2 + SQLite hiện tại.
+```
+
+### Mẫu 1: Thêm bộ môn thể thao mới vào hệ thống METs
+```markdown
+Tôi muốn thêm một bộ môn thể thao mới là "[Tên bộ môn]" vào hệ thống.
+Hãy thực hiện các bước sau:
+1. Thêm quy tắc METs mặc định cho bộ môn này trong database.py.
+2. Cập nhật calculations.py để tính KCAL chính xác cho bộ môn này.
+3. Cập nhật rules chống gian lận trong calculations.py nếu cần.
+Lưu ý: Không dùng chữ có dấu trong câu lệnh print() của Python backend.
+```
+
+### Mẫu 2: Thay đổi ngưỡng hoặc thêm quy tắc chống gian lận mới
+```markdown
+Tôi muốn bổ sung luật chống gian lận mới cho bộ môn [Tên bộ môn]: [Mô tả luật, ví dụ: Nếu Pace nhanh hơn X min/km hoặc Quãng đường dài hơn Y km].
+Hãy thực hiện các bước sau:
+1. Định nghĩa các cấu hình mới trong configs DB ở database.py.
+2. Cập nhật calculations.py để đọc tham số cấu hình này từ database và đánh giá hoạt động.
+3. Hỗ trợ hiển thị và chỉnh sửa tham số này trên giao diện Admin (admin.html và admin API trong main.py).
+Lưu ý: Giữ nguyên Vanilla CSS, không dùng Tailwind.
+```
+
+### Mẫu 3: Dựng thêm một trang thống kê mới trên giao diện
+```markdown
+Tôi muốn tạo thêm một trang web mới là "[Tên trang]" hiển thị [Mô tả nội dung trang].
+Hãy thực hiện:
+1. Tạo tệp HTML mới trong thư mục templates/ kế thừa base.html.
+2. Thiết kế giao diện Glassmorphic đồng bộ bằng cách viết CSS bổ sung vào static/css/style.css.
+3. Khai báo endpoint mới trong backend/main.py để render trang này.
+```

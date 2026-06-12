@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+
+{% block title %}Đăng Ký Tham Gia - SSO HC{% endblock %}
+
+{% block content %}
+<div style="max-width: 650px; margin: 0 auto;">
+    
+    <!-- Hộp thoại xác nhận cập nhật khi trùng tên hiển thị Strava -->
+    {% if already_exists %}
+    <div class="glass-card" style="border-color: rgba(244, 142, 145, 0.4); background: rgba(244, 142, 145, 0.03); padding: 1.8rem; margin-bottom: 2rem; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+        <h3 style="color: var(--color-orange); font-family: 'Outfit'; margin-bottom: 0.8rem; display: flex; align-items: center; gap: 0.5rem;">
+            <i class="fa-solid fa-triangle-exclamation" style="font-size: 1.3rem;"></i> Tên Strava Đã Được Đăng Ký!
+        </h3>
+        <p style="font-size: 0.95rem; margin-bottom: 1rem; line-height: 1.5; color: var(--text-main);">
+            Hệ thống ghi nhận tên hiển thị Strava <strong>"{{ existing_athlete.strava_name }}"</strong> đã được liên kết với vận động viên:
+        </p>
+        <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 8px; padding: 1rem; margin-bottom: 1.2rem;">
+            <ul style="list-style: none; padding-left: 0; font-size: 0.9rem; color: var(--text-muted); line-height: 1.6;">
+                <li><span style="color: var(--text-main); font-weight: 600; min-width: 150px; display: inline-block;">Họ và Tên:</span> {{ existing_athlete.full_name }}</li>
+                <li><span style="color: var(--text-main); font-weight: 600; min-width: 150px; display: inline-block;">Giới tính:</span> {{ existing_athlete.gender }}</li>
+                <li><span style="color: var(--text-main); font-weight: 600; min-width: 150px; display: inline-block;">Phòng ban hiện tại:</span> {{ existing_athlete.department }}</li>
+                <li><span style="color: var(--text-main); font-weight: 600; min-width: 150px; display: inline-block;">Cân nặng hiện tại:</span> {{ existing_athlete.weight }} kg</li>
+            </ul>
+        </div>
+        <p style="font-size: 0.9rem; margin-bottom: 1.5rem; color: var(--text-muted); border-left: 3px solid var(--color-orange); padding-left: 0.8rem; line-height: 1.5;">
+            Bạn có muốn cập nhật lại <strong>Phòng ban</strong> và <strong>Cân nặng</strong> mới mà bạn vừa điền ở form bên dưới cho VĐV này không?<br>
+            <small style="display: block; margin-top: 0.3rem; color: var(--color-primary); font-weight: 500;">* Lưu ý: Vì lý do bảo mật giải đấu, Họ tên và Giới tính sẽ được giữ nguyên theo thông tin đăng ký gốc.</small>
+        </p>
+        
+        <div style="display: flex; gap: 1rem;">
+            <form action="/register" method="POST" style="flex: 1;">
+                <!-- Truyền đi các input ẩn chứa dữ liệu vừa submit để cập nhật -->
+                <input type="hidden" name="full_name" value="{{ form_data.full_name }}">
+                <input type="hidden" name="gender" value="{{ form_data.gender }}">
+                <input type="hidden" name="department" value="{{ form_data.department }}">
+                <input type="hidden" name="weight" value="{{ form_data.weight }}">
+                <input type="hidden" name="strava_name" value="{{ form_data.strava_name }}">
+                <input type="hidden" name="is_update" value="true">
+                <button type="submit" class="btn btn-primary" style="width: 100%; padding: 0.7rem; font-size: 0.9rem;">
+                    <i class="fa-solid fa-square-check"></i> Đồng Ý Cập Nhật
+                </button>
+            </form>
+            <a href="/register" class="btn btn-secondary" style="flex: 1; padding: 0.7rem; font-size: 0.9rem; text-align: center;">
+                <i class="fa-solid fa-circle-xmark"></i> Hủy & Nhập Lại
+            </a>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="glass-card">
+        <h2 class="card-title">
+            <i class="fa-solid fa-user-plus"></i> Đăng Ký Tham Gia Giải Chạy
+        </h2>
+        
+        <p style="color: var(--text-muted); margin-bottom: 2rem; font-size: 0.95rem;">
+            Vui lòng điền đầy đủ các thông tin cá nhân dưới đây. Thông tin của bạn sẽ được sử dụng để tính lượng calo tiêu thụ (KCAL) chính xác dựa trên cân nặng và cập nhật bảng thành tích tự động từ nhóm Strava.
+        </p>
+
+        {% if success %}
+        <div class="alert alert-success">
+            <i class="fa-solid fa-circle-check"></i> {{ success }}
+        </div>
+        {% endif %}
+
+        {% if error and not already_exists %}
+        <div class="alert alert-error">
+            <i class="fa-solid fa-triangle-exclamation"></i> {{ error }}
+        </div>
+        {% endif %}
+
+        <form action="/register" method="POST">
+            <div class="form-group">
+                <label for="full_name">Họ và Tên Nhân Viên</label>
+                <input type="text" id="full_name" name="full_name" class="form-control" placeholder="Ví dụ: Nguyễn Văn A" value="{% if form_data %}{{ form_data.full_name }}{% endif %}" {% if already_exists %}readonly style="background: rgba(255,255,255,0.02); color: var(--text-muted); cursor: not-allowed;"{% endif %} required>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="gender">Giới tính</label>
+                    {% if already_exists %}
+                        <!-- Nếu bị trùng và đang hiện form xác nhận, khóa trường giới tính -->
+                        <input type="text" class="form-control" value="{{ form_data.gender }}" readonly style="background: rgba(255,255,255,0.02); color: var(--text-muted); cursor: not-allowed;">
+                        <input type="hidden" name="gender" value="{{ form_data.gender }}">
+                    {% else %}
+                        <select id="gender" name="gender" class="form-control" required>
+                            <option value="" disabled {% if not form_data %}selected{% endif %}>Chọn giới tính</option>
+                            <option value="Nam" {% if form_data and form_data.gender == 'Nam' %}selected{% endif %}>Nam</option>
+                            <option value="Nữ" {% if form_data and form_data.gender == 'Nữ' %}selected{% endif %}>Nữ</option>
+                        </select>
+                    {% endif %}
+                </div>
+                
+                <div class="form-group">
+                    <label for="weight">Cân nặng (kg)</label>
+                    <input type="number" step="0.1" id="weight" name="weight" class="form-control" placeholder="Ví dụ: 62.5" min="30" max="200" value="{% if form_data %}{{ form_data.weight }}{% endif %}" required>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="department">Phòng ban / Bộ phận</label>
+                <select id="department" name="department" class="form-control" required>
+                    <option value="" disabled {% if not form_data %}selected{% endif %}>Chọn phòng ban</option>
+                    {% for dept in departments %}
+                    <option value="{{ dept }}" {% if form_data and form_data.department == dept %}selected{% endif %}>{{ dept }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="strava_name">Tên hiển thị trên Strava</label>
+                <input type="text" id="strava_name" name="strava_name" class="form-control" placeholder="Ví dụ: Tùng N. hoặc Tùng Nguyễn" value="{% if form_data %}{{ form_data.strava_name }}{% endif %}" {% if already_exists %}readonly style="background: rgba(255,255,255,0.02); color: var(--text-muted); cursor: not-allowed;"{% endif %} required>
+                <small style="color: var(--text-muted); font-size: 0.8rem; display: block; margin-top: 0.4rem;">
+                    <i class="fa-solid fa-circle-info"></i> Rất quan trọng: Nhập chính xác Tên và chữ cái đầu của Họ hiển thị trong nhóm Strava (Ví dụ: "Nguyen M." hoặc "tan L."). Tên này được dùng để khớp kết quả tự động.
+                </small>
+            </div>
+
+            <div style="margin-top: 2rem; display: flex; gap: 1rem;">
+                {% if not already_exists %}
+                <button type="submit" class="btn btn-primary" style="flex: 1;">
+                    <i class="fa-solid fa-paper-plane"></i> Đăng Ký Ngay
+                </button>
+                {% endif %}
+                <a href="/" class="btn btn-secondary" style="{% if not already_exists %}flex: 1;{% else %}width: 100%;{% endif %} text-align: center;">
+                    <i class="fa-solid fa-arrow-left"></i> Quay Về Trang Chủ
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

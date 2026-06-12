@@ -1,0 +1,1135 @@
+{% extends "base.html" %}
+
+{% block title %}Trang Quản Trị Admin - SSO HC{% endblock %}
+
+{% block content %}
+<div style="max-width: 1100px; margin: 0 auto;">
+
+    <!-- 1. LOGIN SCREEN -->
+    {% if not logged_in %}
+    <div class="glass-card" style="max-width: 450px; margin: 4rem auto;">
+        <h2 class="card-title" style="justify-content: center;">
+            <i class="fa-solid fa-lock"></i> Đăng Nhập Quản Trị Viên
+        </h2>
+        
+        {% if error %}
+        <div class="alert alert-error" style="font-size: 0.9rem; padding: 0.8rem 1.2rem;">
+            <i class="fa-solid fa-triangle-exclamation"></i> {{ error }}
+        </div>
+        {% endif %}
+        {% if success %}
+        <div class="alert alert-success" style="font-size: 0.9rem; padding: 0.8rem 1.2rem;">
+            <i class="fa-solid fa-circle-check"></i> {{ success }}
+        </div>
+        {% endif %}
+
+        <form action="/admin/login" method="POST">
+            <div class="form-group">
+                <label for="username">Tên đăng nhập</label>
+                <input type="text" id="username" name="username" class="form-control" placeholder="Tên đăng nhập" required>
+            </div>
+            <div class="form-group">
+                <label for="password">Mật khẩu</label>
+                <input type="password" id="password" name="password" class="form-control" placeholder="Mật khẩu" required>
+            </div>
+            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">
+                <i class="fa-solid fa-right-to-bracket"></i> Đăng Nhập
+            </button>
+        </form>
+    </div>
+
+    <!-- 2. LOGGED-IN ADMIN PANEL -->
+    {% else %}
+    
+    <!-- Header Admin -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+        <div>
+            <h2 style="font-family: 'Outfit', sans-serif; font-size: 2rem; color: var(--color-primary);">
+                <i class="fa-solid fa-gears"></i> Bảng Điều Khiển Admin
+            </h2>
+            <p style="color: var(--text-muted);">Quản trị hệ thống, cập nhật cấu hình API, quản lý vận động viên và thiết lập luật quy đổi.</p>
+        </div>
+        <form action="/admin/logout" method="POST">
+            <button type="submit" class="btn btn-secondary btn-sm" style="background: rgba(255, 94, 54, 0.1); color: #ff5e36; border-color: rgba(255, 94, 54, 0.2);">
+                <i class="fa-solid fa-right-from-bracket"></i> Đăng Xuất
+            </button>
+        </form>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-error">
+        <i class="fa-solid fa-triangle-exclamation"></i> {{ error }}
+    </div>
+    {% endif %}
+    {% if success %}
+    <div class="alert alert-success">
+        <i class="fa-solid fa-circle-check"></i> {{ success }}
+    </div>
+    {% endif %}
+
+    <!-- Quick Manual Sync Status Bar -->
+    <div class="glass-card" style="padding: 1.5rem; border-color: rgba(0, 242, 254, 0.2); background: rgba(0, 242, 254, 0.02); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem;">
+        <div>
+            <h4 style="font-family:'Outfit', sans-serif;"><i class="fa-solid fa-rotate"></i> Đồng bộ hoạt động từ Strava</h4>
+            <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.2rem;">Hệ thống tự động đồng bộ ngầm định kỳ. Bạn cũng có thể kích hoạt đồng bộ thủ công ngay lập tức ở đây.</p>
+        </div>
+        <button id="btnManualSync" class="btn btn-primary btn-sm">
+            <i class="fa-solid fa-cloud-arrow-down"></i> Đồng Bộ Thủ Công Ngay
+        </button>
+    </div>
+
+    <!-- Export Excel Data Bar -->
+    <div class="glass-card" style="padding: 1.5rem; border-color: rgba(60, 186, 146, 0.2); background: rgba(60, 186, 146, 0.02); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem;">
+        <div>
+            <h4 style="font-family:'Outfit', sans-serif; color: var(--color-green);"><i class="fa-solid fa-file-excel"></i> Xuất Báo Cáo Kết Quả Giải Chạy (Excel)</h4>
+            <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.2rem;">Tải về file Excel chứa đầy đủ kết quả BXH cá nhân, hiệu suất phòng ban và thành tích theo bộ môn.</p>
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 0.35rem;">
+                <label for="excel_start" style="font-size: 0.85rem; color: var(--text-muted);">Từ ngày</label>
+                <input type="date" id="excel_start" class="form-control" style="padding: 0.4rem 0.8rem; font-size: 0.85rem; width: 140px; background: rgba(10, 8, 20, 0.8);">
+            </div>
+            <div style="display: flex; align-items: center; gap: 0.35rem;">
+                <label for="excel_end" style="font-size: 0.85rem; color: var(--text-muted);">Đến ngày</label>
+                <input type="date" id="excel_end" class="form-control" style="padding: 0.4rem 0.8rem; font-size: 0.85rem; width: 140px; background: rgba(10, 8, 20, 0.8);">
+            </div>
+            <button onclick="downloadExcelReport()" class="btn btn-secondary btn-sm" style="border-color: var(--color-green); color: var(--color-green); display: inline-flex; align-items: center; gap: 0.4rem; height: 36px; padding: 0 1rem;">
+                <i class="fa-solid fa-file-arrow-down"></i> Tải Báo Cáo Excel
+            </button>
+        </div>
+    </div>
+
+    <!-- Historical Excel Data Import Bar -->
+    <div class="glass-card" style="padding: 1.5rem; border-color: rgba(249, 191, 190, 0.3); background: rgba(249, 191, 190, 0.02); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 2rem;">
+        <div>
+            <h4 style="font-family:'Outfit', sans-serif; color: var(--color-secondary);"><i class="fa-solid fa-file-excel"></i> Nạp Dữ Liệu Excel Lịch Sử (2025 & 2026)</h4>
+            <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.2rem;">Hệ thống sẽ tự động quét qua 2 thư mục <strong>Tong ket nam 2025</strong> và <strong>Tong ket nam 2026</strong> để nạp toàn bộ thành tích quá khứ.</p>
+        </div>
+        <button id="btnImportHistorical" class="btn btn-secondary btn-sm" style="border-color: var(--color-secondary); color: var(--text-main);">
+            <i class="fa-solid fa-file-import"></i> Bắt đầu Nạp Dữ Liệu Excel
+        </button>
+    </div>
+
+    <!-- Alert: Unregistered Strava Athletes -->
+    {% if unlinked_athletes %}
+    <div class="glass-card" style="border-color: rgba(255, 94, 54, 0.3); background: rgba(255, 94, 54, 0.02); margin-bottom: 2rem; padding: 1.5rem;">
+        <h4 style="font-family:'Outfit', sans-serif; color: #ff5e36; display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+            <i class="fa-solid fa-triangle-exclamation" style="font-size: 1.2rem;"></i> Cảnh Báo: Phát hiện thành viên Strava chưa đăng ký Web App
+        </h4>
+        <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem;">
+            Các thành viên dưới đây có hoạt động trong nhóm Strava nhưng chưa đăng ký tài khoản trên Web App này (do đó thành tích của họ chưa được ghi nhận trên bảng xếp hạng):
+        </p>
+        <div style="display: flex; flex-wrap: wrap; gap: 0.6rem; margin-bottom: 1rem;">
+            {% for name in unlinked_athletes %}
+            <span class="warning-tag" style="background: rgba(255, 94, 54, 0.1); color: #ff5e36; padding: 0.35rem 0.8rem; border: 1px solid rgba(255, 94, 54, 0.2); border-radius: 20px; font-size: 0.85rem; font-weight: 600; display: inline-flex; align-items: center; gap: 0.4rem;">
+                <i class="fa-brands fa-strava"></i> {{ name }}
+            </span>
+            {% endfor %}
+        </div>
+        <p style="color: var(--text-muted); font-size: 0.8rem; line-height: 1.4;">
+            <i class="fa-solid fa-lightbulb" style="color: var(--color-primary);"></i> <strong>Mẹo giải quyết:</strong> Hãy nhắc nhở những thành viên này đăng ký qua trang chủ với chính xác tên hiển thị Strava ở trên. Khi họ đăng ký xong, hệ thống sẽ tự động liên kết và tính toán lại toàn bộ thành tích quá khứ của họ mà bạn không cần thao tác thêm.
+        </p>
+    </div>
+    {% endif %}
+
+    <!-- Admin Tabs Menu -->
+    <div class="tab-header" style="margin-bottom: 1.5rem;">
+        <button class="tab-btn active" onclick="switchAdminTab(event, 'tab-config')">
+            <i class="fa-solid fa-sliders"></i> Cấu hình API & Rules
+        </button>
+        <button class="tab-btn" onclick="switchAdminTab(event, 'tab-analytics')">
+            <i class="fa-solid fa-chart-line"></i> Thống Kê Phân Tích
+        </button>
+        <button class="tab-btn" onclick="switchAdminTab(event, 'tab-athletes')">
+            <i class="fa-solid fa-users-gear"></i> Thành Viên
+        </button>
+        <button class="tab-btn" onclick="switchAdminTab(event, 'tab-mets')">
+            <i class="fa-solid fa-bolt"></i> Hệ số METs
+        </button>
+        <button class="tab-btn" onclick="switchAdminTab(event, 'tab-rewards')">
+            <i class="fa-solid fa-award"></i> Mốc Giải Thưởng
+        </button>
+        <button class="tab-btn" onclick="switchAdminTab(event, 'tab-badges')">
+            <i class="fa-solid fa-medal"></i> Huy Hiệu
+        </button>
+        <button class="tab-btn" onclick="switchAdminTab(event, 'tab-events')">
+            <i class="fa-solid fa-calendar-check"></i> Sự Kiện Lịch Sử
+        </button>
+        <button class="tab-btn" onclick="switchAdminTab(event, 'tab-security')">
+            <i class="fa-solid fa-shield-halved"></i> Bảo mật
+        </button>
+    </div>
+
+    <!-- TABS PANES -->
+
+    <!-- TAB: CẤU HÌNH API & RULES -->
+    <div id="tab-config" class="tab-pane active">
+        <form action="/admin/config" method="POST" enctype="multipart/form-data">
+            <div class="rules-container">
+                <div style="display: flex; flex-direction: column; gap: 2rem; width: 100%;">
+                    <!-- Strava API Credentials -->
+                    <div class="glass-card" style="margin-bottom:0; background: rgba(255,255,255,0.01);">
+                        <h3 class="admin-section-title">Cài Đặt API Strava</h3>
+                        <div class="form-group">
+                            <label for="strava_client_id">Strava Client ID</label>
+                            <input type="text" id="strava_client_id" name="strava_client_id" class="form-control" value="{{ configs.strava_client_id }}" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="strava_client_secret">Strava Client Secret</label>
+                            <input type="text" id="strava_client_secret" name="strava_client_secret" class="form-control" value="{{ configs.strava_client_secret }}" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="strava_club_id">Strava Club ID (Nhóm)</label>
+                            <input type="text" id="strava_club_id" name="strava_club_id" class="form-control" value="{{ configs.strava_club_id }}" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="sync_interval_hours">Tần suất đồng bộ tự động (Giờ)</label>
+                            <input type="number" id="sync_interval_hours" name="sync_interval_hours" class="form-control" value="{{ configs.sync_interval_hours }}" min="1" max="24" required>
+                        </div>
+                        
+                        <!-- HƯỚNG DẪN LẤY THÔNG SỐ -->
+                        <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 8px; padding: 1rem; margin-top: 1rem;">
+                            <h5 style="color: var(--color-primary); font-family: 'Outfit'; margin-bottom: 0.5rem; font-size: 0.9rem;">
+                                <i class="fa-solid fa-circle-info"></i> Hướng dẫn lấy thông số Strava:
+                            </h5>
+                            <ul style="color: var(--text-muted); font-size: 0.8rem; padding-left: 1.2rem; line-height: 1.5; list-style-type: decimal;">
+                                <li><strong>Client ID & Secret:</strong> Đăng nhập tài khoản Strava, truy cập <a href="https://www.strava.com/settings/api" target="_blank" style="color: var(--color-primary); text-decoration: underline;">Strava API Settings</a>. Tạo một ứng dụng và điền trường <code>Authorization Callback Domain</code> là <code>localhost</code> (hoặc domain web của bạn). Sau khi lưu, bạn sẽ thấy Client ID và Client Secret.</li>
+                                <li><strong>Club ID:</strong> Truy cập trang Câu lạc bộ của bạn trên website Strava. ID chính là dãy số cuối cùng nằm ở trên thanh địa chỉ URL của trình duyệt (Ví dụ: URL là <code>https://www.strava.com/clubs/1534169</code> thì Club ID của bạn là <code>1534169</code>).</li>
+                            </ul>
+                        </div>
+                        
+                        <div style="border-top: 1px solid var(--border-color); padding-top: 1.5rem; margin-top: 1.5rem;">
+                            <h4 style="font-family:'Outfit'; margin-bottom:0.5rem;"><i class="fa-brands fa-strava" style="color: #ff5e36;"></i> Trạng thái Ủy Quyền OAuth</h4>
+                            {% if configs.strava_refresh_token %}
+                            <p style="color: var(--color-green); font-weight:600; font-size:0.9rem;"><i class="fa-solid fa-circle-check"></i> Đã kết nối với tài khoản Strava Admin.</p>
+                            {% else %}
+                            <p style="color: var(--color-orange); font-weight:600; font-size:0.9rem;"><i class="fa-solid fa-circle-xmark"></i> Chưa ủy quyền kết nối Strava API.</p>
+                            {% endif %}
+                            <a href="{{ auth_url }}" class="btn btn-secondary btn-sm" style="margin-top:0.8rem; width:100%; text-align:center;">
+                                <i class="fa-solid fa-key"></i> Bấm để Ủy quyền / Kết nối lại Strava
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Competition Rules & Welcome Banner Config -->
+                    <div class="glass-card" style="margin-bottom:0; background: rgba(255,255,255,0.01);">
+                        <h3 class="admin-section-title">Cấu hình Quy Chế & Welcome Banner</h3>
+                        <div class="form-group">
+                            <label for="rules_title">Tiêu đề cuộc thi / giải chạy</label>
+                            <input type="text" id="rules_title" name="rules_title" class="form-control" value="{{ configs.rules_title }}" required>
+                            <small style="color: var(--text-muted); font-size: 0.8rem; display: block; margin-top: 0.2rem;">Hiển thị ở trang chủ quy chế và đầu Welcome Banner.</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="rules_version">Phiên bản quy chế (Rules Version)</label>
+                            <input type="text" id="rules_version" name="rules_version" class="form-control" value="{{ configs.rules_version }}" required>
+                            <small style="color: var(--text-muted); font-size: 0.8rem; display: block; margin-top: 0.2rem;">Thay đổi giá trị này (Ví dụ: từ <code>v1.0</code> thành <code>v1.1</code> hoặc <code>v2.0</code>) để <strong>bắt buộc hiển thị lại</strong> Welcome Banner cho tất cả người dùng khi họ truy cập trang web.</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="rules_description">Nội dung giới thiệu quy chế đầy đủ (Hiện ở trang Quy chế)</label>
+                            <textarea id="rules_description" name="rules_description" class="form-control" style="min-height: 120px; font-family: inherit; font-size: 0.9rem; line-height: 1.5;" required>{{ configs.rules_description }}</textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="rules_general_text">Nội dung Quy định chung & Thể lệ chi tiết (Hiện ở trang Quy chế)</label>
+                            <textarea id="rules_general_text" name="rules_general_text" class="form-control" style="min-height: 150px; font-family: inherit; font-size: 0.9rem; line-height: 1.5;" required>{{ configs.rules_general_text }}</textarea>
+                            <small style="color: var(--text-muted); font-size: 0.8rem; display: block; margin-top: 0.2rem;">Bạn có thể copy và paste nội dung quy chế chung (dạng text, gạch đầu dòng...) vào đây. Định dạng xuống dòng sẽ được tự động giữ nguyên trên trang web.</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="rules_banner_text">Nội dung tóm tắt hiển thị trên Welcome Banner</label>
+                            <textarea id="rules_banner_text" name="rules_banner_text" class="form-control" style="min-height: 120px; font-family: inherit; font-size: 0.9rem; line-height: 1.5;" required>{{ configs.rules_banner_text }}</textarea>
+                            <small style="color: var(--text-muted); font-size: 0.8rem; display: block; margin-top: 0.2rem;">Tóm tắt ngắn gọn các điểm chính để hiển thị trên popup chào mừng.</small>
+                        </div>
+                        <div class="form-group" style="margin-top: 1.5rem;">
+                            <label for="banner_file">Hình ảnh Banner quảng cáo cuộc thi (Tùy chọn)</label>
+                            <input type="file" id="banner_file" name="banner_file" accept="image/*" class="form-control">
+                            <small style="color: var(--text-muted); font-size: 0.8rem; display: block; margin-top: 0.4rem;">
+                                <i class="fa-solid fa-circle-info"></i> Tải lên hình ảnh poster hoặc banner quảng cáo của giải chạy (Định dạng PNG, JPG, WEBP). Nếu tải lên, ảnh này sẽ thay thế hoàn toàn phần logo và nội dung header trên popup chào mừng.
+                            </small>
+                            {% if configs.rules_banner_image %}
+                            <div style="margin-top: 1.2rem; border: 1px solid var(--border-color); border-radius: 10px; padding: 1rem; display: flex; align-items: center; gap: 1.2rem; background: rgba(255, 255, 255, 0.02);">
+                                <img src="{{ configs.rules_banner_image }}" alt="Current Active Banner" style="max-height: 80px; border-radius: 6px; object-fit: cover; border: 1px solid rgba(255,255,255,0.1);">
+                                <div style="flex: 1;">
+                                    <span style="font-size: 0.85rem; color: var(--color-green); font-weight: 600; display: block; margin-bottom: 2px;"><i class="fa-solid fa-circle-check"></i> Ảnh banner hiện tại đang hoạt động</span>
+                                    <span style="font-size: 0.75rem; color: var(--text-muted); display: block; word-break: break-all; font-family: monospace;">{{ configs.rules_banner_image }}</span>
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Anti-Cheat Settings -->
+                <div class="glass-card" style="margin-bottom:0; background: rgba(255,255,255,0.01);">
+                    <h3 class="admin-section-title">Ngưỡng Phát Hiện Gian Lận (Anti-Cheat)</h3>
+                    
+                    <h5 style="color: var(--color-primary); margin: 1rem 0 0.5rem 0;">Môn Chạy Bộ (Run)</h5>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Pace tối thiểu (min/km)</label>
+                            <input type="text" name="rule_run_pace_min" class="form-control" value="{{ configs.rule_run_pace_min }}">
+                        </div>
+                        <div class="form-group">
+                            <label>Pace tối đa (min/km)</label>
+                            <input type="text" name="rule_run_pace_max" class="form-control" value="{{ configs.rule_run_pace_max }}">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Độ dốc Elevation Max tỷ lệ (m/km)</label>
+                        <input type="text" name="rule_run_elev_ratio" class="form-control" value="{{ configs.rule_run_elev_ratio }}">
+                    </div>
+
+                    <h5 style="color: var(--color-primary); margin: 1rem 0 0.5rem 0;">Môn Đạp Xe (Ride)</h5>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Pace tối thiểu (min/km)</label>
+                            <input type="text" name="rule_ride_pace_min" class="form-control" value="{{ configs.rule_ride_pace_min }}">
+                        </div>
+                        <div class="form-group">
+                            <label>Pace tối đa (min/km)</label>
+                            <input type="text" name="rule_ride_pace_max" class="form-control" value="{{ configs.rule_ride_pace_max }}">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Độ dốc Elevation Max tỷ lệ (m/km)</label>
+                        <input type="text" name="rule_ride_elev_ratio" class="form-control" value="{{ configs.rule_ride_elev_ratio }}">
+                    </div>
+
+                    <h5 style="color: var(--color-primary); margin: 1rem 0 0.5rem 0;">Môn Đi Bộ (Walk)</h5>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Pace tối thiểu (min/km)</label>
+                            <input type="text" name="rule_walk_pace_min" class="form-control" value="{{ configs.rule_walk_pace_min }}">
+                        </div>
+                        <div class="form-group">
+                            <label>Pace tối đa (min/km)</label>
+                            <input type="text" name="rule_walk_pace_max" class="form-control" value="{{ configs.rule_walk_pace_max }}">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Độ dốc Elevation Max tỷ lệ (m/km)</label>
+                        <input type="text" name="rule_walk_elev_ratio" class="form-control" value="{{ configs.rule_walk_elev_ratio }}">
+                    </div>
+                </div>
+            </div>
+            
+            <div style="text-align: right; margin-top: 2rem;">
+                <button type="submit" class="btn btn-primary" style="width: 250px;">
+                    <i class="fa-solid fa-floppy-disk"></i> Lưu Tất Cả Cấu Hình
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- TAB: THỐNG KÊ PHÂN TÍCH (ANALYTICS) -->
+    <div id="tab-analytics" class="tab-pane">
+        <!-- Hàng KPIs tổng hợp -->
+        <div class="kpi-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.2rem; margin-bottom: 2rem;">
+            <div class="kpi-card" style="padding: 1.2rem; border-radius: 12px; background: rgba(143, 205, 240, 0.05); border: 1px solid rgba(143, 205, 240, 0.15); display: flex; align-items: center; gap: 1rem;">
+                <div style="width: 50px; height: 50px; border-radius: 50%; background: rgba(143, 205, 240, 0.15); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; color: #8FCDF0;">
+                    <i class="fa-solid fa-users"></i>
+                </div>
+                <div>
+                    <span style="display: block; font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Tổng VĐV Hoạt Động</span>
+                    <span style="font-size: 1.6rem; font-weight: 700; color: #8FCDF0;">{{ stats_data.kpis.total_athletes if stats_data else 0 }}</span>
+                </div>
+            </div>
+            
+            <div class="kpi-card" style="padding: 1.2rem; border-radius: 12px; background: rgba(255, 193, 7, 0.05); border: 1px solid rgba(255, 193, 7, 0.15); display: flex; align-items: center; gap: 1rem;">
+                <div style="width: 50px; height: 50px; border-radius: 50%; background: rgba(255, 193, 7, 0.15); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; color: #ffc107;">
+                    <i class="fa-solid fa-person-running"></i>
+                </div>
+                <div>
+                    <span style="display: block; font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Tổng Số Hoạt Động</span>
+                    <span style="font-size: 1.6rem; font-weight: 700; color: #ffc107;">{{ stats_data.kpis.total_activities if stats_data else 0 }}</span>
+                </div>
+            </div>
+            
+            <div class="kpi-card" style="padding: 1.2rem; border-radius: 12px; background: rgba(249, 191, 190, 0.05); border: 1px solid rgba(249, 191, 190, 0.15); display: flex; align-items: center; gap: 1rem;">
+                <div style="width: 50px; height: 50px; border-radius: 50%; background: rgba(249, 191, 190, 0.15); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; color: #F9BFBE;">
+                    <i class="fa-solid fa-fire"></i>
+                </div>
+                <div>
+                    <span style="display: block; font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Tổng Calo Tiêu Thụ</span>
+                    <span style="font-size: 1.6rem; font-weight: 700; color: #F9BFBE;">{{ "{:,.0f}".format(stats_data.kpis.total_kcal) if stats_data else 0 }} <span style="font-size:0.8rem; font-weight:400; color: var(--text-muted);">KCAL</span></span>
+                </div>
+            </div>
+            
+            <div class="kpi-card" style="padding: 1.2rem; border-radius: 12px; background: rgba(148, 181, 222, 0.05); border: 1px solid rgba(148, 181, 222, 0.15); display: flex; align-items: center; gap: 1rem;">
+                <div style="width: 50px; height: 50px; border-radius: 50%; background: rgba(148, 181, 222, 0.15); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; color: #94B5DE;">
+                    <i class="fa-solid fa-road"></i>
+                </div>
+                <div>
+                    <span style="display: block; font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Tổng Quãng Đường</span>
+                    <span style="font-size: 1.6rem; font-weight: 700; color: #94B5DE;">{{ "{:,.1f}".format(stats_data.kpis.total_dist) if stats_data else 0 }} <span style="font-size:0.8rem; font-weight:400; color: var(--text-muted);">km</span></span>
+                </div>
+            </div>
+            
+            <div class="kpi-card" style="padding: 1.2rem; border-radius: 12px; background: rgba(32, 201, 151, 0.05); border: 1px solid rgba(32, 201, 151, 0.15); display: flex; align-items: center; gap: 1rem;">
+                <div style="width: 50px; height: 50px; border-radius: 50%; background: rgba(32, 201, 151, 0.15); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; color: #20c997;">
+                    <i class="fa-solid fa-hourglass-half"></i>
+                </div>
+                <div>
+                    <span style="display: block; font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Tổng Thời Gian</span>
+                    <span style="font-size: 1.6rem; font-weight: 700; color: #20c997;">{{ "{:,.1f}".format(stats_data.kpis.total_hours) if stats_data else 0 }} <span style="font-size:0.8rem; font-weight:400; color: var(--text-muted);">giờ</span></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Khối Đồ thị -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+            <!-- Biểu đồ Xu hướng Calo (Line Chart) -->
+            <div class="glass-card" style="background: rgba(255,255,255,0.01); margin-bottom: 0; padding: 1.5rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.2rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">
+                    <h4 style="font-family: 'Outfit', sans-serif; font-size: 1.1rem; color: var(--color-primary); display: flex; align-items: center; gap: 0.5rem; margin: 0;">
+                        <i class="fa-solid fa-chart-line"></i> Xu Hướng Calo Tiêu Thụ Toàn Công Ty
+                    </h4>
+                    <!-- Toggle Buttons -->
+                    <div style="display: flex; gap: 0.4rem; background: rgba(0,0,0,0.2); padding: 0.25rem; border-radius: 20px; border: 1px solid var(--border-color);">
+                        <button type="button" id="btnToggleWeek" class="btn btn-primary btn-sm active" onclick="toggleKcalTrend('week')" style="border-radius: 15px; padding: 0.25rem 0.75rem; font-size: 0.75rem; background: var(--color-primary); border: none;">Theo Tuần</button>
+                        <button type="button" id="btnToggleMonth" class="btn btn-secondary btn-sm" onclick="toggleKcalTrend('month')" style="border-radius: 15px; padding: 0.25rem 0.75rem; font-size: 0.75rem; background: transparent; border: none; color: var(--text-muted);">Theo Tháng</button>
+                    </div>
+                </div>
+                <div style="position: relative; height: 280px; width: 100%;">
+                    <canvas id="adminKcalChart"></canvas>
+                </div>
+            </div>
+            
+            <!-- Biểu đồ Phân bổ Bộ môn (Doughnut Chart) -->
+            <div class="glass-card" style="background: rgba(255,255,255,0.01); margin-bottom: 0; padding: 1.5rem;">
+                <h4 style="font-family: 'Outfit', sans-serif; font-size: 1.1rem; color: var(--color-secondary); margin-bottom: 1.2rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                    <i class="fa-solid fa-chart-pie"></i> Cơ Cấu Đóng Góp Năng Lượng Theo Bộ Môn
+                </h4>
+                <div style="position: relative; height: 280px; width: 100%; display: flex; align-items: center; justify-content: center;">
+                    <canvas id="adminSportChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB: QUẢN LÝ THÀNH VIÊN -->
+    <div id="tab-athletes" class="tab-pane">
+        <!-- Add New Athlete Form -->
+        <div class="glass-card" style="background: rgba(255,255,255,0.01);">
+            <h3 class="admin-section-title">Thêm Thành Viên Mới Thủ Công</h3>
+            <form action="/admin/athlete/add" method="POST" style="margin-top: 1rem;">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="new_full_name">Họ và Tên</label>
+                        <input type="text" id="new_full_name" name="full_name" class="form-control" placeholder="Nguyễn Văn A" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="new_gender">Giới tính</label>
+                        <select id="new_gender" name="gender" class="form-control" required>
+                            <option value="Nam">Nam</option>
+                            <option value="Nữ">Nữ</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="new_department">Phòng ban</label>
+                        <select id="new_department" name="department" class="form-control" required>
+                            <option value="BAN GIÁM ĐỐC">BAN GIÁM ĐỐC</option>
+                            <option value="PHÒNG HÀNH CHÍNH NHÂN SỰ">PHÒNG HÀNH CHÍNH NHÂN SỰ</option>
+                            <option value="PHÒNG KỸ THUẬT">PHÒNG KỸ THUẬT</option>
+                            <option value="PHÒNG KINH DOANH">PHÒNG KINH DOANH</option>
+                            <option value="PHÒNG TÀI CHÍNH KẾ TOÁN">PHÒNG TÀI CHÍNH KẾ TOÁN</option>
+                            <option value="PHÒNG KHAI THÁC">PHÒNG KHAI THÁC</option>
+                            <option value="PHÒNG VẬN HÀNH">PHÒNG VẬN HÀNH</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="new_weight">Cân nặng (kg)</label>
+                        <input type="number" step="0.1" id="new_weight" name="weight" class="form-control" placeholder="60.0" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="new_strava_name">Tên hiển thị trên Strava</label>
+                    <input type="text" id="new_strava_name" name="strava_name" class="form-control" placeholder="Ví dụ: Nguyen M." required>
+                </div>
+                <button type="submit" class="btn btn-primary btn-sm" style="margin-top: 0.5rem;">
+                    <i class="fa-solid fa-plus"></i> Thêm Vận Động Viên
+                </button>
+            </form>
+        </div>
+
+        <!-- Athletes List Table -->
+        <div class="glass-card" style="background: rgba(255,255,255,0.01);">
+            <h3 class="admin-section-title">Danh Sách Thành Viên ({{ athletes|length }} VĐV)</h3>
+            <div class="table-responsive">
+                <table class="custom-table" style="font-size:0.85rem;">
+                    <thead>
+                        <tr>
+                            <th>Họ và Tên</th>
+                            <th>Giới tính</th>
+                            <th>Phòng ban</th>
+                            <th style="text-align: right;">Cân nặng</th>
+                            <th>Strava Name</th>
+                            <th style="text-align: center;">Trạng thái</th>
+                            <th style="text-align: center;">Hành động</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for ath in athletes %}
+                        <tr>
+                            <form action="/admin/athlete/edit/{{ ath.id }}" method="POST">
+                                <td>
+                                    <input type="text" name="full_name" class="form-control" value="{{ ath.full_name }}" style="padding:0.4rem; font-size:0.85rem;" required>
+                                </td>
+                                <td>
+                                    <select name="gender" class="form-control" style="padding:0.4rem; font-size:0.85rem;" required>
+                                        <option value="Nam" {% if ath.gender == 'Nam' %}selected{% endif %}>Nam</option>
+                                        <option value="Nữ" {% if ath.gender == 'Nữ' %}selected{% endif %}>Nữ</option>
+                                    </select>
+                                </td>
+                                <td>
+                                    <select name="department" class="form-control" style="padding:0.4rem; font-size:0.85rem;" required>
+                                        <option value="BAN GIÁM ĐỐC" {% if ath.department == 'BAN GIÁM ĐỐC' %}selected{% endif %}>BAN GIÁM ĐỐC</option>
+                                        <option value="PHÒNG HÀNH CHÍNH NHÂN SỰ" {% if ath.department == 'PHÒNG HÀNH CHÍNH NHÂN SỰ' %}selected{% endif %}>PHÒNG HÀNH CHÍNH NHÂN SỰ</option>
+                                        <option value="PHÒNG KỸ THUẬT" {% if ath.department == 'PHÒNG KỸ THUẬT' %}selected{% endif %}>PHÒNG KỸ THUẬT</option>
+                                        <option value="PHÒNG KINH DOANH" {% if ath.department == 'PHÒNG KINH DOANH' %}selected{% endif %}>PHÒNG KINH DOANH</option>
+                                        <option value="PHÒNG TÀI CHÍNH KẾ TOÁN" {% if ath.department == 'PHÒNG TÀI CHÍNH KẾ TOÁN' %}selected{% endif %}>PHÒNG TÀI CHÍNH KẾ TOÁN</option>
+                                        <option value="PHÒNG KHAI THÁC" {% if ath.department == 'PHÒNG KHAI THÁC' %}selected{% endif %}>PHÒNG KHAI THÁC</option>
+                                        <option value="PHÒNG VẬN HÀNH" {% if ath.department == 'PHÒNG VẬN HÀNH' %}selected{% endif %}>PHÒNG VẬN HÀNH</option>
+                                    </select>
+                                </td>
+                                <td>
+                                    <input type="number" step="0.1" name="weight" class="form-control" value="{{ ath.weight }}" style="padding:0.4rem; font-size:0.85rem; text-align:right;" required>
+                                </td>
+                                <td>
+                                    <input type="text" name="strava_name" class="form-control" value="{{ ath.strava_name }}" style="padding:0.4rem; font-size:0.85rem;" required>
+                                </td>
+                                <td style="text-align: center;">
+                                    <select name="is_active" class="form-control" style="padding:0.4rem; font-size:0.85rem; width:100px;">
+                                        <option value="True" {% if ath.is_active %}selected{% endif %}>Active</option>
+                                        <option value="False" {% if not ath.is_active %}selected{% endif %}>Banned</option>
+                                    </select>
+                                </td>
+                                <td style="text-align: center; display: flex; gap: 0.3rem; justify-content: center;">
+                                    <button type="submit" class="btn btn-primary btn-sm" style="padding:0.4rem 0.6rem; font-size:0.8rem;" title="Lưu thay đổi">
+                                        <i class="fa-solid fa-floppy-disk"></i>
+                                    </button>
+                                    <button type="submit" formaction="/admin/athlete/delete/{{ ath.id }}" onclick="return confirm('Bạn có chắc chắn muốn xóa thành viên {{ ath.full_name }}? Toàn bộ lịch sử hoạt động sẽ bị hủy liên kết.')" class="btn btn-danger btn-sm" style="padding:0.4rem 0.6rem; font-size:0.8rem;" title="Xóa">
+                                        <i class="fa-solid fa-trash-can"></i>
+                                    </button>
+                                </td>
+                            </form>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB: HỆ SỐ METs -->
+    <div id="tab-mets" class="tab-pane">
+        <div class="glass-card" style="background: rgba(255,255,255,0.01);">
+            <h3 class="admin-section-title">
+                <span>Quản Lý Hệ Số METs Theo Bộ Môn</span>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="addMetsRow()">
+                    <i class="fa-solid fa-plus"></i> Thêm Hàng Mới
+                </button>
+            </h3>
+            
+            <form action="/admin/mets/edit" method="POST" style="margin-top: 1.5rem;">
+                <div id="metsRulesList">
+                    <div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 0.5fr; gap: 0.5rem; font-weight:600; color:var(--text-muted); font-size:0.8rem; margin-bottom: 0.8rem;">
+                        <span>Loại Bộ môn (Ví dụ: Walk, Run)</span>
+                        <span>Tốc độ tối thiểu (km/h)</span>
+                        <span>Tốc độ tối đa (km/h)</span>
+                        <span>Hệ số METs</span>
+                        <span>Xóa</span>
+                    </div>
+                    {% for m in mets %}
+                    <div class="mets-row-input">
+                        <input type="text" name="sport_type" class="form-control" value="{{ m.sport_type }}" required>
+                        <input type="number" step="0.1" name="min_speed" class="form-control" value="{{ m.min_speed }}" required>
+                        <input type="number" step="0.1" name="max_speed" class="form-control" value="{{ m.max_speed }}" required>
+                        <input type="number" step="0.1" name="met_value" class="form-control" value="{{ m.met_value }}" required>
+                        <button type="button" class="remove-row-btn" onclick="removeMetsRow(this)"><i class="fa-solid fa-circle-minus"></i></button>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <div style="text-align: right; margin-top: 2rem;">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fa-solid fa-floppy-disk"></i> Lưu Hệ Số METs
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- TAB: MỐC GIẢI THƯỞNG -->
+    <div id="tab-rewards" class="tab-pane">
+        <div class="glass-card" style="background: rgba(255,255,255,0.01);">
+            <h3 class="admin-section-title">
+                <span>Thiết Lập Mốc Giải Thưởng</span>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="addRewardRow()">
+                    <i class="fa-solid fa-plus"></i> Thêm Mốc Mới
+                </button>
+            </h3>
+
+            <form action="/admin/rewards/edit" method="POST" style="margin-top: 1.5rem;">
+                <div id="rewardsRulesList">
+                    <div style="display: grid; grid-template-columns: 1.5fr 1.5fr 1.5fr 0.5fr; gap: 0.5rem; font-weight:600; color:var(--text-muted); font-size:0.8rem; margin-bottom: 0.8rem;">
+                        <span>Giới tính áp dụng</span>
+                        <span>Mốc năng lượng đạt giải (KCAL)</span>
+                        <span>Trị giá giải thưởng (VND)</span>
+                        <span>Xóa</span>
+                    </div>
+                    {% for r in rewards %}
+                    <div class="rewards-row-input">
+                        <select name="gender" class="form-control" required>
+                            <option value="Nam" {% if r.gender == 'Nam' %}selected{% endif %}>Nam</option>
+                            <option value="Nữ" {% if r.gender == 'Nữ' %}selected{% endif %}>Nữ</option>
+                        </select>
+                        <input type="number" step="1" name="kcal_threshold" class="form-control" value="{{ r.kcal_threshold | int }}" required>
+                        <input type="number" step="1000" name="reward_amount" class="form-control" value="{{ r.reward_amount | int }}" required>
+                        <button type="button" class="remove-row-btn" onclick="removeMetsRow(this)"><i class="fa-solid fa-circle-minus"></i></button>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <div style="text-align: right; margin-top: 2rem;">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fa-solid fa-floppy-disk"></i> Lưu Cấu Hình Giải Thưởng
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- TAB: QUẢN LÝ HUY HIỆU -->
+    <div id="tab-badges" class="tab-pane">
+        <div class="glass-card" style="background: rgba(255,255,255,0.01);">
+            <h3 class="admin-section-title">
+                <span>Quản Lý Hệ Thống Huy Hiệu</span>
+            </h3>
+            
+            <form action="/admin/badges/edit" method="POST" style="margin-top: 1.5rem;">
+                <div class="table-responsive">
+                    <table class="custom-table" style="font-size:0.85rem;">
+                        <thead>
+                            <tr>
+                                <th style="width: 130px;">Mã (ID)</th>
+                                <th style="width: 160px;">Tên Huy hiệu</th>
+                                <th>Mô tả (Điều kiện đạt)</th>
+                                <th style="width: 170px;">Icon (FontAwesome)</th>
+                                <th style="width: 80px; text-align: center;">Màu sắc</th>
+                                <th style="width: 110px;">Ngưỡng đạt</th>
+                                <th style="width: 120px;">Đơn vị</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for b in badges %}
+                            <tr>
+                                <td>
+                                    <span style="font-family: monospace; font-weight:600; color:var(--text-muted);">{{ b.id }}</span>
+                                    <input type="hidden" name="id" value="{{ b.id }}">
+                                </td>
+                                <td>
+                                    <input type="text" name="name" class="form-control" value="{{ b.name }}" style="padding:0.4rem; font-size:0.85rem;" required>
+                                </td>
+                                <td>
+                                    <input type="text" name="description" class="form-control" value="{{ b.description }}" style="padding:0.4rem; font-size:0.85rem;" required>
+                                </td>
+                                <td>
+                                    <div style="display: flex; align-items: center; gap: 0.4rem;">
+                                        <i class="fa-solid {{ b.icon }}" style="color: {{ b.color }}; font-size: 1.2rem; width: 20px; text-align: center;"></i>
+                                        <input type="text" name="icon" class="form-control" value="{{ b.icon }}" style="padding:0.4rem; font-size:0.85rem; font-family: monospace;" required>
+                                    </div>
+                                </td>
+                                <td style="text-align: center;">
+                                    <input type="color" name="color" value="{{ b.color }}" style="width: 40px; height: 30px; border: 1px solid var(--border-color); background: none; cursor: pointer; border-radius: 4px;" required>
+                                </td>
+                                <td>
+                                    <input type="number" step="1" name="threshold" class="form-control" value="{{ b.threshold | int }}" style="padding:0.4rem; font-size:0.85rem; text-align:right;" required>
+                                </td>
+                                <td>
+                                    <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">
+                                        {% if b.unit == 'activities' %}Hoạt động
+                                        {% elif b.unit == 'run_distance_km' %}km Chạy
+                                        {% elif b.unit == 'ride_distance_km' %}km Đạp xe
+                                        {% elif b.unit == 'total_time_hours' %}giờ
+                                        {% elif b.unit == 'total_kcal' %}KCAL
+                                        {% elif b.unit == 'max_streak_days' %}ngày liên tục
+                                        {% else %}{{ b.unit }}
+                                        {% endif %}
+                                    </span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div style="text-align: right; margin-top: 2rem;">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fa-solid fa-floppy-disk"></i> Lưu Cấu Hướng Huy Hiệu
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- TAB: SỰ KIỆN LỊCH SỬ -->
+    <div id="tab-events" class="tab-pane">
+        <!-- Form thêm sự kiện -->
+        <div class="glass-card" style="background: rgba(255,255,255,0.01);">
+            <h3 class="admin-section-title">Thêm Sự Kiện Lịch Sử Mới</h3>
+            <form action="/admin/events/add" method="POST" enctype="multipart/form-data" style="margin-top: 1rem;">
+                <div class="form-group">
+                    <label for="event_title">Tiêu đề sự kiện</label>
+                    <input type="text" id="event_title" name="title" class="form-control" placeholder="Ví dụ: Giải Chạy Bộ Phong Trào SSO HC 2025" required>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="event_video">Link nhúng Video tổng kết (YouTube/Vimeo, Tùy chọn)</label>
+                        <input type="url" id="event_video" name="video_url" class="form-control" placeholder="Ví dụ: https://www.youtube.com/embed/dQw4w9WgXcQ">
+                        <small style="color: var(--text-muted); font-size: 0.8rem;">Vui lòng nhập đường dẫn nhúng (embed) dạng <code>https://www.youtube.com/embed/VIDEO_ID</code>.</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="event_banner">Ảnh banner đại diện sự kiện</label>
+                        <input type="file" id="event_banner" name="banner_file" accept="image/*" class="form-control" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="event_summary">Kết quả vinh danh & Tóm tắt sự kiện</label>
+                    <textarea id="event_summary" name="summary_text" class="form-control" style="min-height: 120px; font-family: inherit; font-size: 0.9rem; line-height: 1.5;" placeholder="Nhập kết quả chi tiết, danh sách vinh danh cá nhân/phòng ban đạt giải..." required></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="event_gallery">Album ảnh kỷ niệm (Tải lên nhiều ảnh cùng lúc, Tùy chọn)</label>
+                    <input type="file" id="event_gallery" name="gallery_files" accept="image/*" class="form-control" multiple>
+                    <small style="color: var(--text-muted); font-size: 0.8rem;">Bạn có thể quét chọn nhiều file ảnh để tải lên cùng lúc làm album gallery kỷ niệm.</small>
+                </div>
+                <button type="submit" class="btn btn-primary btn-sm" style="margin-top: 0.5rem;">
+                    <i class="fa-solid fa-plus"></i> Thêm Sự Kiện
+                </button>
+            </form>
+        </div>
+
+        <!-- Danh sách sự kiện cũ -->
+        <div class="glass-card" style="background: rgba(255,255,255,0.01);">
+            <h3 class="admin-section-title">Danh Sách Sự Kiện Đã Lưu ({{ archived_events|length }} Sự kiện)</h3>
+            {% if archived_events %}
+            <div class="table-responsive">
+                <table class="custom-table" style="font-size:0.85rem;">
+                    <thead>
+                        <tr>
+                            <th style="width: 80px;">Banner</th>
+                            <th>Tiêu đề sự kiện</th>
+                            <th>Video nhúng</th>
+                            <th>Album ảnh (Số lượng)</th>
+                            <th style="text-align: center; width: 100px;">Hành động</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for ev in archived_events %}
+                        <tr>
+                            <td>
+                                {% if ev.banner_image %}
+                                <img src="{{ ev.banner_image }}" alt="Banner" style="width: 60px; height: 40px; object-fit: cover; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1);">
+                                {% else %}
+                                <span style="color: var(--text-muted);">Không có</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <strong style="color: var(--color-primary);">{{ ev.title }}</strong>
+                                <div style="font-size: 0.75rem; color: var(--text-muted); max-width: 400px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                    {{ ev.summary_text }}
+                                </div>
+                            </td>
+                            <td>
+                                {% if ev.video_url %}
+                                <span style="font-size: 0.8rem; font-family: monospace; word-break: break-all;">{{ ev.video_url }}</span>
+                                {% else %}
+                                <span style="color: var(--text-muted);">Không có</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if ev.gallery_images %}
+                                <span style="font-size: 0.8rem; font-weight: 600; color: var(--color-green);">
+                                    <i class="fa-solid fa-images"></i> {{ ev.gallery_images.split(',')|length }} ảnh
+                                </span>
+                                {% else %}
+                                <span style="color: var(--text-muted);">Không có</span>
+                                {% endif %}
+                            </td>
+                            <td style="text-align: center;">
+                                <form action="/admin/events/delete/{{ ev.id }}" method="POST" style="display: inline;" onsubmit="return confirm('Bạn có chắc chắn muốn xóa sự kiện này và tất cả các ảnh liên quan?');">
+                                    <button type="submit" class="btn btn-danger btn-sm" style="padding:0.4rem 0.6rem; font-size:0.8rem;">
+                                        <i class="fa-solid fa-trash-can"></i> Xóa
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p style="color: var(--text-muted); text-align: center; padding: 2rem;">Chưa có sự kiện lịch sử nào được tạo.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- TAB: BẢO MẬT ADMIN -->
+    <div id="tab-security" class="tab-pane">
+        <div class="glass-card" style="max-width: 550px; margin: 0 auto; background: rgba(255,255,255,0.01);">
+            <h3 class="admin-section-title">Đổi Thông Tin Đăng Nhập Admin</h3>
+            
+            <form action="/admin/security" method="POST" style="margin-top: 1.5rem;">
+                <div class="form-group">
+                    <label for="new_username">Tên Đăng Nhập Mới</label>
+                    <input type="text" id="new_username" name="new_username" class="form-control" value="{{ configs.admin_username }}" required>
+                </div>
+                <div class="form-group">
+                    <label for="new_password">Mật Khẩu Mới</label>
+                    <input type="password" id="new_password" name="new_password" class="form-control" placeholder="Nhập mật khẩu mới" required>
+                </div>
+                <button type="submit" class="btn btn-danger" style="width: 100%; margin-top: 1rem;">
+                    <i class="fa-solid fa-shield-halved"></i> Cập Nhật & Đăng Xuất
+                </button>
+            </form>
+        </div>
+    </div>
+
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // --- ADMIN TAB TRANSITION LOGIC ---
+    function switchAdminTab(evt, tabId) {
+        const tabPanes = document.querySelectorAll('#tab-config, #tab-analytics, #tab-athletes, #tab-mets, #tab-rewards, #tab-badges, #tab-events, #tab-security');
+        tabPanes.forEach(pane => pane.classList.remove('active'));
+
+        const tabBtns = document.querySelectorAll('.tab-btn');
+        tabBtns.forEach(btn => btn.classList.remove('active'));
+
+        document.getElementById(tabId).classList.add('active');
+        evt.currentTarget.classList.add('active');
+    }
+
+    // --- DYNAMIC FORM ROWS EDITOR ---
+    function addMetsRow() {
+        const container = document.getElementById('metsRulesList');
+        const div = document.createElement('div');
+        div.className = 'mets-row-input';
+        div.innerHTML = `
+            <input type="text" name="sport_type" class="form-control" placeholder="e.g. Run" required>
+            <input type="number" step="0.1" name="min_speed" class="form-control" value="0.0" required>
+            <input type="number" step="0.1" name="max_speed" class="form-control" value="999.0" required>
+            <input type="number" step="0.1" name="met_value" class="form-control" placeholder="5.0" required>
+            <button type="button" class="remove-row-btn" onclick="removeMetsRow(this)"><i class="fa-solid fa-circle-minus"></i></button>
+        `;
+        container.appendChild(div);
+    }
+
+    function addRewardRow() {
+        const container = document.getElementById('rewardsRulesList');
+        const div = document.createElement('div');
+        div.className = 'rewards-row-input';
+        div.innerHTML = `
+            <select name="gender" class="form-control" required>
+                <option value="Nam">Nam</option>
+                <option value="Nữ">Nữ</option>
+            </select>
+            <input type="number" step="1" name="kcal_threshold" class="form-control" placeholder="e.g. 5000" required>
+            <input type="number" step="1000" name="reward_amount" class="form-control" placeholder="e.g. 50000" required>
+            <button type="button" class="remove-row-btn" onclick="removeMetsRow(this)"><i class="fa-solid fa-circle-minus"></i></button>
+        `;
+        container.appendChild(div);
+    }
+
+    function removeMetsRow(btn) {
+        btn.parentElement.remove();
+    }
+
+    // --- MANUAL SYNC OVER AJAX LOGIC ---
+    const btnSync = document.getElementById('btnManualSync');
+    if (btnSync) {
+        btnSync.addEventListener('click', function() {
+            btnSync.disabled = true;
+            btnSync.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang đồng bộ...';
+            
+            fetch('/admin/sync', {
+                method: 'POST'
+            })
+            .then(response => {
+                if (response.status === 401) {
+                    throw new Error('Chưa đăng nhập quyền Admin');
+                }
+                return response.json();
+            })
+            .then(data => {
+                btnSync.disabled = false;
+                btnSync.innerHTML = '<i class="fa-solid fa-cloud-arrow-down"></i> Đồng Bộ Thủ Công Ngay';
+                
+                if (data.status === 'success') {
+                    alert(`Đồng bộ thành công! Tìm thấy ${data.new_activities} hoạt động mới.`);
+                    window.location.reload(); // Tải lại trang để cập nhật giao diện
+                } else {
+                    alert(`Lỗi đồng bộ: ${data.error}`);
+                }
+            })
+            .catch(err => {
+                btnSync.disabled = false;
+                btnSync.innerHTML = '<i class="fa-solid fa-cloud-arrow-down"></i> Đồng Bộ Thủ Công Ngay';
+                alert(`Lỗi hệ thống: ${err.message}`);
+            });
+        });
+    }
+
+    // --- HISTORICAL DATA IMPORT AJAX LOGIC ---
+    const btnImport = document.getElementById('btnImportHistorical');
+    if (btnImport) {
+        btnImport.addEventListener('click', function() {
+            if (!confirm("Hệ thống sẽ quét 2 thư mục 'Tong ket nam 2025' và 'Tong ket nam 2026' để nạp dữ liệu. Quá trình này có thể mất vài chục giây. Bạn có muốn bắt đầu?")) {
+                return;
+            }
+            
+            btnImport.disabled = true;
+            btnImport.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang nạp dữ liệu Excel...';
+            
+            fetch('/admin/import-historical', {
+                method: 'POST'
+            })
+            .then(response => {
+                if (response.status === 401) {
+                    throw new Error('Chưa đăng nhập quyền Admin');
+                }
+                return response.json();
+            })
+            .then(data => {
+                btnImport.disabled = false;
+                btnImport.innerHTML = '<i class="fa-solid fa-file-import"></i> Bắt đầu Nạp Dữ Liệu Excel';
+                
+                if (data.status === 'success') {
+                    let msg = `Nạp dữ liệu lịch sử thành công!\n`;
+                    msg += `- Đã import mới: ${data.imported_count} hoạt động.\n`;
+                    msg += `- Bỏ qua (đã tồn tại): ${data.skipped_count} hoạt động.`;
+                    if (data.errors && data.errors.length > 0) {
+                        msg += `\n\nCó ${data.errors.length} cảnh báo lỗi khi đọc file, vui lòng kiểm tra logs server.`;
+                    }
+                    alert(msg);
+                    window.location.reload();
+                } else {
+                    alert(`Lỗi khi nạp dữ liệu: ${data.error}`);
+                }
+            })
+            .catch(err => {
+                btnImport.disabled = false;
+                btnImport.innerHTML = '<i class="fa-solid fa-file-import"></i> Bắt đầu Nạp Dữ Liệu Excel';
+                alert(`Lỗi hệ thống: ${err.message}`);
+            });
+        });
+    }
+
+    // --- DOWNLOAD EXCEL REPORT WITH DATE RANGE LOGIC ---
+    window.addEventListener('DOMContentLoaded', () => {
+        const startInput = document.getElementById('excel_start');
+        const endInput = document.getElementById('excel_end');
+        if (startInput && endInput) {
+            const today = new Date();
+            const lastWeek = new Date();
+            lastWeek.setDate(today.getDate() - 6);
+            
+            const formatDate = (date) => {
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            };
+            
+            startInput.value = formatDate(lastWeek);
+            endInput.value = formatDate(today);
+        }
+    });
+
+    function downloadExcelReport() {
+        const start = document.getElementById('excel_start').value;
+        const end = document.getElementById('excel_end').value;
+        if (!start || !end) {
+            alert("Vui lòng chọn đầy đủ ngày bắt đầu và ngày kết thúc!");
+            return;
+        }
+        window.location.href = `/admin/export-excel?start_date=${start}&end_date=${end}`;
+    }
+
+    // --- ADMIN ANALYTICS VISUALIZATION LOGIC ---
+    let adminKcalChartInstance = null;
+    let adminSportChartInstance = null;
+    
+    // Đọc dữ liệu từ backend (chỉ khi có stats_data)
+    const statsData = {{ stats_data | tojson | safe if stats_data else 'null' }};
+    
+    function initAdminCharts() {
+        if (!statsData) return;
+        
+        // 1. Biểu đồ Xu hướng Calo (Line Chart)
+        const kcalCtx = document.getElementById('adminKcalChart').getContext('2d');
+        const weeklyLabels = statsData.weekly.labels;
+        const weeklyKcal = statsData.weekly.kcal;
+        
+        adminKcalChartInstance = new Chart(kcalCtx, {
+            type: 'line',
+            data: {
+                labels: weeklyLabels,
+                datasets: [{
+                    label: 'Năng lượng (KCAL)',
+                    data: weeklyKcal,
+                    borderColor: '#8FCDF0',
+                    backgroundColor: 'rgba(143, 205, 240, 0.15)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.3,
+                    pointBackgroundColor: '#8FCDF0',
+                    pointBorderColor: 'rgba(255,255,255,0.8)',
+                    pointHoverRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return ` ${context.parsed.y.toLocaleString()} KCAL`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        grid: {
+                            color: 'rgba(255,255,255,0.05)'
+                        },
+                        ticks: {
+                            color: '#94B5DE',
+                            font: {
+                                family: 'Be Vietnam Pro'
+                            }
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
+                        },
+                        ticks: {
+                            color: '#94B5DE',
+                            font: {
+                                family: 'Be Vietnam Pro'
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        
+        // 2. Biểu đồ Phân bổ Bộ môn (Doughnut Chart)
+        const sportCtx = document.getElementById('adminSportChart').getContext('2d');
+        const sportLabels = statsData.sports.labels;
+        const sportKcal = statsData.sports.kcal;
+        
+        // Áp dụng bảng màu pastel nhận diện thương hiệu
+        const backgroundColors = [
+            'rgba(143, 205, 240, 0.85)', // Walk/Xanh pastel
+            'rgba(255, 94, 54, 0.85)',   // Run/Cam pastel (hoặc Hồng pastel '#F9BFBE')
+            'rgba(181, 84, 247, 0.85)',  // Ride/Tím pastel
+            'rgba(32, 201, 151, 0.85)',  // Swim/Xanh lục
+            'rgba(249, 191, 190, 0.85)', // Hồng pastel
+            'rgba(148, 181, 222, 0.85)'  // Xanh xám
+        ];
+        
+        adminSportChartInstance = new Chart(sportCtx, {
+            type: 'doughnut',
+            data: {
+                labels: sportLabels,
+                datasets: [{
+                    data: sportKcal,
+                    backgroundColor: backgroundColors.slice(0, sportLabels.length),
+                    borderWidth: 2,
+                    borderColor: 'rgba(9, 6, 21, 0.8)'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'right',
+                        labels: {
+                            color: '#e4e3e8',
+                            font: {
+                                family: 'Be Vietnam Pro',
+                                size: 11
+                            },
+                            padding: 15
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const val = context.raw;
+                                const pct = total > 0 ? ((val / total) * 100).toFixed(1) : 0;
+                                return ` ${context.label}: ${val.toLocaleString()} KCAL (${pct}%)`;
+                            }
+                        }
+                    }
+                },
+                cutout: '65%'
+            }
+        });
+    }
+    
+    // Hàm Toggle Tuần/Tháng
+    function toggleKcalTrend(type) {
+        if (!statsData || !adminKcalChartInstance) return;
+        
+        const btnWeek = document.getElementById('btnToggleWeek');
+        const btnMonth = document.getElementById('btnToggleMonth');
+        
+        if (type === 'week') {
+            btnWeek.classList.add('active');
+            btnWeek.style.background = 'var(--color-primary)';
+            btnWeek.style.color = '#fff';
+            
+            btnMonth.classList.remove('active');
+            btnMonth.style.background = 'transparent';
+            btnMonth.style.color = 'var(--text-muted)';
+            
+            // Cập nhật dữ liệu biểu đồ
+            adminKcalChartInstance.data.labels = statsData.weekly.labels;
+            adminKcalChartInstance.data.datasets[0].data = statsData.weekly.kcal;
+            adminKcalChartInstance.update();
+        } else {
+            btnMonth.classList.add('active');
+            btnMonth.style.background = 'var(--color-primary)';
+            btnMonth.style.color = '#fff';
+            
+            btnWeek.classList.remove('active');
+            btnWeek.style.background = 'transparent';
+            btnWeek.style.color = 'var(--text-muted)';
+            
+            // Cập nhật dữ liệu biểu đồ
+            adminKcalChartInstance.data.labels = statsData.monthly.labels;
+            adminKcalChartInstance.data.datasets[0].data = statsData.monthly.kcal;
+            adminKcalChartInstance.update();
+        }
+    }
+    
+    // Khởi tạo đồ thị
+    window.addEventListener('DOMContentLoaded', () => {
+        initAdminCharts();
+    });
+</script>
+{% endblock %}

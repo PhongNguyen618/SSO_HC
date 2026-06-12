@@ -1,0 +1,329 @@
+{% extends "base.html" %}
+
+{% block title %}Quy Chế Giải Đấu - SSO HC{% endblock %}
+
+{% block head %}
+<style>
+    .rules-section {
+        margin-bottom: 2.5rem;
+    }
+    .rules-title {
+        color: var(--color-primary);
+        font-family: 'Outfit', sans-serif;
+        font-size: 1.6rem;
+        margin-bottom: 1.2rem;
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        padding-bottom: 0.5rem;
+    }
+    .rules-list {
+        list-style-type: none;
+        padding-left: 0;
+    }
+    .rules-list li {
+        position: relative;
+        padding-left: 1.5rem;
+        margin-bottom: 0.8rem;
+        color: var(--text-main);
+    }
+    .rules-list li::before {
+        content: "\f058";
+        font-family: "Font Awesome 6 Free";
+        font-weight: 900;
+        position: absolute;
+        left: 0;
+        top: 2px;
+        color: var(--color-secondary);
+        font-size: 0.95rem;
+    }
+    .formula-card {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px dashed rgba(143, 205, 240, 0.3);
+        border-radius: 12px;
+        padding: 1.5rem;
+        text-align: center;
+        margin: 1.5rem 0;
+    }
+    .formula-text {
+        font-family: 'Outfit', sans-serif;
+        font-size: 1.4rem;
+        font-weight: 700;
+        background: var(--primary-gradient);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 0.5rem;
+    }
+    .badge-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 1.2rem;
+        margin-top: 1rem;
+    }
+    .cheat-rule-card {
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.2rem;
+        transition: transform 0.2s;
+    }
+    .cheat-rule-card:hover {
+        transform: translateY(-3px);
+        background: rgba(255, 255, 255, 0.04);
+    }
+    .cheat-rule-header {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        margin-bottom: 0.8rem;
+        font-weight: 600;
+        font-size: 1.1rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="glass-card" style="margin-bottom: 3rem; text-align: center; padding: 3rem 2rem;">
+    <h1 style="font-family: 'Outfit', sans-serif; font-size: 2.5rem; margin-bottom: 0.8rem; background: var(--primary-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+        {{ configs.rules_title }}
+    </h1>
+    <p style="color: var(--text-muted); max-width: 800px; margin: 0 auto; font-size: 1.1rem; white-space: pre-line;">
+        {{ configs.rules_description }}
+    </p>
+</div>
+
+<div class="glass-card">
+    <!-- Section 1: Quy định chung -->
+    <div class="rules-section">
+        <h2 class="rules-title">
+            <i class="fa-solid fa-circle-info"></i> Quy Định Chung
+        </h2>
+        <div style="white-space: pre-line; line-height: 1.8; font-size: 0.95rem; color: var(--text-main); padding-left: 0.5rem;">
+            {{ configs.rules_general_text }}
+        </div>
+    </div>
+
+    <!-- Section 2: Cách tính điểm -->
+    <div class="rules-section">
+        <h2 class="rules-title">
+            <i class="fa-solid fa-calculator"></i> Phương Pháp Tính Điểm (KCAL)
+        </h2>
+        <p>Để đảm bảo tính công bằng giữa các bộ môn, bảng xếp hạng sẽ được tính dựa trên lượng năng lượng tiêu thụ (KCAL) quy đổi. Công thức tính như sau:</p>
+        
+        <div class="formula-card">
+            <div class="formula-text">KCAL = METs &times; Cân nặng (kg) &times; Thời gian hoạt động (giờ)</div>
+            <div style="color: var(--text-muted); font-size: 0.9rem;">
+                * Cân nặng được lấy theo thông tin VĐV đăng ký. Thời gian hoạt động được lấy theo <em>moving_time</em> (thời gian di chuyển thực tế) từ Strava.
+            </div>
+        </div>
+
+        <p style="margin-bottom: 1rem;">Hệ số <strong>METs</strong> (Metabolic Equivalent of Task - Đương lượng chuyển hóa) được tính tự động dựa trên tốc độ trung bình của hoạt động:</p>
+        
+        <div class="table-responsive">
+            <table class="custom-table" style="font-size: 0.95rem;">
+                <thead>
+                    <tr>
+                        <th>Môn Thể Thao</th>
+                        <th>Khoảng Tốc Độ Hợp Lệ</th>
+                        <th style="text-align: center;">Hệ số METs</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for m in mets %}
+                    <tr>
+                        <td style="font-weight: 600;">
+                            {% if m.sport_type == 'Run' %}
+                                <i class="fa-solid fa-person-running" style="color: var(--color-orange);"></i> Chạy bộ (Run)
+                            {% elif m.sport_type == 'Walk' %}
+                                <i class="fa-solid fa-person-walking" style="color: var(--color-primary);"></i> Đi bộ (Walk)
+                            {% elif m.sport_type == 'Ride' %}
+                                <i class="fa-solid fa-bicycle" style="color: var(--color-purple);"></i> Đạp xe (Ride)
+                            {% elif m.sport_type == 'Swim' %}
+                                <i class="fa-solid fa-person-swimming" style="color: var(--color-green);"></i> Bơi lội (Swim)
+                            {% else %}
+                                <i class="fa-solid fa-heartbeat" style="color: var(--text-muted);"></i> {{ m.sport_type }}
+                            {% endif %}
+                        </td>
+                        <td>{{ m.min_speed }} km/h &rarr; {{ m.max_speed }} km/h</td>
+                        <td style="text-align: center; font-weight: 700; color: var(--color-primary);">{{ m.met_value }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="3" style="text-align: center; color: var(--text-muted);">Chưa có quy tắc METs nào trong hệ thống.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Section 3: Cơ cấu giải thưởng -->
+    <div class="rules-section" style="margin-top: 2rem;">
+        <h2 class="rules-title">
+            <i class="fa-solid fa-gift"></i> Cơ Cấu Giải Thưởng Tích Lũy
+        </h2>
+        <p style="margin-bottom: 1.2rem;">Khi tích lũy đủ lượng Calo tiêu thụ trong thời gian diễn ra giải đấu, vận động viên sẽ nhận được phần thưởng tương ứng với các mốc:</p>
+        
+        <div class="badge-grid">
+            <!-- Cột Nam -->
+            <div class="glass-card" style="margin-bottom: 0; background: rgba(143, 205, 240, 0.05); border: 1px solid rgba(143, 205, 240, 0.15);">
+                <h3 style="color: var(--color-primary); margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; justify-content: center;">
+                    <i class="fa-solid fa-mars"></i> Dành Cho Nam
+                </h3>
+                <div class="table-responsive">
+                    <table class="custom-table" style="background: none; font-size: 0.9rem;">
+                        <thead>
+                            <tr>
+                                <th>Mốc Tích Lũy</th>
+                                <th style="text-align: right;">Mức Thưởng</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for r in rewards if r.gender == 'Nam' %}
+                            <tr>
+                                <td style="font-weight: 600;">{{ "{:,}".format(r.kcal_threshold | int).replace(",", ".") }} KCAL</td>
+                                <td style="text-align: right; color: var(--color-orange); font-weight: 700;">{{ r.reward_amount | currency }}</td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="2" style="text-align: center; color: var(--text-muted);">Không có mốc giải thưởng nào.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Cột Nữ -->
+            <div class="glass-card" style="margin-bottom: 0; background: rgba(249, 191, 190, 0.05); border: 1px solid rgba(249, 191, 190, 0.15);">
+                <h3 style="color: var(--color-secondary); margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; justify-content: center;">
+                    <i class="fa-solid fa-venus"></i> Dành Cho Nữ
+                </h3>
+                <div class="table-responsive">
+                    <table class="custom-table" style="background: none; font-size: 0.9rem;">
+                        <thead>
+                            <tr>
+                                <th>Mốc Tích Lũy</th>
+                                <th style="text-align: right;">Mức Thưởng</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for r in rewards if r.gender == 'Nữ' %}
+                            <tr>
+                                <td style="font-weight: 600;">{{ "{:,}".format(r.kcal_threshold | int).replace(",", ".") }} KCAL</td>
+                                <td style="text-align: right; color: var(--color-orange); font-weight: 700;">{{ r.reward_amount | currency }}</td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="2" style="text-align: center; color: var(--text-muted);">Không có mốc giải thưởng nào.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 4: Chống gian lận -->
+    <div class="rules-section" style="margin-top: 2rem;">
+        <h2 class="rules-title">
+            <i class="fa-solid fa-shield-halved"></i> Quy Tắc Phát Hiện Gian Lận Động
+        </h2>
+        <p style="margin-bottom: 1.2rem;">Hệ thống áp dụng thuật toán kiểm tra tự động các hoạt động ngay sau khi đồng bộ. Một hoạt động sẽ bị <strong>gắn cờ nghi ngờ (Suspicious)</strong> và không được tính điểm nếu vi phạm một trong các ngưỡng sau:</p>
+        
+        <div class="badge-grid">
+            <!-- Chạy bộ -->
+            <div class="cheat-rule-card">
+                <div class="cheat-rule-header" style="color: var(--color-orange);">
+                    <i class="fa-solid fa-person-running"></i> Chạy Bộ (Run)
+                </div>
+                <ul style="list-style: none; padding-left: 0; font-size: 0.9rem; color: var(--text-muted);">
+                    <li style="margin-bottom: 0.4rem;">
+                        <span style="color: var(--text-main);">Tốc độ tối đa:</span> {{ configs.get('rule_run_pace_min', '2.5') }} phút/km
+                        <small style="display: block; font-size: 0.75rem;">(Nếu chạy nhanh hơn mức này sẽ bị cảnh báo)</small>
+                    </li>
+                    <li style="margin-bottom: 0.4rem;">
+                        <span style="color: var(--text-main);">Tốc độ tối thiểu:</span> {{ configs.get('rule_run_pace_max', '12.0') }} phút/km
+                    </li>
+                    <li>
+                        <span style="color: var(--text-main);">Tỷ lệ độ dốc tối đa:</span> {{ configs.get('rule_run_elev_ratio', '300') }} m/km
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Đi bộ -->
+            <div class="cheat-rule-card">
+                <div class="cheat-rule-header" style="color: var(--color-primary);">
+                    <i class="fa-solid fa-person-walking"></i> Đi Bộ (Walk)
+                </div>
+                <ul style="list-style: none; padding-left: 0; font-size: 0.9rem; color: var(--text-muted);">
+                    <li style="margin-bottom: 0.4rem;">
+                        <span style="color: var(--text-main);">Tốc độ tối đa:</span> {{ configs.get('rule_walk_pace_min', '6.0') }} phút/km
+                    </li>
+                    <li style="margin-bottom: 0.4rem;">
+                        <span style="color: var(--text-main);">Tốc độ tối thiểu:</span> {{ configs.get('rule_walk_pace_max', '20.0') }} phút/km
+                    </li>
+                    <li>
+                        <span style="color: var(--text-main);">Tỷ lệ độ dốc tối đa:</span> {{ configs.get('rule_walk_elev_ratio', '400') }} m/km
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Đạp xe -->
+            <div class="cheat-rule-card">
+                <div class="cheat-rule-header" style="color: var(--color-purple);">
+                    <i class="fa-solid fa-bicycle"></i> Đạp Xe (Ride)
+                </div>
+                <ul style="list-style: none; padding-left: 0; font-size: 0.9rem; color: var(--text-muted);">
+                    <li style="margin-bottom: 0.4rem;">
+                        <span style="color: var(--text-main);">Tốc độ tối đa:</span> {{ configs.get('rule_ride_pace_min', '1.0') }} phút/km
+                    </li>
+                    <li style="margin-bottom: 0.4rem;">
+                        <span style="color: var(--text-main);">Tốc độ tối thiểu:</span> {{ configs.get('rule_ride_pace_max', '6.0') }} phút/km
+                    </li>
+                    <li>
+                        <span style="color: var(--text-main);">Tỷ lệ độ dốc tối đa:</span> {{ configs.get('rule_ride_elev_ratio', '250') }} m/km
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Bơi lội -->
+            <div class="cheat-rule-card">
+                <div class="cheat-rule-header" style="color: var(--color-green);">
+                    <i class="fa-solid fa-person-swimming"></i> Bơi Lội (Swim)
+                </div>
+                <ul style="list-style: none; padding-left: 0; font-size: 0.9rem; color: var(--text-muted);">
+                    <li style="margin-bottom: 0.4rem;">
+                        <span style="color: var(--text-main);">Pace tối đa:</span> {{ configs.get('rule_swim_pace_100m_min', '0.75') }} phút/100m
+                    </li>
+                    <li style="margin-bottom: 0.4rem;">
+                        <span style="color: var(--text-main);">Pace tối thiểu:</span> {{ configs.get('rule_swim_pace_100m_max', '4.0') }} phút/100m
+                    </li>
+                    <li>
+                        <span style="color: var(--text-main);">Độ cao chênh lệch tối đa:</span> {{ configs.get('rule_swim_elev_max', '10') }} m
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <div style="margin-top: 1.5rem; padding: 1rem; border-radius: 8px; background: rgba(244, 142, 145, 0.08); border-left: 4px solid var(--color-orange); font-size: 0.9rem; margin-bottom: 2rem;">
+            <strong>Lưu ý đối với VĐV:</strong> Khi phát hiện hoạt động bị gắn cờ sai sót do lỗi GPS của thiết bị, vui lòng liên hệ Admin để được hỗ trợ kiểm tra và gỡ cờ thủ công trong cơ sở dữ liệu.
+        </div>
+
+        <!-- CTA Đăng Ký Tham Gia -->
+        <div style="text-align: center; margin-top: 3rem; padding-top: 2rem; border-top: 1px solid rgba(255, 255, 255, 0.08);">
+            <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.3rem; margin-bottom: 0.8rem; color: var(--text-main);">
+                Bạn đã sẵn sàng chinh phục các mốc giải thưởng?
+            </h3>
+            <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.5rem; max-width: 600px; margin-left: auto; margin-right: auto;">
+                Hãy đăng ký liên kết tài khoản Strava ngay hôm nay để hệ thống bắt đầu tự động ghi nhận và quy đổi calo thành tích của bạn trên Bảng xếp hạng.
+            </p>
+            <a href="/register" class="btn btn-primary" style="padding: 1rem 2.5rem; font-size: 1.1rem; border-radius: 12px; box-shadow: 0 10px 20px rgba(0, 242, 254, 0.25);">
+                <i class="fa-solid fa-user-plus" style="font-size: 1.1rem;"></i> ĐĂNG KÝ THAM GIA GIẢI CHẠY NGAY
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

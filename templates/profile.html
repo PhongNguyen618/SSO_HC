@@ -1,0 +1,331 @@
+{% extends "base.html" %}
+
+{% block title %}Thành tích cá nhân - {{ athlete.full_name }}{% endblock %}
+
+{% block head %}
+<!-- Chart.js CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block content %}
+<!-- Back button -->
+<a href="/" class="btn btn-secondary btn-sm" style="margin-bottom: 1.5rem;">
+    <i class="fa-solid fa-arrow-left"></i> Quay lại Bảng xếp hạng
+</a>
+
+<!-- Profile Header -->
+<div class="profile-header">
+    <div class="profile-avatar">
+        {{ athlete.full_name[:1] }}
+    </div>
+    <div class="profile-meta">
+        <h2>{{ athlete.full_name }}</h2>
+        <div class="meta-sub">
+            <span><i class="fa-solid fa-building"></i> {{ athlete.department }}</span>
+            <span>
+                <i class="fa-solid {% if athlete.gender == 'Nam' %}fa-mars{% else %}fa-venus{% endif %}"></i> 
+                {{ athlete.gender }}
+            </span>
+            <span><i class="fa-solid fa-weight-scale"></i> {{ athlete.weight }} kg</span>
+            <span><i class="fa-brands fa-strava" style="color: #ff5e36;"></i> @{{ athlete.strava_name }}</span>
+        </div>
+    </div>
+</div>
+
+<!-- Award Status Card -->
+<div class="award-progress-card">
+    <h3 style="font-family: 'Outfit', sans-serif; display: flex; align-items: center; justify-content: space-between;">
+        <span><i class="fa-solid fa-gift" style="color: var(--color-gold);"></i> Trạng Thái Giải Thưởng</span>
+        {% if award_info.has_award %}
+        <span style="color: var(--color-gold); font-weight: 800; font-size: 1.3rem;">
+            ĐÃ ĐẠT GIẢI: {{ award_info.reward_amount | currency }}
+        </span>
+        {% else %}
+        <span style="color: var(--text-muted); font-size: 1rem;">Chưa đạt mốc giải thưởng</span>
+        {% endif %}
+    </h3>
+
+    {% if award_info.has_award %}
+    <div style="background: rgba(245, 175, 25, 0.05); border: 1px dashed rgba(245, 175, 25, 0.4); border-radius: 8px; padding: 1rem; margin-top: 1rem; color: #fccb90; display: flex; align-items: center; gap: 0.8rem;">
+        <i class="fa-solid fa-circle-check" style="font-size: 1.5rem;"></i>
+        <div>
+            <strong>Xin chúc mừng!</strong> Bạn đã hoàn thành xuất sắc thử thách tập luyện và giành giải thưởng trị giá <strong>{{ award_info.reward_amount | currency }}</strong>. Hãy tiếp tục duy trì thói quen rèn luyện nhé!
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="progress-bar-bg">
+        <div id="awardProgressBar" class="progress-bar-fill" style="width: 0%;"></div>
+    </div>
+
+    <div style="display: flex; justify-content: space-between; font-size: 0.9rem; color: var(--text-muted);">
+        <span>0 KCAL</span>
+        {% if award_info.next_threshold > 0 %}
+        <span>Mốc tiếp theo: <strong>{{ "{:,}".format(award_info.next_threshold).replace(",", ".") }} KCAL</strong> (Cần thêm {{ "{:,}".format(award_info.next_threshold - total_kcal).replace(",", ".") }} KCAL)</span>
+        {% else %}
+        <span>Bạn đã xuất sắc vượt mốc giải thưởng cao nhất!</span>
+        {% endif %}
+    </div>
+</div>
+
+<!-- KPI Metrics Grid -->
+<div class="kpi-grid">
+    <div class="kpi-card">
+        <div class="kpi-icon kcal">
+            <i class="fa-solid fa-fire"></i>
+        </div>
+        <div class="kpi-info">
+            <div class="kpi-val">{{ "{:,}".format(total_kcal).replace(",", ".") }}</div>
+            <div class="kpi-label">Tổng KCAL Tích Lũy</div>
+        </div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-icon dist">
+            <i class="fa-solid fa-road"></i>
+        </div>
+        <div class="kpi-info">
+            <div class="kpi-val">{{ total_dist }} km</div>
+            <div class="kpi-label">Tổng Quãng Đường</div>
+        </div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-icon members">
+            <i class="fa-solid fa-clock"></i>
+        </div>
+        <div class="kpi-info">
+            <div class="kpi-val">{{ total_time }} giờ</div>
+            <div class="kpi-label">Thời Gian Tập Luyện</div>
+        </div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-icon streak">
+            <i class="fa-solid fa-calendar-check"></i>
+        </div>
+        <div class="kpi-info">
+            <div class="kpi-val">{{ max_streak }} ngày</div>
+            <div class="kpi-label">Chuỗi Ngày Liên Tục Max</div>
+        </div>
+    </div>
+</div>
+
+<!-- Badges Section -->
+<div class="glass-card" style="margin-bottom: 2rem;">
+    <h3 class="card-title" style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.6rem; border-bottom: 1px solid rgba(255, 255, 255, 0.1); padding-bottom: 0.5rem; font-family: 'Outfit', sans-serif;">
+        <i class="fa-solid fa-medal" style="color: var(--color-gold);"></i> Huy Hiệu Thành Tích Cá Nhân
+    </h3>
+    <div class="badges-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.2rem; margin-top: 1rem;">
+        {% for badge in badges %}
+        <div class="badge-item {% if not badge.achieved %}locked{% endif %}" style="padding: 1.2rem; border-radius: 12px; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); display: flex; flex-direction: column; align-items: center; text-align: center; gap: 0.5rem; transition: all 0.3s ease; position: relative;">
+            <div class="badge-icon" style="font-size: 2.8rem; color: {{ badge.color }}; filter: {% if badge.achieved %}none{% else %}grayscale(1) opacity(0.2){% endif %}; margin-bottom: 0.3rem;">
+                <i class="fa-solid {{ badge.icon }}"></i>
+            </div>
+            <div style="font-weight: 700; font-family: 'Outfit', sans-serif; font-size: 1rem; color: {% if badge.achieved %}var(--text-main){% else %}var(--text-muted){% endif %};">
+                {{ badge.name }}
+            </div>
+            <div style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.4; flex: 1;">
+                {{ badge.description }}
+            </div>
+            {% if badge.achieved %}
+            <span style="font-size: 0.75rem; color: var(--color-green); font-weight: 600; background: rgba(60, 186, 146, 0.1); padding: 0.2rem 0.6rem; border-radius: 20px; border: 1px solid rgba(60, 186, 146, 0.2); display: inline-flex; align-items: center; gap: 0.3rem;">
+                <i class="fa-solid fa-circle-check"></i> Đạt: {{ badge.achieved_date }}
+            </span>
+            {% else %}
+            <span style="font-size: 0.75rem; color: var(--text-muted); background: rgba(255, 255, 255, 0.04); padding: 0.2rem 0.6rem; border-radius: 20px; border: 1px solid rgba(255, 255, 255, 0.05); display: inline-flex; align-items: center; gap: 0.3rem;">
+                <i class="fa-solid fa-lock" style="font-size: 0.7rem;"></i> Chưa đạt
+            </span>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Interactive Chart Grid -->
+<div class="chart-grid">
+    <!-- Line Chart (KCAL Trend) -->
+    <div class="chart-card">
+        <h4 style="margin-bottom: 1rem; font-family: 'Outfit', sans-serif;"><i class="fa-solid fa-chart-line" style="color: var(--color-primary);"></i> Biểu đồ tiêu thụ năng lượng theo ngày (KCAL)</h4>
+        <canvas id="kcalChart" style="max-height: 250px; width: 100%;"></canvas>
+    </div>
+    <!-- Doughnut Chart (Sport Types) -->
+    <div class="chart-card">
+        <h4 style="margin-bottom: 1rem; font-family: 'Outfit', sans-serif;"><i class="fa-solid fa-chart-pie" style="color: var(--color-purple);"></i> Phân bổ quãng đường (km)</h4>
+        <canvas id="sportChart" style="max-height: 250px; width: 100%;"></canvas>
+    </div>
+</div>
+
+<!-- Detailed Activities Table -->
+<div class="glass-card">
+    <h3 class="card-title">
+        <i class="fa-solid fa-list-check"></i> Nhật Ký Hoạt Động Thể Thao
+    </h3>
+    <div class="table-responsive">
+        <table class="custom-table" style="font-size: 0.9rem;">
+            <thead>
+                <tr>
+                    <th>Ngày đồng bộ</th>
+                    <th>Tên Hoạt động</th>
+                    <th>Bộ môn</th>
+                    <th style="text-align: right;">Quãng đường</th>
+                    <th style="text-align: right;">Thời gian</th>
+                    <th style="text-align: right;">Pace</th>
+                    <th style="text-align: right;">Độ dốc (Elev)</th>
+                    <th style="text-align: right;">KCAL quy đổi</th>
+                    <th style="text-align: center;">Trạng thái</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for act in activities %}
+                <tr {% if act.is_suspicious %}style="background: rgba(255, 94, 54, 0.03);"{% endif %}>
+                    <td style="color: var(--text-muted);">{{ act.activity_date }}</td>
+                    <td style="font-weight: 500;">{{ act.name }}</td>
+                    <td>
+                        <span class="gender-badge male" style="background: rgba(255,255,255,0.05); color: var(--text-main); border: 1px solid var(--border-color);">
+                            {{ act.sport_type }}
+                        </span>
+                    </td>
+                    <td style="text-align: right; font-weight: 600;">{{ act.distance_km }} km</td>
+                    <td style="text-align: right; color: var(--text-muted);">{{ act.moving_time_min }} phút</td>
+                    <td style="text-align: right; font-family: monospace;">{{ act.pace_min_km }} min/km</td>
+                    <td style="text-align: right; color: var(--text-muted);">{{ act.elevation_gain_m }} m</td>
+                    <td style="text-align: right; color: var(--color-orange); font-weight: 700;">
+                        {% if act.is_suspicious %}
+                        <span style="text-decoration: line-through; opacity: 0.5;">{{ "{:,}".format(act.kcal_burned).replace(",", ".") }}</span>
+                        {% else %}
+                        {{ "{:,}".format(act.kcal_burned).replace(",", ".") }}
+                        {% endif %}
+                    </td>
+                    <td style="text-align: center;">
+                        {% if act.is_suspicious %}
+                        <span class="warning-tag" title="{{ act.suspicion_reason }}">
+                            <i class="fa-solid fa-triangle-exclamation"></i> Nghi vấn: {{ act.suspicion_reason }}
+                        </span>
+                        {% else %}
+                        <span class="gender-badge female" style="background: rgba(60, 186, 146, 0.1); color: var(--color-green);">
+                            <i class="fa-solid fa-circle-check"></i> Hợp lệ
+                        </span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="9" style="text-align: center; color: var(--text-muted); padding: 3rem 0;">
+                        Vận động viên này chưa đồng bộ hoạt động nào.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Set progress bar width on load
+    window.addEventListener('DOMContentLoaded', () => {
+        setTimeout(() => {
+            document.getElementById('awardProgressBar').style.width = '{{ progress_percent }}%';
+        }, 100);
+    });
+
+    // --- CHART.JS VISUALIZATION LOGIC ---
+
+    // 1. Line Chart: KCAL Trend
+    const kcalCtx = document.getElementById('kcalChart').getContext('2d');
+    const kcalDates = {{ chart_dates | tojson }};
+    const kcalValues = {{ chart_kcal | tojson }};
+
+    new Chart(kcalCtx, {
+        type: 'line',
+        data: {
+            labels: kcalDates,
+            datasets: [{
+                label: 'Năng lượng tiêu thụ (KCAL)',
+                data: kcalValues,
+                borderColor: '#8FCDF0',
+                backgroundColor: 'rgba(143, 205, 240, 0.15)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.3,
+                pointBackgroundColor: '#F9BFBE',
+                pointHoverRadius: 6
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                x: {
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.05)'
+                    },
+                    ticks: {
+                        color: '#9f9cb2'
+                    }
+                },
+                y: {
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.05)'
+                    },
+                    ticks: {
+                        color: '#9f9cb2'
+                    }
+                }
+            }
+        }
+    });
+
+    // 2. Doughnut Chart: Sport Type Distribution
+    const sportCtx = document.getElementById('sportChart').getContext('2d');
+    const sportLabels = {{ chart_sports | tojson }};
+    const sportDists = {{ chart_sport_dists | tojson }};
+
+    if (sportLabels.length > 0) {
+        new Chart(sportCtx, {
+            type: 'doughnut',
+            data: {
+                labels: sportLabels,
+                datasets: [{
+                    data: sportDists,
+                    backgroundColor: [
+                        '#8FCDF0',
+                        '#F9BFBE',
+                        '#94B5DE',
+                        '#B8E4FA',
+                        '#F48E91',
+                        '#FCE7E5'
+                    ],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'right',
+                        labels: {
+                            color: '#9f9cb2',
+                            boxWidth: 12,
+                            padding: 15,
+                            font: {
+                                size: 11
+                            }
+                        }
+                    }
+                }
+            });
+    } else {
+        // Draw empty indicator text inside canvas area
+        sportCtx.font = "14px Inter";
+        sportCtx.fillStyle = "#9f9cb2";
+        sportCtx.textAlign = "center";
+        sportCtx.fillText("Không có dữ liệu quãng đường", 150, 125);
+    }
+</script>
+{% endblock %}

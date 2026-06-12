@@ -1,0 +1,161 @@
+{% set configs = get_configs() %}
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Thành tích Strava SSO_HC{% endblock %}</title>
+    <!-- Google Fonts Outfit & Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/static/css/style.css">
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <!-- Background Elements for Visual Richness -->
+    <div class="bg-blur bg-blur-1"></div>
+    <div class="bg-blur bg-blur-2"></div>
+    <div class="bg-blur bg-blur-3"></div>
+
+    <!-- Navigation Header -->
+    <header class="navbar">
+        <div class="navbar-container">
+            <a href="/" class="navbar-logo">
+                <img src="/branding/LOGO_A2.png" alt="NSMO Logo" class="logo-image">
+                <span class="logo-text">SSO <span class="logo-highlight">HC</span></span>
+            </a>
+            
+            <nav class="navbar-links">
+                <a href="/" class="nav-link {% if request.url.path == '/' %}active{% endif %}">
+                    <i class="fa-solid fa-trophy"></i> Bảng Xếp Hạng
+                </a>
+                <a href="/rules" class="nav-link {% if request.url.path == '/rules' %}active{% endif %}">
+                    <i class="fa-solid fa-book"></i> Quy Chế
+                </a>
+                <a href="/register" class="nav-link {% if request.url.path == '/register' %}active{% endif %}">
+                    <i class="fa-solid fa-user-plus"></i> Đăng Ký
+                </a>
+                <a href="/admin" class="nav-link {% if request.url.path == '/admin' %}active{% endif %}">
+                    <i class="fa-solid fa-lock"></i> Admin
+                </a>
+            </nav>
+            
+            <!-- Mobile Menu Toggle Button -->
+            <button class="mobile-menu-toggle" id="mobileMenuBtn">
+                <i class="fa-solid fa-bars"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="main-content">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-container">
+            <p>&copy; 2026 SSO HC. Phát triển trên nền tảng FastAPI & Strava API.</p>
+            <div class="footer-socials">
+                <a href="https://www.strava.com" target="_blank" class="social-link"><i class="fa-brands fa-strava"></i></a>
+                <a href="#" class="social-link"><i class="fa-solid fa-envelope"></i></a>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Welcome Banner / Rules Modal -->
+    <div id="rulesWelcomeModal" class="rules-modal-overlay">
+        <div class="rules-modal-content">
+            <div class="rules-modal-header">
+                <h2>{{ configs.rules_title }}</h2>
+                <button class="rules-modal-close" onclick="closeRulesModal()">&times;</button>
+            </div>
+            <div class="rules-modal-body">
+                {% if configs.rules_banner_image %}
+                <div style="margin: -1.8rem -1.8rem 1.5rem -1.8rem; overflow: hidden; border-bottom: 1px solid rgba(255, 255, 255, 0.08);">
+                    <img src="{{ configs.rules_banner_image }}" alt="Giải chạy Banner" style="width: 100%; height: auto; max-height: 200px; object-fit: cover;">
+                </div>
+                {% else %}
+                <div style="text-align: center; margin-bottom: 1.5rem;">
+                    <img src="/branding/LOGO_A2.png" alt="NSMO Logo" style="height: 60px; margin-bottom: 10px;">
+                    <p style="color: var(--color-primary); font-weight: 600; font-size: 1.1rem; font-family: 'Outfit', sans-serif;">THỂ LỆ GIẢI ĐẤU</p>
+                </div>
+                {% endif %}
+                
+                <div style="white-space: pre-line; margin-bottom: 1.2rem; color: var(--text-main); font-size: 0.95rem; line-height: 1.6;">
+                    {{ configs.rules_banner_text }}
+                </div>
+                
+                <div style="text-align: center; margin-top: 1.2rem; margin-bottom: 0.5rem;">
+                    <a href="/rules" class="btn btn-secondary btn-sm" style="display: inline-block; text-decoration: none; padding: 0.4rem 1rem; font-size: 0.85rem;" onclick="closeRulesModal()">
+                        <i class="fa-solid fa-book-open"></i> Xem quy chế đầy đủ &raquo;
+                    </a>
+                </div>
+            </div>
+            <div class="rules-modal-footer" style="display: flex; gap: 1rem;">
+                <button class="btn btn-secondary" onclick="acceptRules()" style="flex: 1; padding: 0.8rem; font-weight: 600; border-radius: 10px; margin: 0;">
+                    <i class="fa-solid fa-check"></i> Đã Đọc & Đồng Ý
+                </button>
+                <a href="/register" class="btn btn-primary" onclick="acceptRules()" style="flex: 1; padding: 0.8rem; font-weight: 600; border-radius: 10px; text-decoration: none; text-align: center; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;">
+                    <i class="fa-solid fa-user-plus"></i> Đăng Ký Ngay
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Global Mobile Nav Toggle Script -->
+    <script>
+        document.getElementById('mobileMenuBtn').addEventListener('click', function() {
+            const navLinks = document.querySelector('.navbar-links');
+            navLinks.classList.toggle('show');
+            const icon = this.querySelector('i');
+            if (navLinks.classList.contains('show')) {
+                icon.className = 'fa-solid fa-xmark';
+            } else {
+                icon.className = 'fa-solid fa-bars';
+            }
+        });
+    </script>
+    
+    <!-- Welcome Rules Modal Script -->
+    <script>
+        function showRulesModal() {
+            const modal = document.getElementById('rulesWelcomeModal');
+            if (modal) {
+                modal.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            }
+        }
+
+        function closeRulesModal() {
+            const modal = document.getElementById('rulesWelcomeModal');
+            if (modal) {
+                modal.classList.remove('active');
+                document.body.style.overflow = '';
+            }
+        }
+
+        function acceptRules() {
+            localStorage.setItem('rules_accepted_' + '{{ configs.rules_version }}', 'true');
+            closeRulesModal();
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const isRulesPage = window.location.pathname === '/rules';
+            const isAdminPage = window.location.pathname.startsWith('/admin');
+            
+            if (!isRulesPage && !isAdminPage) {
+                const isAccepted = localStorage.getItem('rules_accepted_' + '{{ configs.rules_version }}');
+                if (!isAccepted) {
+                    setTimeout(showRulesModal, 1200);
+                }
+            }
+        });
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

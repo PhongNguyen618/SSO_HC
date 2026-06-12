@@ -1,0 +1,23 @@
+# Virtual environment
+.venv/
+venv/
+ENV/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Local Database
+SSO_HC.db
+
+# Sensitive Configs
+.env
+
+# Temp files / Logs
+*.log
+excel_info.txt
+docx_content.txt
+.system_generated/
+old_and_backup/
