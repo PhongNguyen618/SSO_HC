@@ -251,6 +251,7 @@ async def import_excel_files(files: list[UploadFile], db: Session) -> dict:
     # Cache danh sách vận động viên để tối ưu hóa truy vấn tốc độ cao
     athletes = db.query(Athlete).all()
     athlete_map = {a.strava_name.strip().lower(): a for a in athletes}
+    seen_ids = set()
     
     for file in files:
         if not file.filename.endswith(".xlsx"):
@@ -333,10 +334,17 @@ async def import_excel_files(files: list[UploadFile], db: Session) -> dict:
                 composite_key = f"{name_raw}_{act_name}_{activity_date}_{dist_km}_{mov_time}"
                 activity_id = hashlib.sha256(composite_key.encode('utf-8')).hexdigest()
                 
-                exists = db.query(Activity).filter(Activity.id == activity_id).first()
-                if exists:
+                if activity_id in seen_ids:
                     skipped_count += 1
                     continue
+                    
+                exists = db.query(Activity).filter(Activity.id == activity_id).first()
+                if exists:
+                    seen_ids.add(activity_id)
+                    skipped_count += 1
+                    continue
+                    
+                seen_ids.add(activity_id)
                     
                 ath = athlete_map.get(name_raw.lower())
                 athlete_id = ath.id if ath else None
