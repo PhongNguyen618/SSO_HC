@@ -770,6 +770,8 @@ async def update_configs(
     rules_general_text: str = Form(...),
     banner_file: UploadFile = File(None),
     group_qr_file: UploadFile = File(None),
+    rules_banner_mode: str = Form("version"),
+    rules_banner_reset_days: str = Form("1"),
     # Quy tắc chống gian lận
     rule_run_pace_min: str = Form(...),
     rule_run_pace_max: str = Form(...),
@@ -804,6 +806,8 @@ async def update_configs(
         update_config(db, "rules_description", rules_description.strip())
         update_config(db, "rules_banner_text", rules_banner_text.strip())
         update_config(db, "rules_general_text", rules_general_text.strip())
+        update_config(db, "rules_banner_mode", rules_banner_mode.strip())
+        update_config(db, "rules_banner_reset_days", rules_banner_reset_days.strip())
         
         # Xử lý upload ảnh banner tùy chỉnh
         if banner_file and banner_file.filename:

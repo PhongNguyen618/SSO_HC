@@ -238,6 +238,34 @@
                             <textarea id="rules_banner_text" name="rules_banner_text" class="form-control" style="min-height: 120px; font-family: inherit; font-size: 0.9rem; line-height: 1.5;" required>{{ configs.rules_banner_text }}</textarea>
                             <small style="color: var(--text-muted); font-size: 0.8rem; display: block; margin-top: 0.2rem;">Tóm tắt ngắn gọn các điểm chính để hiển thị trên popup chào mừng.</small>
                         </div>
+                        
+                        <div class="form-row" style="margin-top: 1.5rem;">
+                            <div class="form-group" style="flex: 2;">
+                                <label for="rules_banner_mode">Chế độ hiển thị popup Chào mừng (Welcome Banner)</label>
+                                <select id="rules_banner_mode" name="rules_banner_mode" class="form-control" onchange="toggleBannerDaysRow()" required>
+                                    <option value="version" {% if configs.rules_banner_mode == 'version' %}selected{% endif %}>Chỉ hiển thị 1 lần theo phiên bản Quy chế mới</option>
+                                    <option value="always" {% if configs.rules_banner_mode == 'always' %}selected{% endif %}>Luôn luôn hiển thị mỗi khi tải trang chủ</option>
+                                    <option value="days" {% if configs.rules_banner_mode == 'days' %}selected{% endif %}>Tự động hiển thị lại sau một số ngày</option>
+                                </select>
+                            </div>
+                            <div class="form-group" id="banner_reset_days_group" style="flex: 1; {% if configs.rules_banner_mode != 'days' %}display: none;{% endif %}">
+                                <label for="rules_banner_reset_days">Số ngày chờ hiển thị lại (ngày)</label>
+                                <input type="number" id="rules_banner_reset_days" name="rules_banner_reset_days" class="form-control" min="1" max="365" value="{{ configs.rules_banner_reset_days or '1' }}" required>
+                            </div>
+                        </div>
+
+                        <script>
+                            function toggleBannerDaysRow() {
+                                const mode = document.getElementById('rules_banner_mode').value;
+                                const group = document.getElementById('banner_reset_days_group');
+                                if (mode === 'days') {
+                                    group.style.display = 'block';
+                                } else {
+                                    group.style.display = 'none';
+                                }
+                            }
+                        </script>
+
                         <div class="form-group" style="margin-top: 1.5rem;">
                             <label for="banner_file">Hình ảnh Banner quảng cáo cuộc thi (Tùy chọn)</label>
                             <input type="file" id="banner_file" name="banner_file" accept="image/*" class="form-control">

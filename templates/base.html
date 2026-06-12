@@ -141,6 +141,7 @@
 
         function acceptRules() {
             localStorage.setItem('rules_accepted_' + '{{ configs.rules_version }}', 'true');
+            localStorage.setItem('rules_closed_time_' + '{{ configs.rules_version }}', Date.now().toString());
             closeRulesModal();
         }
 
@@ -149,9 +150,35 @@
             const isAdminPage = window.location.pathname.startsWith('/admin');
             
             if (!isRulesPage && !isAdminPage) {
-                const isAccepted = localStorage.getItem('rules_accepted_' + '{{ configs.rules_version }}');
-                if (!isAccepted) {
+                const bannerMode = '{{ configs.rules_banner_mode or "version" }}';
+                const resetDays = parseFloat('{{ configs.rules_banner_reset_days or "1" }}');
+                
+                if (bannerMode === 'always') {
                     setTimeout(showRulesModal, 1200);
+                } else if (bannerMode === 'days') {
+                    const isAccepted = localStorage.getItem('rules_accepted_' + '{{ configs.rules_version }}');
+                    if (isAccepted === 'true') {
+                        const closedTimeStr = localStorage.getItem('rules_closed_time_' + '{{ configs.rules_version }}');
+                        if (closedTimeStr) {
+                            const closedTime = parseInt(closedTimeStr);
+                            const elapsedDays = (Date.now() - closedTime) / (1000 * 60 * 60 * 24);
+                            if (elapsedDays >= resetDays) {
+                                // Đã hết thời gian chờ, hiện lại banner
+                                localStorage.removeItem('rules_accepted_' + '{{ configs.rules_version }}');
+                                setTimeout(showRulesModal, 1200);
+                            }
+                        } else {
+                            setTimeout(showRulesModal, 1200);
+                        }
+                    } else {
+                        setTimeout(showRulesModal, 1200);
+                    }
+                } else {
+                    // Mặc định: version (chỉ hiện 1 lần theo phiên bản)
+                    const isAccepted = localStorage.getItem('rules_accepted_' + '{{ configs.rules_version }}');
+                    if (!isAccepted) {
+                        setTimeout(showRulesModal, 1200);
+                    }
                 }
             }
         });
