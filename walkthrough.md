@@ -9,12 +9,13 @@ Dự án là web app Strava SSO_HC dùng FastAPI, SQLAlchemy và SQLite. Giao di
 - Khởi tạo môi trường Python, `.venv`, `requirements.txt`, SQLite database.
 - Thiết kế database cho cấu hình hệ thống, vận động viên, METs, giải thưởng, hoạt động, huy hiệu và sự kiện lưu trữ.
 - Đồng bộ hoạt động Strava Club bằng background scheduler và webhook trigger.
-- Import dữ liệu lịch sử Excel từ các thư mục `Tong ket nam 2025` và `Tong ket nam 2026`, chống trùng bằng SHA256.
+- Import dữ liệu lịch sử Excel in-memory thông qua tải lên các tệp tin hoặc chọn cả thư mục từ trình duyệt của người dùng (không quét cứng thư mục trên máy chủ), chống trùng bằng mã băm SHA256.
 - Tính toán METs, KCAL, mốc thưởng, huy hiệu và luật chống gian lận từ database/config động.
 - Trang chủ có tìm kiếm, bảng xếp hạng, bộ lọc thời gian và biểu đồ trực quan.
 - Trang cá nhân có KPI, lịch sử hoạt động, Chart.js và huy hiệu thành tích.
 - Trang Admin có cấu hình API Strava, METs, giải thưởng, anti-cheat, quy chế, banner, import historical Excel, export Excel, huy hiệu và sự kiện lịch sử.
 - Trang Quy Chế và Welcome Banner động theo cấu hình Admin.
+- Tích hợp ảnh QR Code Group vào trang Quy chế và hiển thị hướng dẫn tham gia nhóm khi đăng ký tài khoản thành công (có thể cập nhật/tải lên ảnh QR trực tiếp từ trang Admin).
 - Tích hợp nhận diện thương hiệu NSMO: font Be Vietnam Pro, logo và bảng màu pastel.
 
 ### 6. Trang Tổng Quan Phân Tích (Analytics Dashboard) Cho Admin (Giai đoạn 3)
