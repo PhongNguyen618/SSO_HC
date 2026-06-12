@@ -11,8 +11,9 @@ Dự án là web app Strava SSO_HC dùng FastAPI, SQLAlchemy và SQLite. Giao di
 - Đồng bộ hoạt động Strava Club bằng background scheduler và webhook trigger.
 - Import dữ liệu lịch sử Excel in-memory thông qua tải lên các tệp tin hoặc chọn cả thư mục từ trình duyệt của người dùng (không quét cứng thư mục trên máy chủ), chống trùng bằng mã băm SHA256.
 - Tính toán METs, KCAL, mốc thưởng, huy hiệu và luật chống gian lận từ database/config động.
-- Trang chủ có tìm kiếm, bảng xếp hạng, bộ lọc thời gian và biểu đồ trực quan.
+- Trang chủ có tìm kiếm, bảng xếp hạng, bộ lọc thời gian và danh sách các sự kiện lịch sử (giải chạy cũ).
 - Trang cá nhân có KPI, lịch sử hoạt động, Chart.js và huy hiệu thành tích.
+- Trang chi tiết Sự kiện lịch sử (/event/{event_id}) hiển thị bài viết vinh danh, banner lớn, video tổng kết Youtube và album ảnh kỷ niệm dạng Grid/Lightbox.
 - Trang Admin có cấu hình API Strava, METs, giải thưởng, anti-cheat, quy chế, banner, import historical Excel, export Excel, huy hiệu và sự kiện lịch sử.
 - Trang Quy Chế và Welcome Banner động theo cấu hình Admin.
 - Tích hợp ảnh QR Code Group vào trang Quy chế và hiển thị hướng dẫn tham gia nhóm khi đăng ký tài khoản thành công (có thể cập nhật/tải lên ảnh QR trực tiếp từ trang Admin).

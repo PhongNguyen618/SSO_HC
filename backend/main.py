@@ -540,6 +540,51 @@ def profile_page(request: Request, athlete_id: int, db: Session = Depends(get_db
         }
     )
 
+@app.get("/event/{event_id}", response_class=HTMLResponse)
+def event_detail_page(request: Request, event_id: int, db: Session = Depends(get_db)):
+    """Trang chi tiết sự kiện lịch sử (giải chạy cũ)."""
+    from backend.database import ArchivedEvent
+    event = db.query(ArchivedEvent).filter(ArchivedEvent.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Không tìm thấy sự kiện.")
+        
+    configs = get_config_dict(db)
+    
+    # Phân tách album ảnh gallery
+    images = []
+    if event.gallery_images and event.gallery_images.strip():
+        images = [img.strip() for img in event.gallery_images.split(",") if img.strip()]
+        
+    # Chuẩn hóa link video Youtube sang embed url
+    embed_url = None
+    if event.video_url:
+        video_url = event.video_url.strip()
+        if "youtube.com/watch?v=" in video_url:
+            try:
+                video_id = video_url.split("v=")[1].split("&")[0]
+                embed_url = f"https://www.youtube.com/embed/{video_id}"
+            except Exception:
+                embed_url = video_url
+        elif "youtu.be/" in video_url:
+            try:
+                video_id = video_url.split("youtu.be/")[1].split("?")[0]
+                embed_url = f"https://www.youtube.com/embed/{video_id}"
+            except Exception:
+                embed_url = video_url
+        else:
+            embed_url = video_url
+
+    return templates.TemplateResponse(
+        request=request,
+        name="event_detail.html",
+        context={
+            "configs": configs,
+            "event": event,
+            "images": images,
+            "embed_url": embed_url
+        }
+    )
+
 # --- ADMIN PANEL ROUTES ---
 
 @app.get("/admin", response_class=HTMLResponse)
