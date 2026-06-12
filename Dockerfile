@@ -4,24 +4,25 @@ ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-# Install build deps for packages like pandas if needed
-RUN apt-get update && apt-get install -y --no-install-recommends build-essential gcc libpq-dev curl && rm -rf /var/lib/apt/lists/*
+# Chỉ cài đặt curl để phục vụ healthcheck
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 
-# Copy and install Python deps
+# Copy và cài đặt Python dependencies
 COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
-# Copy app
+# Copy toàn bộ mã nguồn ứng dụng
 COPY . /app
 
-# Database path (SQLite file will be created under /app)
-ENV DATABASE_URL=sqlite:///./SSO_HC.db
+# Tạo thư mục chứa database SQLite riêng biệt để mount Volume an toàn
+RUN mkdir -p /app/data
+ENV DATABASE_URL=sqlite:///./data/SSO_HC.db
 
-# Expose port for uvicorn
+# Expose port cho uvicorn
 EXPOSE 8000
 
-# Ensure upload dir exists (will be created by app startup as well)
-VOLUME ["/app/static/uploads"]
+# Thiết lập volume cho database và tệp tin tải lên (uploads) để tránh mất dữ liệu
+VOLUME ["/app/data", "/app/static/uploads"]
 
-# Run uvicorn
+# Khởi chạy ứng dụng
 CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers"]
