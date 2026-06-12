@@ -117,12 +117,12 @@
 
             <div class="form-group">
                 <label for="department">Phòng ban / Bộ phận</label>
-                <select id="department" name="department" class="form-control" required>
-                    <option value="" disabled {% if not form_data %}selected{% endif %}>Chọn phòng ban</option>
+                <input type="text" id="department" name="department" list="dept-list" class="form-control" placeholder="Chọn hoặc nhập phòng ban của bạn..." value="{% if form_data %}{{ form_data.department }}{% elif existing_athlete %}{{ existing_athlete.department }}{% endif %}" required autocomplete="off">
+                <datalist id="dept-list">
                     {% for dept in departments %}
-                    <option value="{{ dept }}" {% if form_data and form_data.department == dept %}selected{% endif %}>{{ dept }}</option>
+                    <option value="{{ dept }}"></option>
                     {% endfor %}
-                </select>
+                </datalist>
             </div>
 
             <div class="form-group">

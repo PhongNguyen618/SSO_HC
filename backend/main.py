@@ -103,16 +103,38 @@ def get_global_configs():
 
 templates.env.globals["get_configs"] = get_global_configs
 
-def get_department_members(db: Session) -> dict:
-    """Read department member counts from DB config to avoid hardcoded business settings."""
-    config = db.query(Config).filter(Config.key == "department_members").first()
-    if not config or not config.value:
-        return {}
+def get_department_members(db: Session, start_date: str = None, end_date: str = None) -> dict:
+    """Calculate department member counts dynamically based on active registered athletes who have activities in the timeframe."""
+    dept_members = {}
     try:
-        parsed = json.loads(config.value)
-        return {str(key): int(value) for key, value in parsed.items()}
-    except (ValueError, TypeError, json.JSONDecodeError):
-        return {}
+        query = db.query(
+            Athlete.department,
+            func.count(func.distinct(Athlete.id)).label("count")
+        ).join(Activity, Athlete.id == Activity.athlete_id)\
+         .filter(Athlete.is_active == True)
+         
+        if start_date:
+            query = query.filter(Activity.activity_date >= start_date)
+        if end_date:
+            query = query.filter(Activity.activity_date <= end_date)
+            
+        results = query.group_by(Athlete.department).all()
+        for row in results:
+            dept_name = row[0]
+            count = row[1]
+            dept_members[dept_name] = count or 1
+
+        # Bổ sung sĩ số mặc định (số VĐV đã đăng ký) cho các phòng ban không có hoạt động trong khoảng thời gian được lọc
+        all_depts = db.query(Athlete.department).filter(Athlete.department != None, Athlete.department != '').distinct().all()
+        for row in all_depts:
+            dept_name = row[0]
+            if dept_name not in dept_members:
+                active_count = db.query(Athlete).filter(Athlete.department == dept_name, Athlete.is_active == True).count()
+                dept_members[dept_name] = active_count or 1
+    except Exception as e:
+        print(f"Error resolving dynamic department members: {e}")
+        
+    return dept_members
 
 # --- FRONTEND ROUTES ---
 @app.get("/", response_class=HTMLResponse)
@@ -186,7 +208,7 @@ def index(
         })
 
     # 3. Xếp hạng theo Phòng ban (Trung bình KCAL = Tổng KCAL / Số thành viên của phòng)
-    dept_members = get_department_members(db)
+    dept_members = get_department_members(db, start_date, end_date)
     
     dept_stats_raw = db.query(
         Athlete.department,
@@ -300,14 +322,10 @@ def rules_page(request: Request, db: Session = Depends(get_db)):
 @app.get("/register", response_class=HTMLResponse)
 def register_page(request: Request, db: Session = Depends(get_db)):
     """Trang đăng ký tham gia cho vận động viên."""
-    departments = [
-        "BAN GIÁM ĐỐC",
-        "PHÒNG HÀNH CHÍNH NHÂN SỰ",
-        "PHÒNG KỸ THUẬT",
-        "PHÒNG KINH DOANH",
-        "PHÒNG TÀI CHÍNH KẾ TOÁN",
-        "PHÒNG KHAI THÁC",
-        "PHÒNG VẬN HÀNH"
+    db_depts = db.query(Athlete.department).filter(Athlete.department != None, Athlete.department != '').distinct().order_by(Athlete.department).all()
+    departments = [r[0] for r in db_depts] if db_depts else [
+        "BAN GIÁM ĐỐC", "PHÒNG HÀNH CHÍNH NHÂN SỰ", "PHÒNG KỸ THUẬT", 
+        "PHÒNG KINH DOANH", "PHÒNG TÀI CHÍNH KẾ TOÁN", "PHÒNG KHAI THÁC", "PHÒNG VẬN HÀNH"
     ]
     return templates.TemplateResponse(
         request=request,
@@ -330,14 +348,10 @@ def register_athlete(
     is_update: str = Form("false"),
     db: Session = Depends(get_db)
 ):
-    departments = [
-        "BAN GIÁM ĐỐC",
-        "PHÒNG HÀNH CHÍNH NHÂN SỰ",
-        "PHÒNG KỸ THUẬT",
-        "PHÒNG KINH DOANH",
-        "PHÒNG TÀI CHÍNH KẾ TOÁN",
-        "PHÒNG KHAI THÁC",
-        "PHÒNG VẬN HÀNH"
+    db_depts = db.query(Athlete.department).filter(Athlete.department != None, Athlete.department != '').distinct().order_by(Athlete.department).all()
+    departments = [r[0] for r in db_depts] if db_depts else [
+        "BAN GIÁM ĐỐC", "PHÒNG HÀNH CHÍNH NHÂN SỰ", "PHÒNG KỸ THUẬT", 
+        "PHÒNG KINH DOANH", "PHÒNG TÀI CHÍNH KẾ TOÁN", "PHÒNG KHAI THÁC", "PHÒNG VẬN HÀNH"
     ]
     full_name = full_name.strip()
     strava_name = strava_name.strip()
@@ -759,6 +773,13 @@ def admin_dashboard(request: Request, error: str = None, success: str = None, db
         }
     }
 
+    # Lấy danh sách phòng ban động để phục vụ autocomplete
+    db_depts = db.query(Athlete.department).filter(Athlete.department != None, Athlete.department != '').distinct().order_by(Athlete.department).all()
+    departments = [r[0] for r in db_depts] if db_depts else [
+        "BAN GIÁM ĐỐC", "PHÒNG HÀNH CHÍNH NHÂN SỰ", "PHÒNG KỸ THUẬT", 
+        "PHÒNG KINH DOANH", "PHÒNG TÀI CHÍNH KẾ TOÁN", "PHÒNG KHAI THÁC", "PHÒNG VẬN HÀNH"
+    ]
+
     return templates.TemplateResponse(
         request=request,
         name="admin.html",
@@ -774,7 +795,8 @@ def admin_dashboard(request: Request, error: str = None, success: str = None, db
             "unlinked_athletes": unlinked_athletes,
             "badges": badges,
             "archived_events": archived_events,
-            "stats_data": stats_data
+            "stats_data": stats_data,
+            "departments": departments
         }
     )
 
@@ -788,8 +810,15 @@ def admin_login(username: str = Form(...), password: str = Form(...), db: Sessio
         return RedirectResponse("/admin?error=He thong chua duoc khoi tao", status_code=303)
 
     if username == admin_user.value and verify_password(password, admin_pass.value):
-        # Thiết lập session token
-        session_token = hashlib.sha256(f"{admin_user.value}_{admin_pass.value}".encode("utf-8")).hexdigest()
+        # Thiết lập session token động
+        import uuid
+        import time
+        session_token = uuid.uuid4().hex
+        expiry_time = int(time.time()) + (86400 * 7) # Hết hạn sau 7 ngày
+
+        update_config(db, "admin_session_id", session_token)
+        update_config(db, "admin_session_expiry", str(expiry_time))
+
         response = RedirectResponse("/admin", status_code=303)
         response.set_cookie(key=COOKIE_NAME, value=session_token, max_age=86400 * 7, httponly=True)
         return response
@@ -797,8 +826,10 @@ def admin_login(username: str = Form(...), password: str = Form(...), db: Sessio
         return RedirectResponse("/admin?error=Sai ten dang nhap hoac mat khau", status_code=303)
 
 @app.post("/admin/logout")
-def admin_logout():
+def admin_logout(db: Session = Depends(get_db)):
     """Xử lý đăng xuất Admin."""
+    update_config(db, "admin_session_id", "")
+    update_config(db, "admin_session_expiry", "0")
     response = RedirectResponse("/admin", status_code=303)
     response.delete_cookie(key=COOKIE_NAME)
     return response
@@ -1325,7 +1356,7 @@ def export_excel(
         df_personal = pd.DataFrame(columns=["Hạng", "Họ và Tên", "Giới tính", "Phòng ban", "Quãng đường (km)", "Thời gian (giờ)", "Năng lượng (KCAL)", "Mức thưởng đạt được"])
 
     # 2. Lấy dữ liệu BXH Phòng ban
-    dept_members = get_department_members(db)
+    dept_members = get_department_members(db, start_date, end_date)
     
     dept_stats_raw = db.query(
         Athlete.department,

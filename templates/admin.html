@@ -137,8 +137,10 @@
             </span>
             {% endfor %}
         </div>
-        <p style="color: var(--text-muted); font-size: 0.8rem; line-height: 1.4;">
-            <i class="fa-solid fa-lightbulb" style="color: var(--color-primary);"></i> <strong>Mẹo giải quyết:</strong> Hãy nhắc nhở những thành viên này đăng ký qua trang chủ với chính xác tên hiển thị Strava ở trên. Khi họ đăng ký xong, hệ thống sẽ tự động liên kết và tính toán lại toàn bộ thành tích quá khứ của họ mà bạn không cần thao tác thêm.
+        <p style="color: var(--text-muted); font-size: 0.8rem; line-height: 1.5;">
+            <i class="fa-solid fa-lightbulb" style="color: var(--color-primary);"></i> <strong>Mẹo giải quyết:</strong>
+            <br>• <strong>Đối với thành viên mới:</strong> Nhắc nhở họ đăng ký tài khoản qua trang chủ với chính xác tên hiển thị Strava ở trên. Hệ thống sẽ tự động liên kết hoạt động của họ.
+            <br>• <strong>Đối với thành viên cũ đổi tên Strava:</strong> Admin chỉ cần tìm thành viên đó trong danh sách <strong>Thành viên</strong> bên dưới, sửa cột <strong>Strava Name</strong> thành tên mới của họ (ví dụ: đổi từ <code>N.A</code> thành <code>NGuy.A</code>) rồi bấm <strong>Lưu</strong>. Hệ thống sẽ tự động chuyển đổi và gom toàn bộ hoạt động cũ/mới về cho họ.
         </p>
     </div>
     {% endif %}
@@ -366,7 +368,6 @@
                     </div>
                 </div>
             </div>
-            
             <div style="text-align: right; margin-top: 2rem;">
                 <button type="submit" class="btn btn-primary" style="width: 250px;">
                     <i class="fa-solid fa-floppy-disk"></i> Lưu Tất Cả Cấu Hình
@@ -482,16 +483,8 @@
                 </div>
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="new_department">Phòng ban</label>
-                        <select id="new_department" name="department" class="form-control" required>
-                            <option value="BAN GIÁM ĐỐC">BAN GIÁM ĐỐC</option>
-                            <option value="PHÒNG HÀNH CHÍNH NHÂN SỰ">PHÒNG HÀNH CHÍNH NHÂN SỰ</option>
-                            <option value="PHÒNG KỸ THUẬT">PHÒNG KỸ THUẬT</option>
-                            <option value="PHÒNG KINH DOANH">PHÒNG KINH DOANH</option>
-                            <option value="PHÒNG TÀI CHÍNH KẾ TOÁN">PHÒNG TÀI CHÍNH KẾ TOÁN</option>
-                            <option value="PHÒNG KHAI THÁC">PHÒNG KHAI THÁC</option>
-                            <option value="PHÒNG VẬN HÀNH">PHÒNG VẬN HÀNH</option>
-                        </select>
+                        <label for="new_department">Phòng ban / Bộ phận</label>
+                        <input type="text" id="new_department" name="department" list="dept-list" class="form-control" placeholder="Chọn hoặc nhập phòng ban..." required autocomplete="off">
                     </div>
                     <div class="form-group">
                         <label for="new_weight">Cân nặng (kg)</label>
@@ -538,15 +531,7 @@
                                     </select>
                                 </td>
                                 <td>
-                                    <select name="department" class="form-control" style="padding:0.4rem; font-size:0.85rem;" required>
-                                        <option value="BAN GIÁM ĐỐC" {% if ath.department == 'BAN GIÁM ĐỐC' %}selected{% endif %}>BAN GIÁM ĐỐC</option>
-                                        <option value="PHÒNG HÀNH CHÍNH NHÂN SỰ" {% if ath.department == 'PHÒNG HÀNH CHÍNH NHÂN SỰ' %}selected{% endif %}>PHÒNG HÀNH CHÍNH NHÂN SỰ</option>
-                                        <option value="PHÒNG KỸ THUẬT" {% if ath.department == 'PHÒNG KỸ THUẬT' %}selected{% endif %}>PHÒNG KỸ THUẬT</option>
-                                        <option value="PHÒNG KINH DOANH" {% if ath.department == 'PHÒNG KINH DOANH' %}selected{% endif %}>PHÒNG KINH DOANH</option>
-                                        <option value="PHÒNG TÀI CHÍNH KẾ TOÁN" {% if ath.department == 'PHÒNG TÀI CHÍNH KẾ TOÁN' %}selected{% endif %}>PHÒNG TÀI CHÍNH KẾ TOÁN</option>
-                                        <option value="PHÒNG KHAI THÁC" {% if ath.department == 'PHÒNG KHAI THÁC' %}selected{% endif %}>PHÒNG KHAI THÁC</option>
-                                        <option value="PHÒNG VẬN HÀNH" {% if ath.department == 'PHÒNG VẬN HÀNH' %}selected{% endif %}>PHÒNG VẬN HÀNH</option>
-                                    </select>
+                                    <input type="text" name="department" list="dept-list" class="form-control" value="{{ ath.department }}" style="padding:0.4rem; font-size:0.85rem;" required autocomplete="off">
                                 </td>
                                 <td>
                                     <input type="number" step="0.1" name="weight" class="form-control" value="{{ ath.weight }}" style="padding:0.4rem; font-size:0.85rem; text-align:right;" required>
@@ -573,6 +558,11 @@
                         {% endfor %}
                     </tbody>
                 </table>
+                <datalist id="dept-list">
+                    {% for dept in departments %}
+                    <option value="{{ dept }}"></option>
+                    {% endfor %}
+                </datalist>
             </div>
         </div>
     </div>
