@@ -3,6 +3,7 @@
 {% block title %}Đăng Ký Tham Gia - SSO HC{% endblock %}
 
 {% block content %}
+{% set app_configs = get_configs() %}
 <div style="max-width: 650px; margin: 0 auto;">
     
     <!-- Hộp thoại xác nhận cập nhật khi trùng tên hiển thị Strava -->
@@ -57,9 +58,27 @@
         </p>
 
         {% if success %}
-        <div class="alert alert-success">
+        <div class="alert alert-success" style="margin-bottom: 1.5rem;">
             <i class="fa-solid fa-circle-check"></i> {{ success }}
         </div>
+        
+        <!-- Khối hiển thị QR Group Zalo/Strava sau khi đăng ký thành công -->
+        {% if app_configs.rules_group_qr %}
+        <div class="glass-card" style="background: rgba(40, 167, 69, 0.05); border: 1px solid rgba(40, 167, 69, 0.2); text-align: center; padding: 1.8rem; margin-bottom: 2rem; border-radius: 12px; animation: fadeInUp 0.5s ease;">
+            <h3 style="font-family: 'Outfit'; color: var(--color-green); margin-bottom: 0.8rem; font-size: 1.2rem;">
+                <i class="fa-solid fa-users"></i> Bước Tiếp Theo: Tham Gia Nhóm Giải Chạy
+            </h3>
+            <p style="font-size: 0.92rem; margin-bottom: 1.2rem; color: var(--text-main); line-height: 1.5;">
+                Bạn đã đăng ký thông tin thành công! Hãy quét mã QR bên dưới bằng điện thoại hoặc nhấp vào ảnh QR để tham gia vào Nhóm (Group) nhằm đồng bộ hoạt động Strava của bạn lên hệ thống nhé.
+            </p>
+            <div style="display: inline-block; padding: 0.8rem; background: #fff; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.2); margin-bottom: 1rem;">
+                <img src="{{ app_configs.rules_group_qr }}" alt="Group QR Code" style="max-width: 200px; display: block; border-radius: 4px;">
+            </div>
+            <span style="display: block; font-size: 0.8rem; color: var(--text-muted);">
+                <i class="fa-solid fa-circle-info"></i> Hãy chắc chắn rằng tài khoản Strava của bạn đã tham gia câu lạc bộ (Club) để hoạt động được cập nhật tự động.
+            </span>
+        </div>
+        {% endif %}
         {% endif %}
 
         {% if error and not already_exists %}

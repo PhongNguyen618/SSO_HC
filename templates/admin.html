@@ -254,6 +254,23 @@
                             </div>
                             {% endif %}
                         </div>
+                        
+                        <div class="form-group" style="margin-top: 1.5rem; border-top: 1px solid var(--border-color); padding-top: 1.5rem;">
+                            <label for="group_qr_file">Hình ảnh mã QR Group Strava / Group liên kết (Tùy chọn)</label>
+                            <input type="file" id="group_qr_file" name="group_qr_file" accept="image/*" class="form-control">
+                            <small style="color: var(--text-muted); font-size: 0.8rem; display: block; margin-top: 0.4rem;">
+                                <i class="fa-solid fa-circle-info"></i> Tải lên mã QR của nhóm Strava hoặc nhóm liên quan để VĐV quét tham gia ngay sau khi đăng ký (Định dạng PNG, JPG, WEBP).
+                            </small>
+                            {% if configs.rules_group_qr %}
+                            <div style="margin-top: 1.2rem; border: 1px solid var(--border-color); border-radius: 10px; padding: 1rem; display: flex; align-items: center; gap: 1.2rem; background: rgba(255, 255, 255, 0.02); max-width: 400px;">
+                                <img src="{{ configs.rules_group_qr }}" alt="Current Group QR" style="max-height: 120px; border-radius: 6px; object-fit: contain; border: 1px solid rgba(255,255,255,0.1);">
+                                <div style="flex: 1;">
+                                    <span style="font-size: 0.85rem; color: var(--color-primary); font-weight: 600; display: block; margin-bottom: 2px;"><i class="fa-solid fa-circle-check"></i> Ảnh QR hiện tại đang hoạt động</span>
+                                    <span style="font-size: 0.75rem; color: var(--text-muted); display: block; word-break: break-all; font-family: monospace;">{{ configs.rules_group_qr }}</span>
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
                     </div>
                 </div>
 

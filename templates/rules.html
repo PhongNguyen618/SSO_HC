@@ -312,6 +312,21 @@
             <strong>Lưu ý đối với VĐV:</strong> Khi phát hiện hoạt động bị gắn cờ sai sót do lỗi GPS của thiết bị, vui lòng liên hệ Admin để được hỗ trợ kiểm tra và gỡ cờ thủ công trong cơ sở dữ liệu.
         </div>
 
+        <!-- Khối hiển thị mã QR Group để người dùng quét tham gia -->
+        {% if configs.rules_group_qr %}
+        <div class="glass-card" style="background: rgba(143, 205, 240, 0.03); border: 1px solid var(--border-color); text-align: center; padding: 2rem; margin-top: 3rem; border-radius: 12px;">
+            <h3 style="font-family: 'Outfit'; color: var(--color-primary); margin-bottom: 0.8rem; font-size: 1.2rem; display: flex; align-items: center; gap: 0.5rem; justify-content: center;">
+                <i class="fa-solid fa-users"></i> Nhóm Giải Chạy & Câu Lạc Bộ Strava
+            </h3>
+            <p style="font-size: 0.9rem; margin-bottom: 1.2rem; color: var(--text-muted); line-height: 1.5; max-width: 600px; margin-left: auto; margin-right: auto;">
+                Quét mã QR bên dưới hoặc nhấp vào ảnh QR để truy cập nhanh và tham gia vào Group giải chạy của công ty để đồng bộ tự động thành tích của bạn.
+            </p>
+            <div style="display: inline-block; padding: 0.8rem; background: #fff; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.2);">
+                <img src="{{ configs.rules_group_qr }}" alt="Group QR Code" style="max-width: 180px; display: block; border-radius: 4px;">
+            </div>
+        </div>
+        {% endif %}
+
         <!-- CTA Đăng Ký Tham Gia -->
         <div style="text-align: center; margin-top: 3rem; padding-top: 2rem; border-top: 1px solid rgba(255, 255, 255, 0.08);">
             <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.3rem; margin-bottom: 0.8rem; color: var(--text-main);">

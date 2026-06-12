@@ -146,7 +146,8 @@ def init_db(excel_filepath: str = "TDTT_SSO.xlsx"):
         "rule_swim_pace_100m_min": "0.75", # 45s/100m
         "rule_swim_pace_100m_max": "4.0",  # 4m/100m
         "rule_swim_elev_max": "10.0",
-        "department_members": json.dumps(default_department_members, ensure_ascii=False)
+        "department_members": json.dumps(default_department_members, ensure_ascii=False),
+        "rules_group_qr": "/branding/Group.jpg"
     }
 
     for key, value in default_configs.items():

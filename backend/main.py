@@ -769,6 +769,7 @@ async def update_configs(
     rules_banner_text: str = Form(...),
     rules_general_text: str = Form(...),
     banner_file: UploadFile = File(None),
+    group_qr_file: UploadFile = File(None),
     # Quy tắc chống gian lận
     rule_run_pace_min: str = Form(...),
     rule_run_pace_max: str = Form(...),
@@ -830,6 +831,33 @@ async def update_configs(
                 
                 # Lưu đường dẫn vào database
                 update_config(db, "rules_banner_image", f"/static/uploads/{filename}")
+        
+        # Xử lý upload ảnh QR group tùy chỉnh
+        if group_qr_file and group_qr_file.filename:
+            ext = os.path.splitext(group_qr_file.filename)[1].lower()
+            if ext in [".png", ".jpg", ".jpeg", ".webp", ".gif"]:
+                filename = f"group_qr_{int(time.time())}{ext}"
+                upload_dir = "static/uploads"
+                os.makedirs(upload_dir, exist_ok=True)
+                file_path = os.path.join(upload_dir, filename)
+                
+                # Lưu file ảnh mới
+                with open(file_path, "wb") as f:
+                    content = await group_qr_file.read()
+                    f.write(content)
+                
+                # Xóa file cũ để giải phóng dung lượng
+                old_qr = db.query(Config).filter(Config.key == "rules_group_qr").first()
+                if old_qr and old_qr.value:
+                    old_path = old_qr.value.lstrip("/")
+                    if os.path.exists(old_path) and "static/uploads/" in old_path:
+                        try:
+                            os.remove(old_path)
+                        except Exception as ex:
+                            print(f"Error removing old QR file: {ex}")
+                
+                # Lưu đường dẫn vào database
+                update_config(db, "rules_group_qr", f"/static/uploads/{filename}")
         
         # Cập nhật quy tắc gian lận
         update_config(db, "rule_run_pace_min", rule_run_pace_min)
