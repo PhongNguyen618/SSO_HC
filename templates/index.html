@@ -176,11 +176,11 @@
     <form id="dateFilterForm" method="GET" action="/" style="display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap;">
         <div style="display: flex; align-items: center; gap: 0.4rem;">
             <label for="startDateInput" style="color: var(--text-muted); font-size: 0.85rem;">Từ ngày</label>
-            <input type="date" id="startDateInput" name="start_date" class="form-control" style="padding: 0.4rem 0.8rem; font-size: 0.9rem; width: 140px; background: rgba(10, 8, 20, 0.8);" value="{{ start_date }}">
+            <input type="date" id="startDateInput" name="start_date" class="form-control" onclick="this.showPicker()" style="padding: 0.4rem 0.8rem; font-size: 0.9rem; width: 140px; background: rgba(10, 8, 20, 0.8); cursor: pointer;" value="{{ start_date }}">
         </div>
         <div style="display: flex; align-items: center; gap: 0.4rem;">
             <label for="endDateInput" style="color: var(--text-muted); font-size: 0.85rem;">Đến ngày</label>
-            <input type="date" id="endDateInput" name="end_date" class="form-control" style="padding: 0.4rem 0.8rem; font-size: 0.9rem; width: 140px; background: rgba(10, 8, 20, 0.8);" value="{{ end_date }}">
+            <input type="date" id="endDateInput" name="end_date" class="form-control" onclick="this.showPicker()" style="padding: 0.4rem 0.8rem; font-size: 0.9rem; width: 140px; background: rgba(10, 8, 20, 0.8); cursor: pointer;" value="{{ end_date }}">
         </div>
         <button type="submit" class="btn btn-primary btn-sm" style="padding: 0.45rem 1rem;">
             <i class="fa-solid fa-filter"></i> Lọc kết quả

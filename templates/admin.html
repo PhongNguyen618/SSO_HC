@@ -87,11 +87,11 @@
         <div style="display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap;">
             <div style="display: flex; align-items: center; gap: 0.35rem;">
                 <label for="excel_start" style="font-size: 0.85rem; color: var(--text-muted);">Từ ngày</label>
-                <input type="date" id="excel_start" class="form-control" style="padding: 0.4rem 0.8rem; font-size: 0.85rem; width: 140px; background: rgba(10, 8, 20, 0.8);">
+                <input type="date" id="excel_start" class="form-control" onclick="this.showPicker()" style="padding: 0.4rem 0.8rem; font-size: 0.85rem; width: 140px; background: rgba(10, 8, 20, 0.8); cursor: pointer;">
             </div>
             <div style="display: flex; align-items: center; gap: 0.35rem;">
                 <label for="excel_end" style="font-size: 0.85rem; color: var(--text-muted);">Đến ngày</label>
-                <input type="date" id="excel_end" class="form-control" style="padding: 0.4rem 0.8rem; font-size: 0.85rem; width: 140px; background: rgba(10, 8, 20, 0.8);">
+                <input type="date" id="excel_end" class="form-control" onclick="this.showPicker()" style="padding: 0.4rem 0.8rem; font-size: 0.85rem; width: 140px; background: rgba(10, 8, 20, 0.8); cursor: pointer;">
             </div>
             <button onclick="downloadExcelReport()" class="btn btn-secondary btn-sm" style="border-color: var(--color-green); color: var(--color-green); display: inline-flex; align-items: center; gap: 0.4rem; height: 36px; padding: 0 1rem;">
                 <i class="fa-solid fa-file-arrow-down"></i> Tải Báo Cáo Excel
