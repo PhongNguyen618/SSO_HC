@@ -21,3 +21,9 @@ excel_info.txt
 docx_content.txt
 .system_generated/
 old_and_backup/
+
+# Historical Excel Data (GDPR / Privacy)
+Tong ket nam 2025/
+Tong ket nam 2026/
+test_output.xlsx
+
