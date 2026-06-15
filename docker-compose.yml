@@ -6,11 +6,16 @@ services:
       - "8000:8000"
 
     # Tải toàn bộ biến từ file .env vào container
-    # Các biến: DATABASE_URL, STRAVA_CLIENT_ID, STRAVA_CLIENT_SECRET,
+    # Các biến: STRAVA_CLIENT_ID, STRAVA_CLIENT_SECRET,
     #            STRAVA_CLUB_ID, DEFAULT_ADMIN_USER, DEFAULT_ADMIN_PASSWORD,
-    #            STRAVA_WEBHOOK_VERIFY_TOKEN
+    #            STRAVA_WEBHOOK_VERIFY_TOKEN, APP_URL
     env_file:
       - .env
+
+    # Override DATABASE_URL: .env dùng đường dẫn local (sqlite:///./SSO_HC.db)
+    # Docker cần đường dẫn tuyệt đối trong container tương ứng volume mount bên dưới
+    environment:
+      - DATABASE_URL=sqlite:////app/SSO_HC.db
 
     volumes:
       # Mount DB từ thư mục gốc của host vào container (dữ liệu không mất khi rebuild)
