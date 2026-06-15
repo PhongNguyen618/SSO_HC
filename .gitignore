@@ -1,29 +1,52 @@
-# Virtual environment
+# ==========================================
+# SSO_HC - .gitignore
+# ==========================================
+
+# --- Python ---
 .venv/
 venv/
 ENV/
-
-# Python cache
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+*.egg-info/
+dist/
+build/
 
-# Local Database
-SSO_HC.db
+# --- Database (không commit dữ liệu thật) ---
+*.db
+*.sqlite
+*.sqlite3
 
-# Sensitive Configs
+# --- Sensitive Configs ---
+# .env chứa client_secret, mật khẩu → KHÔNG bao giờ commit
 .env
 
-# Temp files / Logs
+# --- Uploads (ảnh do người dùng upload, không commit vào Git) ---
+static/uploads/
+
+# --- Docker override (cấu hình riêng khi dev local) ---
+docker-compose.override.yml
+docker-compose.local.yml
+
+# --- Temp / Logs ---
 *.log
 excel_info.txt
 docx_content.txt
 .system_generated/
+
+# --- Backup & Data cũ ---
 old_and_backup/
 
-# Historical Excel Data (GDPR / Privacy)
+# --- Dữ liệu lịch sử (GDPR / Bảo mật thông tin cá nhân) ---
 Tong ket nam 2025/
 Tong ket nam 2026/
 test_output.xlsx
 
+# --- IDE ---
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store

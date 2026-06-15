@@ -246,17 +246,33 @@
     <div id="overall" class="tab-pane active">
         <h3 style="margin-bottom: 1.5rem; color: var(--color-primary);">Bảng Thành Tích Cá Nhân</h3>
         <div class="table-responsive">
+            {% set col_count = 3 %}
+            {% if col_configs.show_col_gender %}{% set col_count = col_count + 1 %}{% endif %}
+            {% if col_configs.show_col_dept %}{% set col_count = col_count + 1 %}{% endif %}
+            {% if col_configs.show_col_dist %}{% set col_count = col_count + 1 %}{% endif %}
+            {% if col_configs.show_col_time %}{% set col_count = col_count + 1 %}{% endif %}
+            {% if col_configs.show_col_award %}{% set col_count = col_count + 1 %}{% endif %}
             <table class="custom-table">
                 <thead>
                     <tr>
                         <th style="width: 80px; text-align: center;">Hạng</th>
                         <th>Họ và Tên</th>
+                        {% if col_configs.show_col_gender %}
                         <th>Giới tính</th>
+                        {% endif %}
+                        {% if col_configs.show_col_dept %}
                         <th>Phòng ban</th>
+                        {% endif %}
+                        {% if col_configs.show_col_dist %}
                         <th style="text-align: right;">Quãng đường</th>
+                        {% endif %}
+                        {% if col_configs.show_col_time %}
                         <th style="text-align: right;">Thời gian</th>
+                        {% endif %}
                         <th style="text-align: right;">Năng lượng</th>
+                        {% if col_configs.show_col_award %}
                         <th style="text-align: center;">Giải thưởng</th>
+                        {% endif %}
                     </tr>
                 </thead>
                 <tbody>
@@ -272,15 +288,24 @@
                                 {{ ath.full_name }}
                             </a>
                         </td>
+                        {% if col_configs.show_col_gender %}
                         <td>
                             <span class="gender-badge {% if ath.gender == 'Nam' %}male{% else %}female{% endif %}">
                                 {{ ath.gender }}
                             </span>
                         </td>
+                        {% endif %}
+                        {% if col_configs.show_col_dept %}
                         <td style="color: var(--text-muted);">{{ ath.department }}</td>
+                        {% endif %}
+                        {% if col_configs.show_col_dist %}
                         <td style="text-align: right; font-weight: 600;">{{ ath.total_dist }} km</td>
+                        {% endif %}
+                        {% if col_configs.show_col_time %}
                         <td style="text-align: right; color: var(--text-muted);">{{ ath.total_time }} giờ</td>
+                        {% endif %}
                         <td style="text-align: right; color: var(--color-orange); font-weight: 700;">{{ "{:,}".format(ath.total_kcal).replace(",", ".") }} KCAL</td>
+                        {% if col_configs.show_col_award %}
                         <td style="text-align: center;">
                             {% if ath.has_award %}
                             <span class="award-tag yes" title="Đã đạt mốc thưởng">
@@ -290,10 +315,11 @@
                             <span class="award-tag no">Chưa đạt mốc</span>
                             {% endif %}
                         </td>
+                        {% endif %}
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 3rem 0;">
+                        <td colspan="{{ col_count }}" style="text-align: center; color: var(--text-muted); padding: 3rem 0;">
                             Chưa có dữ liệu hoạt động nào được ghi nhận.
                         </td>
                     </tr>

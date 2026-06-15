@@ -149,6 +149,15 @@ def index(
     """
     configs = get_config_dict(db)
     
+    # Lấy cấu hình hiển thị cột của BXH Cá nhân
+    col_configs = {
+        "show_col_gender": configs.get("show_col_gender", "true").lower() == "true",
+        "show_col_dept": configs.get("show_col_dept", "true").lower() == "true",
+        "show_col_dist": configs.get("show_col_dist", "true").lower() == "true",
+        "show_col_time": configs.get("show_col_time", "true").lower() == "true",
+        "show_col_award": configs.get("show_col_award", "true").lower() == "true",
+    }
+    
     # 0. Xử lý khung thời gian mặc định (7 ngày từ ngày có hoạt động mới nhất)
     if not start_date or not end_date:
         max_date_str = db.query(func.max(Activity.activity_date)).scalar()
@@ -299,7 +308,8 @@ def index(
             "club_id": configs.get("strava_club_id"),
             "start_date": start_date,
             "end_date": end_date,
-            "archived_events": archived_events
+            "archived_events": archived_events,
+            "col_configs": col_configs
         }
     )
 
@@ -951,6 +961,20 @@ async def update_configs(
         update_config(db, "rule_walk_pace_min", rule_walk_pace_min)
         update_config(db, "rule_walk_pace_max", rule_walk_pace_max)
         update_config(db, "rule_walk_elev_ratio", rule_walk_elev_ratio)
+
+        # Cập nhật cấu hình hiển thị cột của BXH Cá nhân
+        form_data = await request.form()
+        show_col_gender = "true" if form_data.get("show_col_gender") == "on" else "false"
+        show_col_dept = "true" if form_data.get("show_col_dept") == "on" else "false"
+        show_col_dist = "true" if form_data.get("show_col_dist") == "on" else "false"
+        show_col_time = "true" if form_data.get("show_col_time") == "on" else "false"
+        show_col_award = "true" if form_data.get("show_col_award") == "on" else "false"
+        
+        update_config(db, "show_col_gender", show_col_gender)
+        update_config(db, "show_col_dept", show_col_dept)
+        update_config(db, "show_col_dist", show_col_dist)
+        update_config(db, "show_col_time", show_col_time)
+        update_config(db, "show_col_award", show_col_award)
 
         if old_val != sync_interval_hours:
             start_scheduler()
