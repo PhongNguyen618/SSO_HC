@@ -16,6 +16,10 @@ from dotenv import load_dotenv
 # Tải các biến môi trường từ file .env
 load_dotenv()
 
+# Domain công khai của ứng dụng, dùng để build redirect_uri cho Strava OAuth
+# Ví dụ: https://yourdomain.com hoặc http://localhost:8000 khi dev local
+APP_URL = os.getenv("APP_URL", "").rstrip("/")
+
 from backend.database import SessionLocal, init_db, get_db, Config, Athlete, Activity, MetsRule, RewardRule, hash_password
 from backend.calculations import get_award_info
 from backend.sync_engine import sync_club_activities, get_config_dict, update_config, link_unlinked_activities, import_excel_files
@@ -642,8 +646,12 @@ def admin_dashboard(request: Request, error: str = None, success: str = None, db
 
     # Tạo đường link authorize với Strava
     client_id = configs.get("strava_client_id")
-    # Redirect URI trên môi trường web, sử dụng domain động
-    redirect_uri = f"{request.base_url}exchange_token"
+    # Ưu tiên APP_URL từ .env (domain công khai, cần khớp với Strava App settings)
+    # Fallback về request.base_url khi dev local (không có APP_URL)
+    if APP_URL:
+        redirect_uri = f"{APP_URL}/exchange_token"
+    else:
+        redirect_uri = str(request.base_url).rstrip("/") + "/exchange_token"
     auth_url = (
         f"https://www.strava.com/oauth/authorize?client_id={client_id}"
         f"&response_type=code&redirect_uri={redirect_uri}"
