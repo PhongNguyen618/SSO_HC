@@ -135,6 +135,7 @@ def get_global_configs():
                 configs["rules_banner_image"] = active_event.banner_image
             if active_event.strava_club_id:
                 configs["strava_club_id"] = active_event.strava_club_id
+            configs["active_event_id"] = active_event.id
                 
         return configs
     except Exception:
@@ -457,20 +458,33 @@ def rules_page(
     )
 
 @app.get("/register", response_class=HTMLResponse)
-def register_page(request: Request, db: Session = Depends(get_db)):
+def register_page(
+    request: Request,
+    event_id: int = None,
+    db: Session = Depends(get_db)
+):
     """Trang đăng ký tham gia cho vận động viên."""
     db_depts = db.query(Athlete.department).filter(Athlete.department != None, Athlete.department != '').distinct().order_by(Athlete.department).all()
     departments = [r[0] for r in db_depts] if db_depts else [
         "BAN GIÁM ĐỐC", "PHÒNG HÀNH CHÍNH NHÂN SỰ", "PHÒNG KỸ THUẬT", 
         "PHÒNG KINH DOANH", "PHÒNG TÀI CHÍNH KẾ TOÁN", "PHÒNG KHAI THÁC", "PHÒNG VẬN HÀNH"
     ]
+    active_competitions = db.query(CompetitionEvent).filter(CompetitionEvent.is_active == True).order_by(CompetitionEvent.id).all()
+    
+    selected_event_id = event_id
+    if not selected_event_id and active_competitions:
+        selected_event_id = active_competitions[0].id
+        
     return templates.TemplateResponse(
         request=request,
         name="register.html",
         context={
             "departments": departments,
+            "active_competitions": active_competitions,
+            "selected_event_id": selected_event_id,
             "success": None,
-            "error": None
+            "error": None,
+            "already_exists": False
         }
     )
 
@@ -482,6 +496,7 @@ def register_athlete(
     department: str = Form(...),
     weight: float = Form(...),
     strava_name: str = Form(...),
+    event_id: int = Form(...),
     is_update: str = Form("false"),
     db: Session = Depends(get_db)
 ):
@@ -490,6 +505,7 @@ def register_athlete(
         "BAN GIÁM ĐỐC", "PHÒNG HÀNH CHÍNH NHÂN SỰ", "PHÒNG KỸ THUẬT", 
         "PHÒNG KINH DOANH", "PHÒNG TÀI CHÍNH KẾ TOÁN", "PHÒNG KHAI THÁC", "PHÒNG VẬN HÀNH"
     ]
+    active_competitions = db.query(CompetitionEvent).filter(CompetitionEvent.is_active == True).order_by(CompetitionEvent.id).all()
     full_name = full_name.strip()
     strava_name = strava_name.strip()
 
@@ -517,12 +533,25 @@ def register_athlete(
                     act.kcal_burned = calculate_kcal(mets_val, weight, actual_time_min, act.elevation_gain_m, act.sport_type)
                 db.commit()
                 
+                # ĐĂNG KÝ GIẢI ĐẤU NẾU CHƯA CÓ
+                reg_exists = db.query(CompetitionRegistration).filter(
+                    CompetitionRegistration.athlete_id == exists.id,
+                    CompetitionRegistration.event_id == event_id
+                ).first()
+                if not reg_exists:
+                    new_reg = CompetitionRegistration(athlete_id=exists.id, event_id=event_id)
+                    db.add(new_reg)
+                    db.commit()
+                    print(f"Main.py: Registered existing Athlete {exists.full_name} for event {event_id} during update.")
+                
                 return templates.TemplateResponse(
                     request=request,
                     name="register.html",
                     context={
                         "departments": departments,
-                        "success": f"Đã cập nhật thông tin thành công cho VĐV {exists.full_name} (Phòng ban: {department}, Cân nặng: {weight} kg).",
+                        "active_competitions": active_competitions,
+                        "selected_event_id": event_id,
+                        "success": f"Đã cập nhật thông tin và đăng ký giải chạy thành công cho VĐV {exists.full_name}!",
                         "error": None,
                         "already_exists": False
                     }
@@ -534,6 +563,8 @@ def register_athlete(
                     name="register.html",
                     context={
                         "departments": departments,
+                        "active_competitions": active_competitions,
+                        "selected_event_id": event_id,
                         "success": None,
                         "error": f"Lỗi hệ thống khi cập nhật: {str(e)}",
                         "already_exists": False
@@ -546,6 +577,8 @@ def register_athlete(
                 name="register.html",
                 context={
                     "departments": departments,
+                    "active_competitions": active_competitions,
+                    "selected_event_id": event_id,
                     "success": None,
                     "error": f"Tên hiển thị Strava '{strava_name}' đã được đăng ký trong hệ thống.",
                     "already_exists": True,
@@ -555,7 +588,8 @@ def register_athlete(
                         "gender": gender,
                         "department": department,
                         "weight": weight,
-                        "strava_name": strava_name
+                        "strava_name": strava_name,
+                        "event_id": event_id
                     }
                 }
             )
@@ -573,6 +607,12 @@ def register_athlete(
         db.commit()
         db.refresh(new_athlete)
         
+        # ĐĂNG KÝ GIẢI ĐẤU CHO VĐV MỚI
+        new_reg = CompetitionRegistration(athlete_id=new_athlete.id, event_id=event_id)
+        db.add(new_reg)
+        db.commit()
+        print(f"Main.py: Registered new Athlete {new_athlete.full_name} for event {event_id}.")
+        
         # Liên kết các hoạt động cũ (chưa được liên kết trước đó) sang VĐV mới này
         link_unlinked_activities(db, new_athlete)
         
@@ -581,6 +621,8 @@ def register_athlete(
             name="register.html",
             context={
                 "departments": departments,
+                "active_competitions": active_competitions,
+                "selected_event_id": event_id,
                 "success": f"Vận động viên {full_name} đã đăng ký tham gia giải chạy thành công!",
                 "error": None,
                 "already_exists": False
@@ -593,6 +635,8 @@ def register_athlete(
             name="register.html",
             context={
                 "departments": departments,
+                "active_competitions": active_competitions,
+                "selected_event_id": event_id,
                 "success": None,
                 "error": f"Lỗi hệ thống: {str(e)}",
                 "already_exists": False

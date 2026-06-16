@@ -36,6 +36,7 @@
                 <input type="hidden" name="department" value="{{ form_data.department }}">
                 <input type="hidden" name="weight" value="{{ form_data.weight }}">
                 <input type="hidden" name="strava_name" value="{{ form_data.strava_name }}">
+                <input type="hidden" name="event_id" value="{{ form_data.event_id }}">
                 <input type="hidden" name="is_update" value="true">
                 <button type="submit" class="btn btn-primary" style="width: 100%; padding: 0.7rem; font-size: 0.9rem;">
                     <i class="fa-solid fa-square-check"></i> Đồng Ý Cập Nhật
@@ -88,6 +89,27 @@
         {% endif %}
 
         <form action="/register" method="POST">
+            <!-- Chọn giải đấu đăng ký -->
+            <div class="form-group">
+                <label for="event_id">Giải đấu đăng ký tham gia</label>
+                {% if already_exists %}
+                    <!-- Nếu bị trùng và đang hiện form xác nhận, hiển thị tĩnh giải đấu đang chọn -->
+                    {% for event in active_competitions %}
+                        {% if form_data.event_id|string == event.id|string or form_data.event_id == event.id %}
+                            <input type="text" class="form-control" value="{{ event.title }}" readonly style="background: rgba(255,255,255,0.02); color: var(--text-muted); cursor: not-allowed;">
+                        {% endif %}
+                    {% endfor %}
+                    <input type="hidden" name="event_id" value="{{ form_data.event_id }}">
+                {% else %}
+                    <select id="event_id" name="event_id" class="form-control" required>
+                        <option value="" disabled {% if not selected_event_id %}selected{% endif %}>-- Chọn giải đấu bạn tham gia --</option>
+                        {% for event in active_competitions %}
+                        <option value="{{ event.id }}" {% if selected_event_id|string == event.id|string or selected_event_id == event.id %}selected{% endif %}>{{ event.title }}</option>
+                        {% endfor %}
+                    </select>
+                {% endif %}
+            </div>
+
             <div class="form-group">
                 <label for="full_name">Họ và Tên Nhân Viên</label>
                 <input type="text" id="full_name" name="full_name" class="form-control" placeholder="Ví dụ: Nguyễn Văn A" value="{% if form_data %}{{ form_data.full_name }}{% endif %}" {% if already_exists %}readonly style="background: rgba(255,255,255,0.02); color: var(--text-muted); cursor: not-allowed;"{% endif %} required>
