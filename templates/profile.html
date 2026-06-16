@@ -420,6 +420,11 @@
                     <td style="text-align: right; color: var(--text-muted);">{{ act.elevation_gain_m }} m</td>
                     <td style="text-align: right; color: var(--color-orange); font-weight: 700;">
                         {{ "{:,}".format(act.kcal_burned).replace(",", ".") }}
+                        {% if act.multiplier and act.multiplier > 1.0 %}
+                        <div style="font-size: 0.75rem; color: #ffc107; margin-top: 2px;" title="Hệ số nhân: x{{ act.multiplier }} (KCAL gốc: {{ "{:,}".format(act.kcal_burned_raw | float | round(1) if act.kcal_burned_raw else (act.kcal_burned / act.multiplier) | float | round(1)).replace(",", ".") }} KCAL)">
+                            <i class="fa-solid fa-bolt" style="color: #ffc107;"></i> x{{ act.multiplier }}
+                        </div>
+                        {% endif %}
                     </td>
                     <td style="text-align: center;">
                         {% if act.is_suspicious %}

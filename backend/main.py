@@ -486,7 +486,11 @@ def register_page(
     
     selected_event_id = event_id
     if not selected_event_id and active_competitions:
-        selected_event_id = active_competitions[0].id
+        new_active = [c for c in active_competitions if c.id != 1]
+        if new_active:
+            selected_event_id = sorted(new_active, key=lambda x: x.id, reverse=True)[0].id
+        else:
+            selected_event_id = active_competitions[0].id
         
     return templates.TemplateResponse(
         request=request,
@@ -1334,7 +1338,7 @@ def exchange_token(request: Request, code: str = None, error: str = None, db: Se
             "client_secret": client_secret,
             "code": code,
             "grant_type": "authorization_code"
-        })
+        }, timeout=10)
         response.raise_for_status()
         token_data = response.json()
 
@@ -1933,6 +1937,8 @@ def get_activities_api(
             "elevation_gain_m": act.elevation_gain_m,
             "activity_date": act.activity_date,
             "kcal_burned": act.kcal_burned,
+            "kcal_burned_raw": act.kcal_burned_raw,
+            "multiplier": act.multiplier,
             "mets_value": act.mets_value,
             "is_suspicious": act.is_suspicious,
             "suspicion_reason": act.suspicion_reason

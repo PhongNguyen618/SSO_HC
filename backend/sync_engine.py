@@ -43,7 +43,7 @@ def refresh_strava_token(db: Session, configs: dict) -> str:
             "client_secret": client_secret,
             "grant_type": "refresh_token",
             "refresh_token": refresh_token
-        })
+        }, timeout=10)
         response.raise_for_status()
         token_data = response.json()
         
@@ -81,7 +81,7 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
     per_page = 200
     
     while True:
-        response = requests.get(url, headers=headers, params={"page": page, "per_page": per_page})
+        response = requests.get(url, headers=headers, params={"page": page, "per_page": per_page}, timeout=10)
         response.raise_for_status()
         chunk = response.json()
         if not chunk:

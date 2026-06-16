@@ -1606,7 +1606,14 @@
                 <td><span class="badge badge-info" style="font-size:0.75rem; background: rgba(0, 188, 212, 0.15); color: #00bcd4; border: 1px solid rgba(0, 188, 212, 0.2); padding: 0.2rem 0.5rem; border-radius: 4px;">${act.sport_type || 'Run'}</span></td>
                 <td style="text-align: right;">${(act.distance_km || 0).toFixed(2)} km</td>
                 <td style="text-align: right;">${(act.moving_time_min || 0).toFixed(1)} m</td>
-                <td style="text-align: right; color: var(--color-primary); font-weight:600;">${act.kcal_burned || 0} KCAL</td>
+                <td style="text-align: right; color: var(--color-primary); font-weight:600;">
+                    ${(act.kcal_burned || 0).toLocaleString('vi-VN')} KCAL
+                    ${act.multiplier && act.multiplier > 1.0 ? `
+                        <div style="font-size: 0.75rem; color: #ffc107; margin-top: 2px;" title="Hệ số nhân: x${act.multiplier} (KCAL gốc: ${(act.kcal_burned_raw || (act.kcal_burned / act.multiplier)).toFixed(1)} KCAL)">
+                            <i class="fa-solid fa-bolt"></i> x${act.multiplier}
+                        </div>
+                    ` : ''}
+                </td>
                 <td style="text-align: center;">${act.activity_date || ''}</td>
                 <td style="text-align: center;">${statusBadge}</td>
                 <td style="text-align: center;">
