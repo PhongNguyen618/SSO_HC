@@ -673,7 +673,7 @@ def profile_page(
             max_streak = max(max_streak, current_streak)
 
     # 3. Trực quan hóa tiến độ giải thưởng
-    award_info = get_award_info(athlete.gender, total_kcal, db)
+    award_info = get_award_info(athlete.gender, total_kcal, db, event_id=selected_event_id)
     
     progress_percent = 100
     if award_info["next_threshold"] > 0:
@@ -703,7 +703,8 @@ def profile_page(
         max_streak=max_streak,
         total_kcal=total_kcal,
         total_time_hours=total_time / 60.0,
-        db=db
+        db=db,
+        event_id=selected_event_id
     )
 
     # Kiểm tra quyền Admin
