@@ -154,7 +154,10 @@
             <i class="fa-solid fa-chart-line"></i> Thống Kê Phân Tích
         </button>
         <button class="tab-btn" onclick="switchAdminTab(event, 'tab-athletes')">
-            <i class="fa-solid fa-users-gear"></i> Thành Viên
+            <i class="fa-solid fa-users"></i> Quản lý VĐV
+        </button>
+        <button class="tab-btn" onclick="switchAdminTab(event, 'tab-activities')">
+            <i class="fa-brands fa-strava"></i> Quản lý Hoạt động
         </button>
         <button class="tab-btn" onclick="switchAdminTab(event, 'tab-mets')">
             <i class="fa-solid fa-bolt"></i> Hệ số METs
@@ -597,6 +600,198 @@
         </div>
     </div>
 
+    <!-- TAB: QUẢN LÝ HOẠT ĐỘNG -->
+    <div id="tab-activities" class="tab-pane">
+        <!-- Thanh công cụ -->
+        <div class="glass-card" style="background: rgba(255,255,255,0.01); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem; padding: 1.2rem;">
+            <div style="display: flex; gap: 0.8rem; align-items: center; flex-grow: 1; max-width: 500px;">
+                <i class="fa-solid fa-magnifying-glass" style="color: var(--text-muted); font-size: 1.1rem;"></i>
+                <input type="text" id="search-activity-input" class="form-control" placeholder="Tìm tên VĐV, tên hoạt động hoặc bộ môn..." oninput="onSearchActivityInput(this.value)" style="margin-bottom:0;">
+            </div>
+            <div>
+                <button onclick="runDeduplicateActivities(event)" class="btn btn-secondary btn-sm" style="background: linear-gradient(135deg, #ff5e36, #ff7b57); border: none; color: #fff; display: flex; align-items: center; gap: 0.5rem;" title="Quét và xóa các hoạt động trùng lặp về quãng đường/calo">
+                    <i class="fa-solid fa-broom"></i> Dọn dẹp hoạt động trùng lặp
+                </button>
+            </div>
+        </div>
+
+        <!-- Bảng danh sách hoạt động -->
+        <div class="glass-card" style="background: rgba(255,255,255,0.01);">
+            <h3 class="admin-section-title">Danh Sách Hoạt Động Của VĐV</h3>
+            <div class="table-responsive">
+                <table class="custom-table" style="font-size:0.85rem;" id="activities-table">
+                    <thead>
+                        <tr>
+                            <th>VĐV</th>
+                            <th>Tên Hoạt Động</th>
+                            <th>Môn Thể Thao</th>
+                            <th style="text-align: right;">Cự ly (km)</th>
+                            <th style="text-align: right;">Thời gian (phút)</th>
+                            <th style="text-align: right;">Calo (KCAL)</th>
+                            <th style="text-align: center;">Ngày</th>
+                            <th style="text-align: center;">Trạng thái</th>
+                            <th style="text-align: center;">Hành động</th>
+                        </tr>
+                    </thead>
+                    <tbody id="activities-table-body">
+                        <tr>
+                            <td colspan="9" style="text-align: center; color: var(--text-muted); padding: 2rem;">
+                                <i class="fa-solid fa-spinner fa-spin"></i> Đang tải danh sách hoạt động...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Phân trang -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+                <div id="activities-page-info" style="color: var(--text-muted); font-size: 0.85rem;">
+                    Hiển thị 0 - 0 trong tổng số 0 hoạt động
+                </div>
+                <div style="display: flex; gap: 0.3rem;" id="activities-pagination-btns">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Sửa Hoạt Động -->
+    <div id="edit-activity-modal-backdrop" class="modal-backdrop" onclick="closeEditActivityModal()"></div>
+    <div id="edit-activity-modal" class="modal-content">
+        <div class="modal-header">
+            <h3 class="modal-title"><i class="fa-solid fa-pen-to-square"></i> Sửa Hoạt Động VĐV</h3>
+            <button class="modal-close-btn" onclick="closeEditActivityModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form id="edit-activity-form" onsubmit="submitEditActivityForm(event)">
+                <input type="hidden" id="edit-act-id" name="activity_id">
+                <div class="form-group">
+                    <label>Tên VĐV (Không thể sửa)</label>
+                    <input type="text" id="edit-act-athlete-name" class="form-control" disabled style="opacity: 0.6;">
+                </div>
+                <div class="form-group">
+                    <label for="edit-act-name">Tên Hoạt Động</label>
+                    <input type="text" id="edit-act-name" name="name" class="form-control" required>
+                </div>
+                <div class="form-row" style="display: flex; gap: 1rem; margin-bottom: 1rem;">
+                    <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                        <label for="edit-act-sport-type">Môn Thể Thao</label>
+                        <select id="edit-act-sport-type" name="sport_type" class="form-control" required style="height: 38px;">
+                            <option value="Run">Run (Chạy bộ)</option>
+                            <option value="Walk">Walk (Đi bộ)</option>
+                            <option value="Ride">Ride (Đạp xe)</option>
+                            <option value="Swim">Swim (Bơi lội)</option>
+                            <option value="Workout">Workout (Gym/Thể hình)</option>
+                            <option value="Yoga">Yoga</option>
+                            <option value="Other">Khác</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                        <label for="edit-act-date">Ngày Hoạt Động</label>
+                        <input type="date" id="edit-act-date" name="activity_date" class="form-control" required style="height: 38px; line-height: 1.5;">
+                    </div>
+                </div>
+                <div class="form-row" style="display: flex; gap: 1rem; margin-bottom: 1rem;">
+                    <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                        <label for="edit-act-dist">Cự ly (km)</label>
+                        <input type="number" step="0.01" id="edit-act-dist" name="distance_km" class="form-control" required>
+                    </div>
+                    <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                        <label for="edit-act-mov-time">Thời gian di chuyển (phút)</label>
+                        <input type="number" step="0.1" id="edit-act-mov-time" name="moving_time_min" class="form-control" required>
+                    </div>
+                </div>
+                <div class="form-row" style="display: flex; gap: 1rem; margin-bottom: 1rem;">
+                    <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                        <label for="edit-act-ela-time">Thời gian tổng cộng (phút)</label>
+                        <input type="number" step="0.1" id="edit-act-ela-time" name="elapsed_time_min" class="form-control" required>
+                    </div>
+                    <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                        <label for="edit-act-elev">Elevation Gain (m)</label>
+                        <input type="number" step="0.1" id="edit-act-elev" name="elevation_gain_m" class="form-control" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="edit-act-kcal">Năng lượng tiêu thụ (KCAL - Để trống để tự động tính lại)</label>
+                    <input type="number" step="1" id="edit-act-kcal" name="kcal_burned" class="form-control" placeholder="Tự động tính theo METs">
+                </div>
+                <div class="modal-footer" style="padding-bottom: 0; margin-bottom: 0;">
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="closeEditActivityModal()">Hủy</button>
+                    <button type="submit" class="btn btn-primary btn-sm">Lưu thay đổi</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- CSS Modal Tự Định Nghĩa -->
+    <style>
+        .modal-backdrop {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(4px);
+            z-index: 9998;
+        }
+        .modal-content {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 90%;
+            max-width: 520px;
+            background: #18191a;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 1.5rem;
+            z-index: 9999;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            padding-bottom: 0.8rem;
+            margin-bottom: 1rem;
+        }
+        .modal-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.15rem;
+            font-weight: 600;
+            color: var(--color-primary);
+            margin: 0;
+        }
+        .modal-close-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 1.5rem;
+            cursor: pointer;
+            line-height: 1;
+        }
+        .modal-close-btn:hover {
+            color: #fff;
+        }
+        .modal-body label {
+            display: block;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-bottom: 0.3rem;
+        }
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.5rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            padding-top: 1rem;
+            margin-top: 1rem;
+        }
+    </style>
+
     <!-- TAB: HỆ SỐ METs -->
     <div id="tab-mets" class="tab-pane">
         <div class="glass-card" style="background: rgba(255,255,255,0.01);">
@@ -878,6 +1073,256 @@
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
+    // --- ADMIN TAB TRANSITION LOGIC ---
+    function switchAdminTab(evt, tabId) {
+        const tabPanes = document.querySelectorAll('#tab-config, #tab-analytics, #tab-athletes, #tab-activities, #tab-mets, #tab-rewards, #tab-badges, #tab-events, #tab-security');
+        tabPanes.forEach(pane => pane.classList.remove('active'));
+
+        const tabBtns = document.querySelectorAll('.tab-btn');
+        tabBtns.forEach(btn => btn.classList.remove('active'));
+
+        document.getElementById(tabId).classList.add('active');
+        evt.currentTarget.classList.add('active');
+        
+        if (tabId === 'tab-activities') {
+            loadActivities(1);
+        }
+    }
+
+    // --- QUẢN LÝ HOẠT ĐỘNG (TAB ACTIVITIES) JS LOGIC ---
+    let currentActivitiesPage = 1;
+    let searchActivityQuery = '';
+    let searchActivityTimeout = null;
+
+    function loadActivities(page) {
+        currentActivitiesPage = page;
+        const tbody = document.getElementById('activities-table-body');
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="9" style="text-align: center; color: var(--text-muted); padding: 2rem;">
+                    <i class="fa-solid fa-spinner fa-spin"></i> Đang tải danh sách hoạt động...
+                </td>
+            </tr>
+        `;
+        
+        fetch(`/admin/api/activities?page=${page}&limit=20&search=${encodeURIComponent(searchActivityQuery)}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    renderActivitiesTable(data);
+                } else {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="9" style="text-align: center; color: var(--color-orange); padding: 2rem;">
+                                <i class="fa-solid fa-triangle-exclamation"></i> Lỗi: ${data.error || 'Không thể tải dữ liệu'}
+                            </td>
+                        </tr>
+                    `;
+                }
+            })
+            .catch(err => {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="9" style="text-align: center; color: var(--color-orange); padding: 2rem;">
+                            <i class="fa-solid fa-triangle-exclamation"></i> Lỗi kết nối server: ${err}
+                        </td>
+                    </tr>
+                `;
+            });
+    }
+
+    function renderActivitiesTable(data) {
+        const tbody = document.getElementById('activities-table-body');
+        const paginationContainer = document.getElementById('activities-pagination-btns');
+        const infoDiv = document.getElementById('activities-page-info');
+        
+        tbody.innerHTML = '';
+        
+        if (data.activities.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="9" style="text-align: center; color: var(--text-muted); padding: 2rem;">
+                        Không tìm thấy hoạt động nào phù hợp.
+                    </td>
+                </tr>
+            `;
+            paginationContainer.innerHTML = '';
+            infoDiv.innerText = 'Hiển thị 0 - 0 trong tổng số 0 hoạt động';
+            return;
+        }
+        
+        data.activities.forEach(act => {
+            const tr = document.createElement('tr');
+            
+            let statusBadge = '';
+            if (act.is_suspicious) {
+                statusBadge = `<span style="background: rgba(239, 83, 80, 0.15); color: #ef5350; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.75rem;" title="${act.suspicion_reason || 'Nghi vấn gian lận'}"><i class="fa-solid fa-triangle-exclamation"></i> Nghi vấn</span>`;
+            } else {
+                statusBadge = `<span style="background: rgba(76, 175, 80, 0.15); color: #4caf50; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.75rem;"><i class="fa-solid fa-circle-check"></i> Hợp lệ</span>`;
+            }
+            
+            const actDataEscaped = btoa(unescape(encodeURIComponent(JSON.stringify(act))));
+            
+            tr.innerHTML = `
+                <td><strong>${act.athlete_name_raw}</strong></td>
+                <td>${act.name}</td>
+                <td><span class="badge badge-info" style="font-size:0.75rem; background: rgba(0, 188, 212, 0.15); color: #00bcd4; border: 1px solid rgba(0, 188, 212, 0.2); padding: 0.2rem 0.5rem; border-radius: 4px;">${act.sport_type}</span></td>
+                <td style="text-align: right;">${act.distance_km.toFixed(2)} km</td>
+                <td style="text-align: right;">${act.moving_time_min.toFixed(1)} m</td>
+                <td style="text-align: right; color: var(--color-primary); font-weight:600;">${act.kcal_burned} KCAL</td>
+                <td style="text-align: center;">${act.activity_date}</td>
+                <td style="text-align: center;">${statusBadge}</td>
+                <td style="text-align: center;">
+                    <div style="display: flex; gap: 0.3rem; justify-content: center;">
+                        <button onclick="openEditActivityModal('${actDataEscaped}')" class="btn btn-primary btn-sm" style="padding:0.3rem 0.5rem; font-size:0.75rem;" title="Sửa hoạt động"><i class="fa-solid fa-pen-to-square"></i></button>
+                        <button onclick="deleteActivity('${act.id}')" class="btn btn-danger btn-sm" style="padding:0.3rem 0.5rem; font-size:0.75rem;" title="Xóa"><i class="fa-solid fa-trash-can"></i></button>
+                    </div>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+        
+        const startNum = (data.page - 1) * data.limit + 1;
+        const endNum = Math.min(data.page * data.limit, data.total);
+        infoDiv.innerText = `Hiển thị ${startNum} - ${endNum} trong tổng số ${data.total} hoạt động`;
+        
+        paginationContainer.innerHTML = '';
+        const totalPages = Math.ceil(data.total / data.limit);
+        
+        if (totalPages > 1) {
+            if (data.page > 1) {
+                paginationContainer.innerHTML += `<button onclick="loadActivities(1)" class="btn btn-secondary btn-sm" style="padding:0.2rem 0.5rem;"><i class="fa-solid fa-angles-left"></i></button>`;
+                paginationContainer.innerHTML += `<button onclick="loadActivities(${data.page - 1})" class="btn btn-secondary btn-sm" style="padding:0.2rem 0.5rem;"><i class="fa-solid fa-angle-left"></i></button>`;
+            }
+            
+            let startPage = Math.max(1, data.page - 2);
+            let endPage = Math.min(totalPages, data.page + 2);
+            
+            for (let i = startPage; i <= endPage; i++) {
+                const activeStyle = i === data.page ? 'background-color: var(--color-primary); border-color: var(--color-primary); color: #fff;' : '';
+                paginationContainer.innerHTML += `<button onclick="loadActivities(${i})" class="btn btn-secondary btn-sm" style="padding:0.2rem 0.5rem; ${activeStyle}">${i}</button>`;
+            }
+            
+            if (data.page < totalPages) {
+                paginationContainer.innerHTML += `<button onclick="loadActivities(${data.page + 1})" class="btn btn-secondary btn-sm" style="padding:0.2rem 0.5rem;"><i class="fa-solid fa-angle-right"></i></button>`;
+                paginationContainer.innerHTML += `<button onclick="loadActivities(${totalPages})" class="btn btn-secondary btn-sm" style="padding:0.2rem 0.5rem;"><i class="fa-solid fa-angles-right"></i></button>`;
+            }
+        }
+    }
+
+    function onSearchActivityInput(val) {
+        searchActivityQuery = val;
+        clearTimeout(searchActivityTimeout);
+        searchActivityTimeout = setTimeout(() => {
+            loadActivities(1);
+        }, 400);
+    }
+
+    function openEditActivityModal(base64Data) {
+        const act = JSON.parse(decodeURIComponent(escape(atob(base64Data))));
+        
+        document.getElementById('edit-act-id').value = act.id;
+        document.getElementById('edit-act-athlete-name').value = act.athlete_name_raw;
+        document.getElementById('edit-act-name').value = act.name;
+        document.getElementById('edit-act-sport-type').value = act.sport_type;
+        document.getElementById('edit-act-date').value = act.activity_date;
+        document.getElementById('edit-act-dist').value = act.distance_km;
+        document.getElementById('edit-act-mov-time').value = act.moving_time_min;
+        document.getElementById('edit-act-ela-time').value = act.elapsed_time_min;
+        document.getElementById('edit-act-elev').value = act.elevation_gain_m;
+        document.getElementById('edit-act-kcal').value = act.kcal_burned;
+        
+        document.getElementById('edit-activity-modal-backdrop').style.display = 'block';
+        document.getElementById('edit-activity-modal').style.display = 'block';
+    }
+
+    function closeEditActivityModal() {
+        document.getElementById('edit-activity-modal-backdrop').style.display = 'none';
+        document.getElementById('edit-activity-modal').style.display = 'none';
+    }
+
+    function submitEditActivityForm(event) {
+        event.preventDefault();
+        const form = document.getElementById('edit-activity-form');
+        const actId = document.getElementById('edit-act-id').value;
+        
+        const formData = new FormData(form);
+        
+        fetch(`/admin/activity/edit/${actId}`, {
+            method: 'POST',
+            body: formData
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                alert('Cập nhật hoạt động thành công!');
+                closeEditActivityModal();
+                loadActivities(currentActivitiesPage);
+            } else {
+                alert('Lỗi: ' + (data.error || 'Không thể lưu thay đổi'));
+            }
+        })
+        .catch(err => {
+            alert('Lỗi kết nối: ' + err);
+        });
+    }
+
+    function deleteActivity(actId) {
+        if (!confirm('Bạn có chắc chắn muốn xóa hoạt động này? Thành tích sẽ bị giảm trừ tương ứng.')) {
+            return;
+        }
+        
+        fetch(`/admin/activity/delete/${actId}`, {
+            method: 'POST'
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                alert('Xóa hoạt động thành công!');
+                loadActivities(currentActivitiesPage);
+            } else {
+                alert('Lỗi: ' + (data.error || 'Không thể xóa hoạt động'));
+            }
+        })
+        .catch(err => {
+            alert('Lỗi kết nối: ' + err);
+        });
+    }
+
+    function runDeduplicateActivities(event) {
+        if (!confirm('Bạn có chắc chắn muốn quét và dọn dẹp các hoạt động bị trùng lặp? Quá trình này sẽ lọc toàn bộ database, giữ lại 1 bản ghi duy nhất cho mỗi hoạt động trùng khớp.')) {
+            return;
+        }
+        
+        const btn = event.currentTarget;
+        const originalHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Đang xử lý...`;
+        
+        fetch(`/admin/activity/deduplicate`, {
+            method: 'POST'
+        })
+        .then(res => res.json())
+        .then(data => {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+            
+            if (data.status === 'success') {
+                alert(data.message);
+                if (document.getElementById('tab-activities').classList.contains('active')) {
+                    loadActivities(1);
+                }
+            } else {
+                alert('Lỗi: ' + (data.error || 'Không thể xử lý dọn dẹp'));
+            }
+        })
+        .catch(err => {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+            alert('Lỗi kết nối: ' + err);
+        });
+    }
+
     // --- ADMIN TAB TRANSITION LOGIC ---
     function switchAdminTab(evt, tabId) {
         const tabPanes = document.querySelectorAll('#tab-config, #tab-analytics, #tab-athletes, #tab-mets, #tab-rewards, #tab-badges, #tab-events, #tab-security');

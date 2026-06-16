@@ -1319,6 +1319,180 @@ def delete_activity(activity_id: str, request: Request, db: Session = Depends(ge
         db.rollback()
         return JSONResponse(status_code=500, content={"error": f"Lỗi xóa hoạt động: {str(e)}"})
 
+@app.get("/admin/api/activities")
+def get_activities_api(
+    request: Request,
+    page: int = 1,
+    limit: int = 50,
+    search: str = "",
+    db: Session = Depends(get_db)
+):
+    """API lấy danh sách hoạt động có phân trang và tìm kiếm (chỉ dành cho Admin)."""
+    admin_session = get_admin_session(request, db)
+    if not admin_session:
+        return JSONResponse(status_code=401, content={"error": "Chưa đăng nhập admin"})
+        
+    query = db.query(Activity)
+    if search:
+        search_filter = f"%{search.strip()}%"
+        query = query.filter(
+            (Activity.athlete_name_raw.ilike(search_filter)) |
+            (Activity.name.ilike(search_filter)) |
+            (Activity.sport_type.ilike(search_filter))
+        )
+        
+    total = query.count()
+    activities = query.order_by(Activity.activity_date.desc(), Activity.id.desc())\
+        .offset((page - 1) * limit)\
+        .limit(limit)\
+        .all()
+        
+    res = []
+    for act in activities:
+        res.append({
+            "id": act.id,
+            "athlete_id": act.athlete_id,
+            "athlete_name_raw": act.athlete_name_raw,
+            "name": act.name,
+            "type": act.type,
+            "sport_type": act.sport_type,
+            "distance_km": act.distance_km,
+            "moving_time_min": act.moving_time_min,
+            "elapsed_time_min": act.elapsed_time_min,
+            "pace_min_km": act.pace_min_km,
+            "elevation_gain_m": act.elevation_gain_m,
+            "activity_date": act.activity_date,
+            "kcal_burned": act.kcal_burned,
+            "mets_value": act.mets_value,
+            "is_suspicious": act.is_suspicious,
+            "suspicion_reason": act.suspicion_reason
+        })
+        
+    return {
+        "status": "success",
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "activities": res
+    }
+
+@app.post("/admin/activity/edit/{activity_id}")
+def edit_activity(
+    activity_id: str,
+    request: Request,
+    name: str = Form(...),
+    sport_type: str = Form(...),
+    distance_km: float = Form(...),
+    moving_time_min: float = Form(...),
+    elapsed_time_min: float = Form(...),
+    elevation_gain_m: float = Form(...),
+    activity_date: str = Form(...),
+    kcal_burned: float = Form(None),
+    db: Session = Depends(get_db)
+):
+    """API sửa hoạt động, chỉ dành cho Admin."""
+    admin_session = get_admin_session(request, db)
+    if not admin_session:
+        return JSONResponse(status_code=401, content={"error": "Chưa đăng nhập admin"})
+        
+    activity = db.query(Activity).filter(Activity.id == activity_id).first()
+    if not activity:
+        return JSONResponse(status_code=404, content={"error": "Không tìm thấy hoạt động"})
+        
+    try:
+        activity.name = name.strip()
+        activity.sport_type = sport_type.strip()
+        activity.distance_km = distance_km
+        activity.moving_time_min = moving_time_min
+        activity.elapsed_time_min = elapsed_time_min
+        activity.elevation_gain_m = elevation_gain_m
+        activity.activity_date = activity_date.strip()
+        
+        # Tính lại METs & KCAL dựa trên cân nặng của vận động viên
+        athlete = db.query(Athlete).filter(Athlete.id == activity.athlete_id).first()
+        weight = athlete.weight if athlete else 60.0
+        
+        speed_kmh = distance_km / (moving_time_min / 60.0) if moving_time_min > 0 else 0.0
+        actual_time_min = elapsed_time_min if moving_time_min < 1.0 else moving_time_min
+        
+        from backend.calculations import get_mets_value, calculate_kcal
+        mets_val = get_mets_value(sport_type.strip(), speed_kmh, db, distance_km, elevation_gain_m)
+        activity.mets_value = mets_val
+        
+        if kcal_burned is not None:
+            activity.kcal_burned = kcal_burned
+        else:
+            activity.kcal_burned = calculate_kcal(mets_val, weight, actual_time_min, elevation_gain_m, sport_type.strip())
+            
+        # Tính lại pace
+        if distance_km > 0:
+            activity.pace_min_km = round(moving_time_min / distance_km, 2)
+        else:
+            activity.pace_min_km = 0.0
+            
+        db.commit()
+        return JSONResponse(content={"status": "success", "message": "Cập nhật hoạt động thành công"})
+    except Exception as e:
+        db.rollback()
+        return JSONResponse(status_code=500, content={"error": f"Lỗi cập nhật hoạt động: {str(e)}"})
+
+@app.post("/admin/activity/deduplicate")
+def api_deduplicate_activities(request: Request, db: Session = Depends(get_db)):
+    """API dọn dẹp dữ liệu trùng lặp trong DB, chỉ dành cho Admin."""
+    admin_session = get_admin_session(request, db)
+    if not admin_session:
+        return JSONResponse(status_code=401, content={"error": "Chưa đăng nhập admin"})
+        
+    try:
+        activities = db.query(Activity).all()
+        seen_activities = {}
+        to_delete = []
+        updated_count = 0
+        
+        import hashlib
+        
+        for act in activities:
+            dist_km_round = round(float(act.distance_km or 0), 2)
+            mov_time_round = round(float(act.moving_time_min or 0), 1)
+            ela_time_round = round(float(act.elapsed_time_min or 0), 1)
+            elev_round = float(act.elevation_gain_m or 0)
+            
+            unique_str = f"{act.athlete_name_raw}_{act.name}_{act.sport_type}_{dist_km_round}_{mov_time_round}_{ela_time_round}_{elev_round}"
+            
+            if unique_str in seen_activities:
+                to_delete.append(act.id)
+            else:
+                seen_activities[unique_str] = act.id
+                
+                # Đồng bộ ID của hoạt động
+                new_id = hashlib.sha256(unique_str.encode("utf-8")).hexdigest()
+                if act.id != new_id:
+                    try:
+                        exists = db.query(Activity).filter(Activity.id == new_id).first()
+                        if not exists:
+                            db.execute(
+                                Activity.__table__.update().where(Activity.id == act.id).values(id=new_id)
+                            )
+                            updated_count += 1
+                    except Exception:
+                        pass
+                        
+        deleted_count = 0
+        if to_delete:
+            # Chuyển đổi mảng to_delete thành danh sách và xóa hàng loạt
+            deleted_count = db.query(Activity).filter(Activity.id.in_(to_delete)).delete(synchronize_session=False)
+            
+        db.commit()
+        return JSONResponse(content={
+            "status": "success",
+            "deleted_count": deleted_count,
+            "updated_count": updated_count,
+            "message": f"Đã dọn dẹp thành công {deleted_count} hoạt động trùng lặp và đồng bộ hóa {updated_count} khóa ID."
+        })
+    except Exception as e:
+        db.rollback()
+        return JSONResponse(status_code=500, content={"error": f"Lỗi dọn dẹp trùng lặp: {str(e)}"})
+
 @app.get("/admin/export-excel")
 def export_excel(
     request: Request,
