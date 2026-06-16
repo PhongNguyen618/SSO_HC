@@ -455,8 +455,19 @@ def rules_page(
         if selected_event.strava_club_id:
             configs["strava_club_id"] = selected_event.strava_club_id
             
-    mets = db.query(MetsRule).order_by(MetsRule.sport_type, MetsRule.min_speed).all()
-    rewards = db.query(RewardRule).order_by(RewardRule.gender, RewardRule.kcal_threshold).all()
+    selected_event_id = selected_event.id if selected_event else None
+    
+    mets = []
+    if selected_event_id:
+        mets = db.query(MetsRule).filter(MetsRule.event_id == selected_event_id).order_by(MetsRule.sport_type, MetsRule.min_speed).all()
+    if not mets:
+        mets = db.query(MetsRule).filter(MetsRule.event_id == None).order_by(MetsRule.sport_type, MetsRule.min_speed).all()
+        
+    rewards = []
+    if selected_event_id:
+        rewards = db.query(RewardRule).filter(RewardRule.event_id == selected_event_id).order_by(RewardRule.gender, RewardRule.kcal_threshold).all()
+    if not rewards:
+        rewards = db.query(RewardRule).filter(RewardRule.event_id == None).order_by(RewardRule.gender, RewardRule.kcal_threshold).all()
     return templates.TemplateResponse(
         request=request,
         name="rules.html",

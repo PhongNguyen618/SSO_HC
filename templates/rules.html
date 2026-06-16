@@ -176,6 +176,23 @@
         <h2 class="rules-title">
             <i class="fa-solid fa-gift"></i> Cơ Cấu Giải Thưởng Tích Lũy
         </h2>
+        {% if selected_event and selected_event.reward_type == 'linear' %}
+        <div class="glass-card" style="background: rgba(245, 175, 25, 0.03); border: 1px solid rgba(245, 175, 25, 0.2); padding: 2rem; border-radius: 12px; display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;">
+            <div style="background: rgba(245, 175, 25, 0.1); border-radius: 50%; width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; color: #ffc107; font-size: 1.8rem; flex-shrink: 0;">
+                <i class="fa-solid fa-calculator"></i>
+            </div>
+            <div style="flex: 1; min-width: 250px;">
+                <h3 style="color: #ffc107; margin-bottom: 0.5rem; font-family: 'Outfit', sans-serif;">Quy Đổi Giải Thưởng Tuyến Tính</h3>
+                <p style="margin-bottom: 0; font-size: 1.05rem; line-height: 1.6;">
+                    Giải chạy áp dụng phương thức quy đổi giải thưởng trực tiếp theo hiệu suất tập luyện: 
+                    Cứ tích lũy đủ <strong>{{ "{:,}".format(selected_event.reward_linear_kcal | int).replace(",", ".") }} KCAL</strong> sẽ tương đương <strong>{{ selected_event.reward_linear_amount | currency }}</strong>.
+                </p>
+                <small style="color: var(--text-muted); display: block; margin-top: 0.5rem;">
+                    Ví dụ: Tích lũy 1.000 KCAL sẽ quy đổi được {{ (1000 / (selected_event.reward_linear_kcal or 100) * (selected_event.reward_linear_amount or 5000)) | currency }}. Số tiền thưởng tăng tuyến tính theo thành tích của bạn và không có giới hạn tối đa!
+                </small>
+            </div>
+        </div>
+        {% else %}
         <p style="margin-bottom: 1.2rem;">Khi tích lũy đủ lượng Calo tiêu thụ trong thời gian diễn ra giải đấu, vận động viên sẽ nhận được phần thưởng tương ứng với các mốc:</p>
         
         <div class="badge-grid">
@@ -237,6 +254,7 @@
                 </div>
             </div>
         </div>
+        {% endif %}
     </div>
 
     <!-- Section 4: Chống gian lận -->
