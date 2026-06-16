@@ -2464,6 +2464,7 @@ async def admin_add_competition(
     reward_type: str = Form("milestone"),
     reward_linear_kcal: float = Form(100.0),
     reward_linear_amount: float = Form(5000.0),
+    show_rewards_in_rules: bool = Form(True),
     banner_file: UploadFile = File(None),
     db: Session = Depends(get_db)
 ):
@@ -2500,7 +2501,8 @@ async def admin_add_competition(
             rules_general_text=rules_general_text.strip(),
             reward_type=reward_type.strip(),
             reward_linear_kcal=reward_linear_kcal,
-            reward_linear_amount=reward_linear_amount
+            reward_linear_amount=reward_linear_amount,
+            show_rewards_in_rules=show_rewards_in_rules
         )
         db.add(new_comp)
         db.commit()
@@ -2526,6 +2528,7 @@ async def admin_edit_competition(
     reward_type: str = Form("milestone"),
     reward_linear_kcal: float = Form(100.0),
     reward_linear_amount: float = Form(5000.0),
+    show_rewards_in_rules: bool = Form(True),
     banner_file: UploadFile = File(None),
     db: Session = Depends(get_db)
 ):
@@ -2551,6 +2554,7 @@ async def admin_edit_competition(
         comp.reward_type = reward_type.strip()
         comp.reward_linear_kcal = reward_linear_kcal
         comp.reward_linear_amount = reward_linear_amount
+        comp.show_rewards_in_rules = show_rewards_in_rules
         
         # Cập nhật banner nếu có upload mới
         if banner_file and banner_file.filename:

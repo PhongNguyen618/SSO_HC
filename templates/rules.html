@@ -172,6 +172,7 @@
     </div>
 
     <!-- Section 3: Cơ cấu giải thưởng -->
+    {% if not selected_event or selected_event.show_rewards_in_rules or selected_event.show_rewards_in_rules is none %}
     <div class="rules-section" style="margin-top: 2rem;">
         <h2 class="rules-title">
             <i class="fa-solid fa-gift"></i> Cơ Cấu Giải Thưởng Tích Lũy
@@ -256,6 +257,7 @@
         </div>
         {% endif %}
     </div>
+    {% endif %}
 
     <!-- Section 4: Chống gian lận -->
     <div class="rules-section" style="margin-top: 2rem;">

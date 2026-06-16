@@ -87,6 +87,7 @@ class CompetitionEvent(Base):
     reward_type = Column(String, default="milestone", nullable=True) # "milestone" hoặc "linear"
     reward_linear_kcal = Column(Float, default=100.0, nullable=True)
     reward_linear_amount = Column(Float, default=5000.0, nullable=True)
+    show_rewards_in_rules = Column(Boolean, default=True, nullable=True)
 
     activities = relationship("Activity", back_populates="event", cascade="all, delete-orphan")
 
@@ -231,6 +232,11 @@ def init_db(excel_filepath: str = "TDTT_SSO.xlsx"):
         print("Database Migration: Adding reward_linear_amount column to competition_events...")
         with engine.connect() as conn:
             conn.execute(text("ALTER TABLE competition_events ADD COLUMN reward_linear_amount FLOAT DEFAULT 5000.0"))
+            conn.commit()
+    if 'show_rewards_in_rules' not in comp_columns:
+        print("Database Migration: Adding show_rewards_in_rules column to competition_events...")
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE competition_events ADD COLUMN show_rewards_in_rules BOOLEAN DEFAULT 1"))
             conn.commit()
 
     db = SessionLocal()

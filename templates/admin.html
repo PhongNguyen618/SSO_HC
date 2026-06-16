@@ -1156,6 +1156,13 @@
                             <option value="linear">Quy đổi tuyến tính (ví dụ: X kcal = Y vnd)</option>
                         </select>
                     </div>
+                    <div class="form-group" style="flex: 1.2;">
+                        <label>Hiện giải thưởng trong quy chế</label>
+                        <select name="show_rewards_in_rules" class="form-control">
+                            <option value="true">Hiển thị</option>
+                            <option value="false">Ẩn</option>
+                        </select>
+                    </div>
                     <div class="form-group reward-linear-fields-create" style="display: none; flex: 1;">
                         <label>Mỗi mốc KCAL quy đổi</label>
                         <input type="number" name="reward_linear_kcal" class="form-control" value="100" min="1">
@@ -1283,6 +1290,13 @@
                                             <select name="reward_type" class="form-control" onchange="toggleRewardTypeFields(this, 'edit-{{ comp.id }}')">
                                                 <option value="milestone" {% if not comp.reward_type or comp.reward_type == 'milestone' %}selected{% endif %}>Tính theo mốc cố định (Milestone)</option>
                                                 <option value="linear" {% if comp.reward_type == 'linear' %}selected{% endif %}>Quy đổi tuyến tính (ví dụ: X kcal = Y vnd)</option>
+                                            </select>
+                                        </div>
+                                        <div class="form-group" style="flex: 1.2;">
+                                            <label>Hiện giải thưởng trong quy chế</label>
+                                            <select name="show_rewards_in_rules" class="form-control">
+                                                <option value="true" {% if comp.show_rewards_in_rules or comp.show_rewards_in_rules is none %}selected{% endif %}>Hiển thị</option>
+                                                <option value="false" {% if comp.show_rewards_in_rules == false %}selected{% endif %}>Ẩn</option>
                                             </select>
                                         </div>
                                         <div class="form-group reward-linear-fields-edit-{{ comp.id }}" style="{% if comp.reward_type != 'linear' %}display: none;{% endif %} flex: 1;">
