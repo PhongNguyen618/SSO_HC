@@ -1,7 +1,43 @@
 import re
 from datetime import datetime
 from sqlalchemy.orm import Session
-from backend.database import MetsRule, RewardRule, Config
+from backend.database import MetsRule, RewardRule, Config, EventMultiplier
+
+def get_multiplier_for_date(activity_date: str, event_id: int, db: Session) -> float:
+    """
+    Tra cứu hệ số nhân thành tích cho một ngày cụ thể và giải đấu.
+    Ưu tiên:
+      1. Ngày đặc biệt (special_date) - ưu tiên cao nhất
+      2. Ngày trong tuần (day_of_week) - ưu tiên thấp hơn
+      3. Mặc định 1.0 nếu không có cấu hình
+    """
+    if not event_id or not activity_date:
+        return 1.0
+    
+    # 1. Tìm theo ngày cụ thể (special_date) - ưu tiên cao nhất
+    special = db.query(EventMultiplier).filter(
+        EventMultiplier.event_id == event_id,
+        EventMultiplier.special_date == activity_date
+    ).first()
+    if special:
+        return special.multiplier or 1.0
+    
+    # 2. Tìm theo ngày trong tuần (day_of_week)
+    try:
+        dt = datetime.strptime(activity_date, "%Y-%m-%d")
+        # Python weekday(): 0=Mon, 1=Tue, ..., 6=Sun
+        dow = dt.weekday()
+        dow_rule = db.query(EventMultiplier).filter(
+            EventMultiplier.event_id == event_id,
+            EventMultiplier.day_of_week == dow,
+            EventMultiplier.special_date == None
+        ).first()
+        if dow_rule:
+            return dow_rule.multiplier or 1.0
+    except (ValueError, TypeError):
+        pass
+    
+    return 1.0
 
 def get_mets_value(sport_type: str, speed_kmh: float, db: Session, distance_km: float = 0.0, elevation_gain_m: float = 0.0, event_id: int = None) -> float:
     """
@@ -68,11 +104,12 @@ def get_mets_value(sport_type: str, speed_kmh: float, db: Session, distance_km: 
             
     return rules[-1].met_value
 
-def calculate_kcal(mets_value: float, athlete_weight: float, moving_time_min: float, elevation_gain_m: float, sport_type: str = "Other") -> float:
+def calculate_kcal(mets_value: float, athlete_weight: float, moving_time_min: float, elevation_gain_m: float, sport_type: str = "Other", multiplier: float = 1.0) -> float:
     """
     Quy đổi năng lượng tiêu thụ (KCAL).
     - Đối với Chạy bộ (Run) và Đi bộ (Walk): Công thức ACSM đã bao gồm năng lượng cản dốc trong METs.
     - Đối với các môn khác (như Đạp xe): Cộng thêm năng lượng leo dốc tuyến tính ngoài METs.
+    - Kết quả cuối cùng được nhân với hệ số multiplier (ví dụ: x2 vào Chủ nhật).
     """
     if not athlete_weight:
         athlete_weight = 60.0
@@ -84,7 +121,7 @@ def calculate_kcal(mets_value: float, athlete_weight: float, moving_time_min: fl
         # Công thức cũ cho các môn còn lại: bao gồm hệ số bổ sung dốc
         kcal = mets_value * athlete_weight * (moving_time_min / 60.0) + athlete_weight * elevation_gain_m * 0.01
         
-    return round(kcal)
+    return round(kcal * multiplier)
 
 def get_award_info(gender: str, total_kcal: float, db: Session, event_id: int = None) -> dict:
     """

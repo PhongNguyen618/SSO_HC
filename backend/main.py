@@ -20,8 +20,8 @@ load_dotenv()
 # Ví dụ: https://yourdomain.com hoặc http://localhost:8000 khi dev local
 APP_URL = os.getenv("APP_URL", "").rstrip("/")
 
-from backend.database import SessionLocal, init_db, get_db, Config, Athlete, Activity, MetsRule, RewardRule, hash_password, CompetitionEvent, CompetitionRegistration
-from backend.calculations import get_award_info
+from backend.database import SessionLocal, init_db, get_db, Config, Athlete, Activity, MetsRule, RewardRule, hash_password, CompetitionEvent, CompetitionRegistration, EventMultiplier
+from backend.calculations import get_award_info, get_multiplier_for_date
 from backend.sync_engine import sync_club_activities, get_config_dict, update_config, link_unlinked_activities, import_excel_files
 from backend.auth import get_admin_session, COOKIE_NAME, verify_password
 
@@ -543,7 +543,11 @@ def register_athlete(
                     from backend.calculations import get_mets_value, calculate_kcal
                     mets_val = get_mets_value(act.sport_type, speed_kmh, db, act.distance_km, act.elevation_gain_m)
                     act.mets_value = mets_val
-                    act.kcal_burned = calculate_kcal(mets_val, weight, actual_time_min, act.elevation_gain_m, act.sport_type)
+                    mult = get_multiplier_for_date(act.activity_date, act.event_id, db)
+                    kcal_raw = calculate_kcal(mets_val, weight, actual_time_min, act.elevation_gain_m, act.sport_type)
+                    act.kcal_burned_raw = kcal_raw
+                    act.kcal_burned = round(kcal_raw * mult)
+                    act.multiplier = mult
                 db.commit()
                 
                 # ĐĂNG KÝ GIẢI ĐẤU NẾU CHƯA CÓ
@@ -1445,7 +1449,11 @@ def admin_edit_athlete(
                 from backend.calculations import get_mets_value, calculate_kcal
                 mets_val = get_mets_value(act.sport_type, speed_kmh, db, act.distance_km, act.elevation_gain_m)
                 act.mets_value = mets_val
-                act.kcal_burned = calculate_kcal(mets_val, weight, actual_time_min, act.elevation_gain_m, act.sport_type)
+                mult = get_multiplier_for_date(act.activity_date, act.event_id, db)
+                kcal_raw = calculate_kcal(mets_val, weight, actual_time_min, act.elevation_gain_m, act.sport_type)
+                act.kcal_burned_raw = kcal_raw
+                act.kcal_burned = round(kcal_raw * mult)
+                act.multiplier = mult
             db.commit()
             
         return RedirectResponse("/admin?success=Cap nhat thanh vien thanh cong", status_code=303)
@@ -1701,6 +1709,138 @@ def edit_badges_rules(
     except Exception as e:
         db.rollback()
         return RedirectResponse(f"/admin?error=Lỗi cập nhật huy hiệu: {str(e)}", status_code=303)
+
+# ============== API QUẢN LÝ HỆ SỐ NHÂN THÀNH TÍCH (EventMultiplier) ==============
+
+@app.get("/admin/api/multipliers")
+def get_multipliers_api(request: Request, event_id: str = None, db: Session = Depends(get_db)):
+    """Lấy danh sách hệ số nhân của giải đấu."""
+    admin = get_admin_session(request, db)
+    if not admin:
+        return JSONResponse(status_code=401, content={"error": "Chưa đăng nhập admin"})
+    
+    ev_id = int(event_id) if event_id and event_id.strip() else None
+    if not ev_id:
+        return JSONResponse(content={"status": "success", "day_of_week": [], "special_dates": []})
+    
+    multipliers = db.query(EventMultiplier).filter(EventMultiplier.event_id == ev_id).all()
+    
+    dow_list = []
+    special_list = []
+    for m in multipliers:
+        item = {
+            "id": m.id,
+            "multiplier": m.multiplier,
+            "description": m.description or ""
+        }
+        if m.special_date:
+            item["special_date"] = m.special_date
+            special_list.append(item)
+        elif m.day_of_week is not None:
+            item["day_of_week"] = m.day_of_week
+            dow_list.append(item)
+    
+    return JSONResponse(content={"status": "success", "day_of_week": dow_list, "special_dates": special_list})
+
+@app.post("/admin/multipliers/edit")
+async def edit_multipliers(request: Request, db: Session = Depends(get_db)):
+    """Lưu cấu hình hệ số nhân cho giải đấu."""
+    admin = get_admin_session(request, db)
+    if not admin:
+        return RedirectResponse("/admin?error=Chua dang nhap", status_code=303)
+    
+    form = await request.form()
+    event_id_str = form.get("event_id", "")
+    ev_id = int(event_id_str) if event_id_str and event_id_str.strip() else None
+    
+    if not ev_id:
+        return RedirectResponse("/admin?error=Vui long chon giai dau", status_code=303)
+    
+    try:
+        # Xóa tất cả multiplier cũ của giải đấu này
+        db.query(EventMultiplier).filter(EventMultiplier.event_id == ev_id).delete()
+        db.flush()
+        
+        # Lưu hệ số theo ngày trong tuần (0-6)
+        for dow in range(7):
+            mult_val = form.get(f"dow_mult_{dow}", "1.0")
+            desc_val = form.get(f"dow_desc_{dow}", "")
+            mult_float = float(mult_val) if mult_val else 1.0
+            
+            if mult_float != 1.0:  # Chỉ lưu nếu khác 1.0 (tiết kiệm DB)
+                rule = EventMultiplier(
+                    event_id=ev_id,
+                    day_of_week=dow,
+                    special_date=None,
+                    multiplier=mult_float,
+                    description=desc_val.strip() if desc_val else None
+                )
+                db.add(rule)
+        
+        # Lưu hệ số ngày đặc biệt
+        special_dates = form.getlist("special_date")
+        special_mults = form.getlist("special_mult")
+        special_descs = form.getlist("special_desc")
+        
+        for i in range(len(special_dates)):
+            sd = special_dates[i].strip() if special_dates[i] else ""
+            sm = float(special_mults[i]) if i < len(special_mults) and special_mults[i] else 1.0
+            sdesc = special_descs[i].strip() if i < len(special_descs) and special_descs[i] else ""
+            
+            if sd and sm != 1.0:
+                rule = EventMultiplier(
+                    event_id=ev_id,
+                    day_of_week=None,
+                    special_date=sd,
+                    multiplier=sm,
+                    description=sdesc or None
+                )
+                db.add(rule)
+        
+        db.commit()
+        return RedirectResponse(f"/admin?success=Luu he so nhan thanh cong&event_id={ev_id}", status_code=303)
+    except Exception as e:
+        db.rollback()
+        return RedirectResponse(f"/admin?error=Loi luu he so nhan: {str(e)}", status_code=303)
+
+@app.post("/admin/multipliers/recalculate")
+def recalculate_multipliers(request: Request, event_id: int = Form(...), db: Session = Depends(get_db)):
+    """Tính lại KCAL cho tất cả hoạt động của giải đấu dựa trên multiplier mới."""
+    admin = get_admin_session(request, db)
+    if not admin:
+        return JSONResponse(status_code=401, content={"error": "Chưa đăng nhập admin"})
+    
+    try:
+        from backend.calculations import get_mets_value, calculate_kcal
+        
+        activities = db.query(Activity).filter(Activity.event_id == event_id).all()
+        updated = 0
+        
+        for act in activities:
+            # Tìm athlete để lấy cân nặng
+            athlete = db.query(Athlete).filter(Athlete.id == act.athlete_id).first() if act.athlete_id else None
+            weight = athlete.weight if athlete else 60.0
+            
+            speed_kmh = 0.0
+            if act.moving_time_min and act.moving_time_min > 0:
+                speed_kmh = act.distance_km / (act.moving_time_min / 60.0)
+            actual_time_min = act.elapsed_time_min if (act.moving_time_min or 0) < 1.0 else act.moving_time_min
+            
+            mets_val = get_mets_value(act.sport_type, speed_kmh, db, act.distance_km, act.elevation_gain_m, event_id=event_id)
+            kcal_raw = calculate_kcal(mets_val, weight, actual_time_min, act.elevation_gain_m or 0, act.sport_type)
+            mult = get_multiplier_for_date(act.activity_date, event_id, db)
+            
+            act.mets_value = mets_val
+            act.kcal_burned_raw = kcal_raw
+            act.kcal_burned = round(kcal_raw * mult)
+            act.multiplier = mult
+            updated += 1
+        
+        db.commit()
+        return JSONResponse(content={"status": "success", "updated": updated})
+    except Exception as e:
+        db.rollback()
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 @app.post("/admin/import-historical")
 async def trigger_historical_import(

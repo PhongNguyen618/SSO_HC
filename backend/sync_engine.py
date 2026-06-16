@@ -5,7 +5,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 from fastapi import UploadFile
 from backend.database import SessionLocal, Config, Athlete, Activity, CompetitionEvent
-from backend.calculations import get_mets_value, calculate_kcal, check_suspicious_activity
+from backend.calculations import get_mets_value, calculate_kcal, check_suspicious_activity, get_multiplier_for_date
 
 def get_config_dict(db: Session) -> dict:
     configs = db.query(Config).all()
@@ -144,7 +144,8 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
             actual_time_min = elapsed_time_min if moving_time_min < 1.0 else moving_time_min
             
             mets_value = get_mets_value(sport_type, speed_kmh, db, distance_km, elevation_gain_m, event_id=event_id)
-            kcal_burned = calculate_kcal(mets_value, athlete.weight, actual_time_min, elevation_gain_m, sport_type)
+            mult = get_multiplier_for_date(today_str, event_id, db)
+            kcal_burned = calculate_kcal(mets_value, athlete.weight, actual_time_min, elevation_gain_m, sport_type, multiplier=mult)
 
         # Kiểm tra gian lận
         is_suspicious, suspicion_reason = check_suspicious_activity(
@@ -155,6 +156,10 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
             configs=configs
         )
 
+        # Tính multiplier cho ngày hoạt động
+        activity_multiplier = get_multiplier_for_date(today_str, event_id, db) if athlete else 1.0
+        kcal_burned_raw = round(kcal_burned / activity_multiplier) if activity_multiplier > 0 else kcal_burned
+        
         new_activity = Activity(
             id=act_id,
             athlete_id=athlete_id,
@@ -170,7 +175,9 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
             elevation_gain_m=elevation_gain_m,
             activity_date=today_str, # Không có timestamp trong API, gán ngày đồng bộ
             kcal_burned=kcal_burned,
+            kcal_burned_raw=kcal_burned_raw,
             mets_value=mets_value,
+            multiplier=activity_multiplier,
             is_suspicious=is_suspicious,
             suspicion_reason=suspicion_reason
         )
@@ -275,9 +282,13 @@ def link_unlinked_activities(db: Session, athlete: Athlete):
             
         actual_time_min = act.elapsed_time_min if act.moving_time_min < 1.0 else act.moving_time_min
         mets_val = get_mets_value(act.sport_type, speed_kmh, db, act.distance_km, act.elevation_gain_m, event_id=act.event_id)
+        mult = get_multiplier_for_date(act.activity_date, act.event_id, db)
         
         act.mets_value = mets_val
-        act.kcal_burned = calculate_kcal(mets_val, athlete.weight, actual_time_min, act.elevation_gain_m, act.sport_type)
+        kcal_raw = calculate_kcal(mets_val, athlete.weight, actual_time_min, act.elevation_gain_m, act.sport_type)
+        act.kcal_burned_raw = kcal_raw
+        act.kcal_burned = round(kcal_raw * mult)
+        act.multiplier = mult
         
     db.commit()
     print(f"Sync Engine: Linked {len(unlinked)} old activities for athlete {athlete.full_name}.")
@@ -414,7 +425,9 @@ async def import_excel_files(files: list[UploadFile], db: Session, event_id: int
                 actual_time_min = ela_time if mov_time < 1.0 else mov_time
                 
                 mets_val = get_mets_value(sport_type, speed_kmh, db, dist_km, elev, event_id=event_id)
-                kcal_val = calculate_kcal(mets_val, weight, actual_time_min, elev, sport_type)
+                kcal_raw = calculate_kcal(mets_val, weight, actual_time_min, elev, sport_type)
+                mult = get_multiplier_for_date(activity_date, event_id, db)
+                kcal_val = round(kcal_raw * mult)
                 
                 new_act = Activity(
                     id=activity_id,
@@ -431,7 +444,9 @@ async def import_excel_files(files: list[UploadFile], db: Session, event_id: int
                     elevation_gain_m=elev,
                     activity_date=activity_date,
                     kcal_burned=kcal_val,
+                    kcal_burned_raw=kcal_raw,
                     mets_value=mets_val,
+                    multiplier=mult,
                     is_suspicious=is_suspicious,
                     suspicion_reason=suspicion_reason
                 )

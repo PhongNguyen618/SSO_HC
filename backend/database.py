@@ -99,6 +99,17 @@ class CompetitionRegistration(Base):
     athlete = relationship("Athlete")
     event = relationship("CompetitionEvent")
 
+class EventMultiplier(Base):
+    __tablename__ = "event_multipliers"
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    event_id = Column(Integer, ForeignKey("competition_events.id", ondelete="CASCADE"), nullable=False)
+    special_date = Column(String, nullable=True) # Định dạng YYYY-MM-DD
+    day_of_week = Column(Integer, nullable=True) # 0-6 (0: Thứ 2, ..., 6: Chủ nhật)
+    multiplier = Column(Float, default=2.0)
+    description = Column(String, nullable=True)
+    
+    event = relationship("CompetitionEvent")
+
 class Activity(Base):
     __tablename__ = "activities"
     # id can be a SHA256 of composite key if Strava ID is missing
@@ -120,6 +131,9 @@ class Activity(Base):
     mets_value = Column(Float)
     is_suspicious = Column(Boolean, default=False)
     suspicion_reason = Column(String, nullable=True)
+    distance_km_raw = Column(Float, nullable=True)
+    kcal_burned_raw = Column(Float, nullable=True)
+    multiplier = Column(Float, default=1.0)
 
     athlete = relationship("Athlete", back_populates="activities")
     event = relationship("CompetitionEvent", back_populates="activities")
@@ -145,6 +159,32 @@ def init_db(excel_filepath: str = "TDTT_SSO.xlsx"):
         print("Database Migration: Adding event_id column to activities table...")
         with engine.connect() as conn:
             conn.execute(text("ALTER TABLE activities ADD COLUMN event_id INTEGER REFERENCES competition_events(id)"))
+            conn.commit()
+
+    # Di trú các cột cho cự ly, calo gốc và multiplier
+    if 'distance_km_raw' not in columns:
+        print("Database Migration: Adding distance_km_raw column to activities...")
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE activities ADD COLUMN distance_km_raw FLOAT"))
+            conn.commit()
+        # Copy giá trị từ distance_km sang distance_km_raw
+        with engine.connect() as conn:
+            conn.execute(text("UPDATE activities SET distance_km_raw = distance_km WHERE distance_km_raw IS NULL"))
+            conn.commit()
+            
+    if 'kcal_burned_raw' not in columns:
+        print("Database Migration: Adding kcal_burned_raw column to activities...")
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE activities ADD COLUMN kcal_burned_raw FLOAT"))
+            conn.commit()
+        with engine.connect() as conn:
+            conn.execute(text("UPDATE activities SET kcal_burned_raw = kcal_burned WHERE kcal_burned_raw IS NULL"))
+            conn.commit()
+            
+    if 'multiplier' not in columns:
+        print("Database Migration: Adding multiplier column to activities...")
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE activities ADD COLUMN multiplier FLOAT DEFAULT 1.0"))
             conn.commit()
 
     # Di trú các cột cho mets_rules, reward_rules, badge_rules
