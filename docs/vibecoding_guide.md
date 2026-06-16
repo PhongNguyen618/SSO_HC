@@ -37,6 +37,10 @@ Tài liệu này chứa các quy tắc phát triển, bộ nhớ lưu trữ các
 - **Vấn đề**: Khi di trú dữ liệu trong `init_db()`, nếu gom đăng ký tự động cho các Athlete hiện tại vào giải mặc định, nếu không lọc trùng hoặc kiểm tra tồn tại kỹ lưỡng có thể gây ra lỗi chèn trùng khóa chính kép `(athlete_id, event_id)`.
 - **Giải pháp**: Sử dụng một tập hợp `set` lọc trùng các cặp `(athlete_id, event_id)` trước khi truy vấn kiểm tra sự tồn tại và chèn mới vào cơ sở dữ liệu.
 
+### ⚠️ Lỗi Lọc Ngày Nhanh Bị Sai Trên Giải Đấu Trường Kỳ (Date Preset Error)
+- **Vấn đề**: Bộ lọc thời gian nhanh "7 ngày qua" và "30 ngày qua" ở trang chủ (`templates/index.html`) sử dụng ngày kết thúc giải chạy làm mốc tính lùi. Với các giải trường kỳ có thời hạn đến 2030, ngày lọc sẽ bị nhảy hoàn toàn sang 2030 thay vì hôm nay.
+- **Giải pháp**: Luôn sử dụng ngày hôm nay thực tế làm mốc kết thúc cho bộ lọc nhanh, chỉ fallback về ngày kết thúc giải đấu nếu ngày hôm nay đã vượt quá hạn đóng của giải đấu đó.
+
 ---
 
 ## 3. Prompt Template Cho Session Tiếp Theo

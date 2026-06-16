@@ -711,20 +711,28 @@
 
     // --- DATE PRESET LOGIC ---
     window.setPresetDays = function(days) {
-        const baseEndStr = "{{ end_date }}";
-        const endDate = new Date(baseEndStr);
+        const today = new Date();
+        const eventEndStr = "{{ end_date }}";
+        const eventEndDate = new Date(eventEndStr);
         
-        const startDate = new Date(baseEndStr);
+        // Lấy mốc kết thúc là hôm nay, nếu hôm nay đã vượt quá ngày kết thúc giải đấu thì lấy ngày kết thúc giải đấu
+        let endDate = today;
+        if (today > eventEndDate) {
+            endDate = eventEndDate;
+        }
+        
+        const startDate = new Date(endDate);
         startDate.setDate(endDate.getDate() - (days - 1));
         
-        // Format to YYYY-MM-DD in local time zone manually to avoid timezone shift from toISOString()
-        const year = startDate.getFullYear();
-        const month = String(startDate.getMonth() + 1).padStart(2, '0');
-        const day = String(startDate.getDate()).padStart(2, '0');
-        const startDateStr = `${year}-${month}-${day}`;
+        const formatLocalDate = (date) => {
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const d = String(date.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        };
         
-        document.getElementById('startDateInput').value = startDateStr;
-        document.getElementById('endDateInput').value = baseEndStr;
+        document.getElementById('startDateInput').value = formatLocalDate(startDate);
+        document.getElementById('endDateInput').value = formatLocalDate(endDate);
         document.getElementById('dateFilterForm').submit();
     }
 
