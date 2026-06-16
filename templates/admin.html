@@ -1028,6 +1028,23 @@
                         <input type="date" name="end_date" class="form-control" onclick="this.showPicker()" required>
                     </div>
                 </div>
+                <div class="form-row">
+                    <div class="form-group" style="flex: 1.5;">
+                        <label>Kiểu tính giải thưởng</label>
+                        <select name="reward_type" class="form-control" onchange="toggleRewardTypeFields(this, 'create')">
+                            <option value="milestone">Tính theo mốc cố định (Milestone)</option>
+                            <option value="linear">Quy đổi tuyến tính (ví dụ: X kcal = Y vnd)</option>
+                        </select>
+                    </div>
+                    <div class="form-group reward-linear-fields-create" style="display: none; flex: 1;">
+                        <label>Mỗi mốc KCAL quy đổi</label>
+                        <input type="number" name="reward_linear_kcal" class="form-control" value="100" min="1">
+                    </div>
+                    <div class="form-group reward-linear-fields-create" style="display: none; flex: 1.5;">
+                        <label>Số tiền quy đổi tương ứng (VND)</label>
+                        <input type="number" name="reward_linear_amount" class="form-control" value="5000" min="0">
+                    </div>
+                </div>
                 <div class="form-group">
                     <label>Mô tả ngắn</label>
                     <textarea name="description" class="form-control" rows="2" placeholder="Mô tả ngắn gọn về giải đấu..."></textarea>
@@ -1138,6 +1155,23 @@
                                                 <option value="true" {% if comp.is_active %}selected{% endif %}>Hoạt động</option>
                                                 <option value="false" {% if not comp.is_active %}selected{% endif %}>Tạm dừng</option>
                                             </select>
+                                        </div>
+                                    </div>
+                                    <div class="form-row">
+                                        <div class="form-group" style="flex: 1.5;">
+                                            <label>Kiểu tính giải thưởng</label>
+                                            <select name="reward_type" class="form-control" onchange="toggleRewardTypeFields(this, 'edit-{{ comp.id }}')">
+                                                <option value="milestone" {% if not comp.reward_type or comp.reward_type == 'milestone' %}selected{% endif %}>Tính theo mốc cố định (Milestone)</option>
+                                                <option value="linear" {% if comp.reward_type == 'linear' %}selected{% endif %}>Quy đổi tuyến tính (ví dụ: X kcal = Y vnd)</option>
+                                            </select>
+                                        </div>
+                                        <div class="form-group reward-linear-fields-edit-{{ comp.id }}" style="{% if comp.reward_type != 'linear' %}display: none;{% endif %} flex: 1;">
+                                            <label>Mỗi mốc KCAL quy đổi</label>
+                                            <input type="number" name="reward_linear_kcal" class="form-control" value="{{ comp.reward_linear_kcal or 100 }}" min="1">
+                                        </div>
+                                        <div class="form-group reward-linear-fields-edit-{{ comp.id }}" style="{% if comp.reward_type != 'linear' %}display: none;{% endif %} flex: 1.5;">
+                                            <label>Số tiền quy đổi (VND)</label>
+                                            <input type="number" name="reward_linear_amount" class="form-control" value="{{ comp.reward_linear_amount or 5000 }}" min="0">
                                         </div>
                                     </div>
                                     <div class="form-group">
@@ -1321,6 +1355,14 @@
         if (row) {
             row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
         }
+    }
+    
+    function toggleRewardTypeFields(selectEl, prefix) {
+        const value = selectEl.value;
+        const fields = document.querySelectorAll('.reward-linear-fields-' + prefix);
+        fields.forEach(el => {
+            el.style.display = value === 'linear' ? 'block' : 'none';
+        });
     }
     
     async function syncCompetition(compId, compTitle) {

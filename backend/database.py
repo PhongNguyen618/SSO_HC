@@ -84,6 +84,9 @@ class CompetitionEvent(Base):
     rules_description = Column(String, nullable=True)
     rules_banner_text = Column(String, nullable=True)
     rules_general_text = Column(String, nullable=True)
+    reward_type = Column(String, default="milestone", nullable=True) # "milestone" hoặc "linear"
+    reward_linear_kcal = Column(Float, default=100.0, nullable=True)
+    reward_linear_amount = Column(Float, default=5000.0, nullable=True)
 
     activities = relationship("Activity", back_populates="event", cascade="all, delete-orphan")
 
@@ -170,6 +173,24 @@ def init_db(excel_filepath: str = "TDTT_SSO.xlsx"):
         print("Database Migration: Adding badge_key column to badge_rules...")
         with engine.connect() as conn:
             conn.execute(text("ALTER TABLE badge_rules ADD COLUMN badge_key VARCHAR"))
+            conn.commit()
+
+    # Di trú các cột cho competition_events
+    comp_columns = [c['name'] for c in inspector.get_columns('competition_events')]
+    if 'reward_type' not in comp_columns:
+        print("Database Migration: Adding reward_type column to competition_events...")
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE competition_events ADD COLUMN reward_type VARCHAR DEFAULT 'milestone'"))
+            conn.commit()
+    if 'reward_linear_kcal' not in comp_columns:
+        print("Database Migration: Adding reward_linear_kcal column to competition_events...")
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE competition_events ADD COLUMN reward_linear_kcal FLOAT DEFAULT 100.0"))
+            conn.commit()
+    if 'reward_linear_amount' not in comp_columns:
+        print("Database Migration: Adding reward_linear_amount column to competition_events...")
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE competition_events ADD COLUMN reward_linear_amount FLOAT DEFAULT 5000.0"))
             conn.commit()
 
     db = SessionLocal()

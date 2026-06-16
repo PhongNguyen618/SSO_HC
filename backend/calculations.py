@@ -88,9 +88,30 @@ def calculate_kcal(mets_value: float, athlete_weight: float, moving_time_min: fl
 
 def get_award_info(gender: str, total_kcal: float, db: Session, event_id: int = None) -> dict:
     """
-    Tính giải thưởng dựa trên tổng KCAL và Giới tính từ bảng reward_rules.
+    Tính giải thưởng dựa trên tổng KCAL và Giới tính từ bảng reward_rules hoặc theo tỉ lệ tuyến tính của giải đấu.
     Trả về dict chứa: reward_amount (VND), next_threshold (KCAL cho mốc tiếp theo).
     """
+    from backend.database import CompetitionEvent
+    event = None
+    if event_id:
+        event = db.query(CompetitionEvent).filter(CompetitionEvent.id == event_id).first()
+        
+    # Nếu giải đấu áp dụng tính giải thưởng dạng tuyến tính (linear)
+    if event and getattr(event, "reward_type", "milestone") == "linear":
+        step_kcal = getattr(event, "reward_linear_kcal", 100.0) or 100.0
+        step_amount = getattr(event, "reward_linear_amount", 5000.0) or 5000.0
+        
+        # Tính theo số lượng block đầy (ví dụ cứ đủ 100 kcal = 5k)
+        award_amount = int(total_kcal // step_kcal) * step_amount
+        next_threshold = (int(total_kcal // step_kcal) + 1) * step_kcal
+        
+        return {
+            "reward_amount": float(award_amount),
+            "next_threshold": float(next_threshold),
+            "has_award": award_amount > 0
+        }
+        
+    # Tính theo mốc cố định như cũ (milestone)
     rules = None
     if event_id:
         rules = db.query(RewardRule).filter(RewardRule.gender == gender, RewardRule.event_id == event_id).order_by(RewardRule.kcal_threshold.desc()).all()
