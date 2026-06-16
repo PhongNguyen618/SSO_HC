@@ -1,4 +1,4 @@
-{% set configs = get_configs() %}
+{% set configs = configs | default(get_configs(), true) %}
 <!DOCTYPE html>
 <html lang="vi">
 <head>
