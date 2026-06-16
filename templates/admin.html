@@ -1368,6 +1368,7 @@
     let currentActivitiesPage = 1;
     let searchActivityQuery = '';
     let searchActivityTimeout = null;
+    let currentActivitiesList = [];
 
     function loadActivities(page) {
         currentActivitiesPage = page;
@@ -1412,8 +1413,9 @@
         const infoDiv = document.getElementById('activities-page-info');
         
         tbody.innerHTML = '';
+        currentActivitiesList = data.activities || [];
         
-        if (data.activities.length === 0) {
+        if (currentActivitiesList.length === 0) {
             tbody.innerHTML = `
                 <tr>
                     <td colspan="9" style="text-align: center; color: var(--text-muted); padding: 2rem;">
@@ -1426,7 +1428,7 @@
             return;
         }
         
-        data.activities.forEach(act => {
+        currentActivitiesList.forEach((act, index) => {
             const tr = document.createElement('tr');
             
             let statusBadge = '';
@@ -1435,8 +1437,6 @@
             } else {
                 statusBadge = `<span style="background: rgba(76, 175, 80, 0.15); color: #4caf50; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.75rem;"><i class="fa-solid fa-circle-check"></i> Hợp lệ</span>`;
             }
-            
-            const actDataEscaped = btoa(unescape(encodeURIComponent(JSON.stringify(act))));
             
             tr.innerHTML = `
                 <td><strong>${act.athlete_name_raw}</strong></td>
@@ -1449,7 +1449,7 @@
                 <td style="text-align: center;">${statusBadge}</td>
                 <td style="text-align: center;">
                     <div style="display: flex; gap: 0.3rem; justify-content: center;">
-                        <button onclick="openEditActivityModal('${actDataEscaped}')" class="btn btn-primary btn-sm" style="padding:0.3rem 0.5rem; font-size:0.75rem;" title="Sửa hoạt động"><i class="fa-solid fa-pen-to-square"></i></button>
+                        <button onclick="openEditActivityModal(${index})" class="btn btn-primary btn-sm" style="padding:0.3rem 0.5rem; font-size:0.75rem;" title="Sửa hoạt động"><i class="fa-solid fa-pen-to-square"></i></button>
                         <button onclick="deleteActivity('${act.id}')" class="btn btn-danger btn-sm" style="padding:0.3rem 0.5rem; font-size:0.75rem;" title="Xóa"><i class="fa-solid fa-trash-can"></i></button>
                     </div>
                 </td>
@@ -1493,8 +1493,9 @@
         }, 400);
     }
 
-    function openEditActivityModal(base64Data) {
-        const act = JSON.parse(decodeURIComponent(escape(atob(base64Data))));
+    function openEditActivityModal(index) {
+        const act = currentActivitiesList[index];
+        if (!act) return;
         
         document.getElementById('edit-act-id').value = act.id;
         document.getElementById('edit-act-athlete-name').value = act.athlete_name_raw;
