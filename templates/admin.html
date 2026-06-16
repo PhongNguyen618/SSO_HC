@@ -105,7 +105,21 @@
             <h4 style="font-family:'Outfit', sans-serif; color: var(--color-secondary);"><i class="fa-solid fa-file-excel"></i> Nạp Dữ Liệu Excel Thành Tích</h4>
             <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.2rem;">Tải lên trực tiếp một hoặc nhiều tệp Excel, hoặc chọn cả thư mục chứa các tệp Excel để nạp thành tích ngày vào hệ thống.</p>
         </div>
-        <div style="display: flex; gap: 0.8rem; flex-wrap: wrap;">
+        <div style="display: flex; gap: 0.8rem; flex-wrap: wrap; align-items: center;">
+            <!-- Chọn giải đấu đích -->
+            <div style="display: flex; align-items: center; gap: 0.4rem;">
+                <label for="importExcelEventId" style="color: var(--text-muted); font-size: 0.85rem; white-space: nowrap;">Nạp vào Giải:</label>
+                <select id="importExcelEventId" class="form-control" style="width: 220px; background: rgba(10, 8, 20, 0.8); border: 1px solid rgba(255,255,255,0.15); color: var(--text-main); height: 38px; padding: 0 0.5rem; border-radius: 6px; font-size: 0.85rem;">
+                    {% if all_competitions %}
+                        {% for comp in all_competitions %}
+                            <option value="{{ comp.id }}">{{ comp.title }}</option>
+                        {% endfor %}
+                    {% else %}
+                        <option value="">Không có giải đấu nào</option>
+                    {% endif %}
+                </select>
+            </div>
+            
             <!-- Input file ẩn để chọn nhiều file -->
             <input type="file" id="importExcelFilesInput" accept=".xlsx" multiple style="display: none;" onchange="uploadHistoricalExcel(this.files)">
             <!-- Input file ẩn để chọn thư mục -->
@@ -167,6 +181,9 @@
         </button>
         <button class="tab-btn" onclick="switchAdminTab(event, 'tab-badges')">
             <i class="fa-solid fa-medal"></i> Huy Hiệu
+        </button>
+        <button class="tab-btn" onclick="switchAdminTab(event, 'tab-competitions')">
+            <i class="fa-solid fa-trophy"></i> Giải Đấu
         </button>
         <button class="tab-btn" onclick="switchAdminTab(event, 'tab-events')">
             <i class="fa-solid fa-calendar-check"></i> Sự Kiện Lịch Sử
@@ -801,8 +818,19 @@
                     <i class="fa-solid fa-plus"></i> Thêm Hàng Mới
                 </button>
             </h3>
+
+            <div class="form-group" style="margin-bottom: 1.5rem; max-width: 400px;">
+                <label style="font-weight: 600; font-size: 0.9rem; color: var(--text-muted); margin-bottom: 0.5rem; display: block;">Chọn Giải Đấu Cần Cấu Hình</label>
+                <select class="form-control event-config-select" data-type="mets" onchange="loadConfigForEvent(this, 'mets')" style="background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); color: var(--text-color);">
+                    <option value="" {% if not selected_event_id %}selected{% endif %}>Cấu hình mặc định hệ thống (Toàn cục)</option>
+                    {% for comp in all_competitions %}
+                    <option value="{{ comp.id }}" {% if selected_event_id == comp.id %}selected{% endif %}>{{ comp.title }} (ID: {{ comp.id }})</option>
+                    {% endfor %}
+                </select>
+            </div>
             
             <form action="/admin/mets/edit" method="POST" style="margin-top: 1.5rem;">
+                <input type="hidden" name="event_id" class="hidden-event-id" value="{{ selected_event_id or '' }}">
                 <div id="metsRulesList">
                     <div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 0.5fr; gap: 0.5rem; font-weight:600; color:var(--text-muted); font-size:0.8rem; margin-bottom: 0.8rem;">
                         <span>Loại Bộ môn (Ví dụ: Walk, Run)</span>
@@ -841,7 +869,18 @@
                 </button>
             </h3>
 
+            <div class="form-group" style="margin-bottom: 1.5rem; max-width: 400px;">
+                <label style="font-weight: 600; font-size: 0.9rem; color: var(--text-muted); margin-bottom: 0.5rem; display: block;">Chọn Giải Đấu Cần Cấu Hình</label>
+                <select class="form-control event-config-select" data-type="rewards" onchange="loadConfigForEvent(this, 'rewards')" style="background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); color: var(--text-color);">
+                    <option value="" {% if not selected_event_id %}selected{% endif %}>Cấu hình mặc định hệ thống (Toàn cục)</option>
+                    {% for comp in all_competitions %}
+                    <option value="{{ comp.id }}" {% if selected_event_id == comp.id %}selected{% endif %}>{{ comp.title }} (ID: {{ comp.id }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+
             <form action="/admin/rewards/edit" method="POST" style="margin-top: 1.5rem;">
+                <input type="hidden" name="event_id" class="hidden-event-id" value="{{ selected_event_id or '' }}">
                 <div id="rewardsRulesList">
                     <div style="display: grid; grid-template-columns: 1.5fr 1.5fr 1.5fr 0.5fr; gap: 0.5rem; font-weight:600; color:var(--text-muted); font-size:0.8rem; margin-bottom: 0.8rem;">
                         <span>Giới tính áp dụng</span>
@@ -877,8 +916,19 @@
             <h3 class="admin-section-title">
                 <span>Quản Lý Hệ Thống Huy Hiệu</span>
             </h3>
+
+            <div class="form-group" style="margin-bottom: 1.5rem; max-width: 400px;">
+                <label style="font-weight: 600; font-size: 0.9rem; color: var(--text-muted); margin-bottom: 0.5rem; display: block;">Chọn Giải Đấu Cần Cấu Hình</label>
+                <select class="form-control event-config-select" data-type="badges" onchange="loadConfigForEvent(this, 'badges')" style="background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); color: var(--text-color);">
+                    <option value="" {% if not selected_event_id %}selected{% endif %}>Cấu hình mặc định hệ thống (Toàn cục)</option>
+                    {% for comp in all_competitions %}
+                    <option value="{{ comp.id }}" {% if selected_event_id == comp.id %}selected{% endif %}>{{ comp.title }} (ID: {{ comp.id }})</option>
+                    {% endfor %}
+                </select>
+            </div>
             
             <form action="/admin/badges/edit" method="POST" style="margin-top: 1.5rem;">
+                <input type="hidden" name="event_id" class="hidden-event-id" value="{{ selected_event_id or '' }}">
                 <div class="table-responsive">
                     <table class="custom-table" style="font-size:0.85rem;">
                         <thead>
@@ -896,8 +946,9 @@
                             {% for b in badges %}
                             <tr>
                                 <td>
-                                    <span style="font-family: monospace; font-weight:600; color:var(--text-muted);">{{ b.id }}</span>
-                                    <input type="hidden" name="id" value="{{ b.id }}">
+                                    <span style="font-family: monospace; font-weight:600; color:var(--text-muted);">{{ b.badge_key or b.id }}</span>
+                                    <input type="hidden" name="id" value="{{ b.badge_key or b.id }}">
+                                    <input type="hidden" name="unit" class="badge-unit-input" value="{{ b.unit }}">
                                 </td>
                                 <td>
                                     <input type="text" name="name" class="form-control" value="{{ b.name }}" style="padding:0.4rem; font-size:0.85rem;" required>
@@ -941,6 +992,197 @@
                     </button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- TAB: QUẢN LÝ GIẢI ĐẤU -->
+    <div id="tab-competitions" class="tab-pane">
+        <!-- Form thêm giải đấu mới -->
+        <div class="glass-card" style="background: rgba(255,255,255,0.01);">
+            <h3 class="admin-section-title">Thêm Giải Đấu Mới</h3>
+            <form action="/admin/competitions/add" method="POST" enctype="multipart/form-data" style="margin-top: 1rem;">
+                <div class="form-group">
+                    <label>Tên giải đấu <span style="color: var(--color-primary);">*</span></label>
+                    <input type="text" name="title" class="form-control" placeholder="Ví dụ: Giải Chạy Phong Trào SSO HC 2025" required>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Strava Club ID</label>
+                        <input type="text" name="strava_club_id" class="form-control" placeholder="Ví dụ: 1234567">
+                    </div>
+                    <div class="form-group">
+                        <label>Trạng thái</label>
+                        <select name="is_active" class="form-control">
+                            <option value="true">Đang hoạt động</option>
+                            <option value="false">Tạm dừng</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Ngày bắt đầu <span style="color: var(--color-primary);">*</span></label>
+                        <input type="date" name="start_date" class="form-control" onclick="this.showPicker()" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Ngày kết thúc <span style="color: var(--color-primary);">*</span></label>
+                        <input type="date" name="end_date" class="form-control" onclick="this.showPicker()" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Mô tả ngắn</label>
+                    <textarea name="description" class="form-control" rows="2" placeholder="Mô tả ngắn gọn về giải đấu..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Nội dung quy chế</label>
+                    <textarea name="rules_description" class="form-control" rows="3" placeholder="Quy chế thi đấu..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Chữ hiển thị trên Banner Chào Mừng (Welcome Banner text)</label>
+                    <textarea name="rules_banner_text" class="form-control" rows="2" placeholder="Chào mừng các Vận động viên tham gia giải chạy phong trào SSO HC!..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Quy định chung (General Rules)</label>
+                    <textarea name="rules_general_text" class="form-control" rows="3" placeholder="1. Đối tượng tham gia...\n2. Thời gian ghi nhận..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Ảnh banner (tuỳ chọn)</label>
+                    <input type="file" name="banner_file" class="form-control" accept="image/*">
+                </div>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fa-solid fa-plus"></i> Tạo giải đấu
+                </button>
+            </form>
+        </div>
+
+        <!-- Danh sách giải đấu -->
+        <div class="glass-card" style="margin-top: 1.5rem; background: rgba(255,255,255,0.01);">
+            <h3 class="admin-section-title">Danh Sách Giải Đấu Hiện Có</h3>
+            {% if all_competitions %}
+            <div style="overflow-x: auto; margin-top: 1rem;">
+                <table class="data-table" style="width: 100%;">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Tên giải đấu</th>
+                            <th>Club ID</th>
+                            <th>Thời gian</th>
+                            <th>Trạng thái</th>
+                            <th style="text-align: center;">Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for comp in all_competitions %}
+                        <tr>
+                            <td>{{ comp.id }}</td>
+                            <td>
+                                <strong>{{ comp.title }}</strong>
+                                {% if comp.description %}
+                                <br><small style="color: var(--text-muted);">{{ comp.description[:50] }}{% if comp.description|length > 50 %}...{% endif %}</small>
+                                {% endif %}
+                            </td>
+                            <td>{{ comp.strava_club_id or '—' }}</td>
+                            <td>
+                                <small>{{ comp.start_date }} → {{ comp.end_date }}</small>
+                            </td>
+                            <td>
+                                {% if comp.is_active %}
+                                <span style="background: rgba(22, 163, 74, 0.2); color: #4ade80; padding: 0.2rem 0.6rem; border-radius: 12px; font-size: 0.75rem;">Hoạt động</span>
+                                {% else %}
+                                <span style="background: rgba(239, 68, 68, 0.2); color: #f87171; padding: 0.2rem 0.6rem; border-radius: 12px; font-size: 0.75rem;">Tạm dừng</span>
+                                {% endif %}
+                            </td>
+                            <td style="text-align: center;">
+                                <div style="display: flex; gap: 0.5rem; justify-content: center; flex-wrap: wrap;">
+                                    {% if comp.strava_club_id %}
+                                    <button onclick="syncCompetition({{ comp.id }}, '{{ comp.title }}')" class="btn btn-secondary btn-sm" style="font-size: 0.75rem; padding: 0.3rem 0.6rem;">
+                                        <i class="fa-solid fa-rotate"></i> Sync
+                                    </button>
+                                    {% endif %}
+                                    <button onclick="toggleEditComp({{ comp.id }})" class="btn btn-secondary btn-sm" style="font-size: 0.75rem; padding: 0.3rem 0.6rem;">
+                                        <i class="fa-solid fa-pen-to-square"></i> Sửa
+                                    </button>
+                                    <form action="/admin/competitions/delete/{{ comp.id }}" method="POST" onsubmit="return confirm('Xóa giải đấu \'{{ comp.title }}\' và TẤT CẢ hoạt động liên quan? Thao tác này KHÔNG THỂ hoàn tác!');" style="margin: 0;">
+                                        <button type="submit" class="btn btn-danger btn-sm" style="font-size: 0.75rem; padding: 0.3rem 0.6rem;">
+                                            <i class="fa-solid fa-trash"></i> Xóa
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        <!-- Form chỉnh sửa ẩn -->
+                        <tr id="edit-comp-{{ comp.id }}" style="display: none;">
+                            <td colspan="6" style="padding: 1.2rem;">
+                                <form action="/admin/competitions/edit/{{ comp.id }}" method="POST" enctype="multipart/form-data">
+                                    <div class="form-row">
+                                        <div class="form-group" style="flex: 2;">
+                                            <label>Tên giải đấu</label>
+                                            <input type="text" name="title" class="form-control" value="{{ comp.title }}" required>
+                                        </div>
+                                        <div class="form-group" style="flex: 1;">
+                                            <label>Club ID</label>
+                                            <input type="text" name="strava_club_id" class="form-control" value="{{ comp.strava_club_id or '' }}">
+                                        </div>
+                                    </div>
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label>Ngày bắt đầu</label>
+                                            <input type="date" name="start_date" class="form-control" onclick="this.showPicker()" value="{{ comp.start_date }}" required>
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Ngày kết thúc</label>
+                                            <input type="date" name="end_date" class="form-control" onclick="this.showPicker()" value="{{ comp.end_date }}" required>
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Trạng thái</label>
+                                            <select name="is_active" class="form-control">
+                                                <option value="true" {% if comp.is_active %}selected{% endif %}>Hoạt động</option>
+                                                <option value="false" {% if not comp.is_active %}selected{% endif %}>Tạm dừng</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Mô tả</label>
+                                        <textarea name="description" class="form-control" rows="2">{{ comp.description or '' }}</textarea>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Quy chế</label>
+                                        <textarea name="rules_description" class="form-control" rows="2">{{ comp.rules_description or '' }}</textarea>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Chữ hiển thị trên Banner Chào Mừng (Welcome Banner text)</label>
+                                        <textarea name="rules_banner_text" class="form-control" rows="2">{{ comp.rules_banner_text or '' }}</textarea>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Quy định chung (General Rules)</label>
+                                        <textarea name="rules_general_text" class="form-control" rows="3">{{ comp.rules_general_text or '' }}</textarea>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Ảnh banner mới (bỏ trống để giữ nguyên)</label>
+                                        <input type="file" name="banner_file" class="form-control" accept="image/*">
+                                        {% if comp.banner_image %}
+                                        <small style="color: var(--text-muted);">Banner hiện tại: {{ comp.banner_image }}</small>
+                                        {% endif %}
+                                    </div>
+                                    <input type="hidden" name="rules_banner_text" value="{{ comp.rules_banner_text or '' }}">
+                                    <input type="hidden" name="rules_general_text" value="{{ comp.rules_general_text or '' }}">
+                                    <div style="display: flex; gap: 0.5rem;">
+                                        <button type="submit" class="btn btn-primary btn-sm">
+                                            <i class="fa-solid fa-save"></i> Lưu thay đổi
+                                        </button>
+                                        <button type="button" onclick="toggleEditComp({{ comp.id }})" class="btn btn-secondary btn-sm">Hủy</button>
+                                    </div>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p style="color: var(--text-muted); text-align: center; padding: 2rem 0;">
+                Chưa có giải đấu nào. Hãy tạo giải đấu đầu tiên ở form bên trên.
+            </p>
+            {% endif %}
         </div>
     </div>
 
@@ -1073,9 +1315,42 @@
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
+    // --- QUẢN LÝ GIẢI ĐẤU JS ---
+    function toggleEditComp(compId) {
+        const row = document.getElementById('edit-comp-' + compId);
+        if (row) {
+            row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
+        }
+    }
+    
+    async function syncCompetition(compId, compTitle) {
+        if (!confirm('Đồng bộ dữ liệu từ Strava cho giải đấu "' + compTitle + '"?')) return;
+        
+        const btn = event.target.closest('button');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang sync...';
+        btn.disabled = true;
+        
+        try {
+            const res = await fetch('/admin/competitions/sync/' + compId, { method: 'POST' });
+            const data = await res.json();
+            
+            if (data.status === 'success' || data.status === 'partial') {
+                alert('✅ Đồng bộ thành công!\nHoạt động mới: ' + (data.new_activities || 0));
+            } else {
+                alert('❌ Lỗi: ' + (data.error || 'Không xác định'));
+            }
+        } catch (err) {
+            alert('❌ Lỗi kết nối: ' + err.message);
+        } finally {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
+    }
+
     // --- ADMIN TAB TRANSITION LOGIC ---
     function switchAdminTab(evt, tabId) {
-        const tabPanes = document.querySelectorAll('#tab-config, #tab-analytics, #tab-athletes, #tab-activities, #tab-mets, #tab-rewards, #tab-badges, #tab-events, #tab-security');
+        const tabPanes = document.querySelectorAll('#tab-config, #tab-analytics, #tab-athletes, #tab-activities, #tab-mets, #tab-rewards, #tab-badges, #tab-competitions, #tab-events, #tab-security');
         tabPanes.forEach(pane => pane.classList.remove('active'));
 
         const tabBtns = document.querySelectorAll('.tab-btn');
@@ -1335,6 +1610,120 @@
         evt.currentTarget.classList.add('active');
     }
 
+    // --- AJAX EVENTS RULES LOADER ---
+    function loadConfigForEvent(selectEl, type) {
+        const eventId = selectEl.value;
+        
+        // Đồng bộ hóa tất cả các event-config-select khác
+        document.querySelectorAll('.event-config-select').forEach(sel => {
+            sel.value = eventId;
+        });
+        
+        // Cập nhật tất cả event_id ẩn trong các form
+        document.querySelectorAll('.hidden-event-id').forEach(input => {
+            input.value = eventId;
+        });
+        
+        // Gọi AJAX lấy cấu hình
+        fetch(`/admin/api/rules?event_id=${eventId}`)
+            .then(res => {
+                if (res.status === 401) throw new Error('Chưa đăng nhập');
+                return res.json();
+            })
+            .then(data => {
+                // A. Cập nhật METs
+                const metsList = document.getElementById('metsRulesList');
+                if (metsList) {
+                    const header = metsList.firstElementChild.outerHTML;
+                    metsList.innerHTML = header;
+                    data.mets.forEach(m => {
+                        const div = document.createElement('div');
+                        div.className = 'mets-row-input';
+                        div.innerHTML = `
+                            <input type="text" name="sport_type" class="form-control" value="${m.sport_type}" required>
+                            <input type="number" step="0.1" name="min_speed" class="form-control" value="${m.min_speed}" required>
+                            <input type="number" step="0.1" name="max_speed" class="form-control" value="${m.max_speed}" required>
+                            <input type="number" step="0.1" name="met_value" class="form-control" value="${m.met_value}" required>
+                            <button type="button" class="remove-row-btn" onclick="removeMetsRow(this)"><i class="fa-solid fa-circle-minus"></i></button>
+                        `;
+                        metsList.appendChild(div);
+                    });
+                }
+                
+                // B. Cập nhật Rewards
+                const rewardsList = document.getElementById('rewardsRulesList');
+                if (rewardsList) {
+                    const header = rewardsList.firstElementChild.outerHTML;
+                    rewardsList.innerHTML = header;
+                    data.rewards.forEach(r => {
+                        const div = document.createElement('div');
+                        div.className = 'rewards-row-input';
+                        div.innerHTML = `
+                            <select name="gender" class="form-control" required>
+                                <option value="Nam" ${r.gender === 'Nam' ? 'selected' : ''}>Nam</option>
+                                <option value="Nữ" ${r.gender === 'Nữ' ? 'selected' : ''}>Nữ</option>
+                            </select>
+                            <input type="number" step="1" name="kcal_threshold" class="form-control" value="${parseInt(r.kcal_threshold)}" required>
+                            <input type="number" step="1000" name="reward_amount" class="form-control" value="${parseInt(r.reward_amount)}" required>
+                            <button type="button" class="remove-row-btn" onclick="removeMetsRow(this)"><i class="fa-solid fa-circle-minus"></i></button>
+                        `;
+                        rewardsList.appendChild(div);
+                    });
+                }
+                
+                // C. Cập nhật Badges
+                const tbody = document.querySelector('#tab-badges table tbody');
+                if (tbody) {
+                    tbody.innerHTML = '';
+                    data.badges.forEach(b => {
+                        let unitText = b.unit;
+                        if (b.unit === 'activities') unitText = 'Hoạt động';
+                        else if (b.unit === 'run_distance_km') unitText = 'km Chạy';
+                        else if (b.unit === 'ride_distance_km') unitText = 'km Đạp xe';
+                        else if (b.unit === 'total_time_hours') unitText = 'giờ';
+                        else if (b.unit === 'total_kcal') unitText = 'KCAL';
+                        else if (b.unit === 'max_streak_days') unitText = 'ngày liên tục';
+                        
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td>
+                                <span style="font-family: monospace; font-weight:600; color:var(--text-muted);">${b.id}</span>
+                                <input type="hidden" name="id" value="${b.id}">
+                                <input type="hidden" name="unit" class="badge-unit-input" value="${b.unit}">
+                            </td>
+                            <td>
+                                <input type="text" name="name" class="form-control" value="${b.name}" style="padding:0.4rem; font-size:0.85rem;" required>
+                            </td>
+                            <td>
+                                <input type="text" name="description" class="form-control" value="${b.description}" style="padding:0.4rem; font-size:0.85rem;" required>
+                            </td>
+                            <td>
+                                <div style="display: flex; align-items: center; gap: 0.4rem;">
+                                    <i class="fa-solid ${b.icon}" style="color: ${b.color}; font-size: 1.2rem; width: 20px; text-align: center;"></i>
+                                    <input type="text" name="icon" class="form-control" value="${b.icon}" style="padding:0.4rem; font-size:0.85rem; font-family: monospace;" required>
+                                </div>
+                            </td>
+                            <td style="text-align: center;">
+                                <input type="color" name="color" value="${b.color}" style="width: 40px; height: 30px; border: 1px solid var(--border-color); background: none; cursor: pointer; border-radius: 4px;" required>
+                            </td>
+                            <td>
+                                <input type="number" step="1" name="threshold" class="form-control" value="${parseInt(b.threshold)}" style="padding:0.4rem; font-size:0.85rem; text-align:right;" required>
+                            </td>
+                            <td>
+                                <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">
+                                    ${unitText}
+                                </span>
+                            </td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                }
+            })
+            .catch(err => {
+                alert(`Lỗi khi tải cấu hình giải chạy: ${err.message}`);
+            });
+    }
+
     // --- DYNAMIC FORM ROWS EDITOR ---
     function addMetsRow() {
         const container = document.getElementById('metsRulesList');
@@ -1435,6 +1824,11 @@
         excelFiles.forEach(file => {
             formData.append("files", file);
         });
+        
+        const eventIdSelect = document.getElementById('importExcelEventId');
+        if (eventIdSelect && eventIdSelect.value) {
+            formData.append("event_id", eventIdSelect.value);
+        }
         
         fetch('/admin/import-historical', {
             method: 'POST',

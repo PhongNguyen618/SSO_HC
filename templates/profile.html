@@ -5,11 +5,176 @@
 {% block head %}
 <!-- Chart.js CDN -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+    /* Style cho Huy chương gamification */
+    .badges-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1.5rem;
+        margin-top: 1.5rem;
+    }
+    
+    .medal-item {
+        position: relative;
+        padding: 1.8rem 1.2rem;
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.01);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        gap: 0.8rem;
+        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        perspective: 1000px;
+        overflow: hidden;
+    }
+    
+    .medal-item::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: linear-gradient(
+            45deg,
+            transparent,
+            rgba(255, 255, 255, 0.05),
+            transparent
+        );
+        transform: rotate(45deg);
+        transition: 0.6s;
+        opacity: 0;
+    }
+
+    .medal-item:hover::before {
+        left: 100%;
+        opacity: 1;
+    }
+
+    .medal-item:hover {
+        transform: translateY(-8px) rotateY(10deg);
+        background: rgba(255, 255, 255, 0.03);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+    }
+    
+    /* Medal glow effect based on badge type */
+    .medal-item.achieved.fresh_start {
+        border-color: rgba(143, 205, 240, 0.4);
+        box-shadow: 0 0 15px rgba(143, 205, 240, 0.15);
+    }
+    .medal-item.achieved.golden_boot {
+        border-color: rgba(255, 94, 54, 0.4);
+        box-shadow: 0 0 15px rgba(255, 94, 54, 0.2);
+    }
+    .medal-item.achieved.fire_wheel {
+        border-color: rgba(181, 84, 247, 0.4);
+        box-shadow: 0 0 15px rgba(181, 84, 247, 0.2);
+    }
+    .medal-item.achieved.iron_will {
+        border-color: rgba(148, 181, 222, 0.4);
+        box-shadow: 0 0 15px rgba(148, 181, 222, 0.15);
+    }
+    .medal-item.achieved.calorie_hunter {
+        border-color: rgba(255, 193, 7, 0.4);
+        box-shadow: 0 0 15px rgba(255, 193, 7, 0.25);
+    }
+    .medal-item.achieved.perseverance {
+        border-color: rgba(32, 201, 151, 0.4);
+        box-shadow: 0 0 15px rgba(32, 201, 151, 0.2);
+    }
+    
+    .medal-icon-wrapper {
+        position: relative;
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(255,255,255,0.05) 0%, rgba(0,0,0,0.3) 100%);
+        border: 2px solid rgba(255,255,255,0.1);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2.5rem;
+        margin-bottom: 0.5rem;
+        transition: transform 0.5s ease;
+        box-shadow: inset 0 2px 5px rgba(255,255,255,0.1), 0 4px 8px rgba(0,0,0,0.2);
+        z-index: 1;
+    }
+    
+    .medal-item:hover .medal-icon-wrapper {
+        transform: rotateY(360deg) scale(1.1);
+    }
+    
+    .medal-item.achieved .medal-icon-wrapper {
+        border-color: var(--color-gold);
+        background: radial-gradient(circle, rgba(253, 203, 144, 0.25) 0%, rgba(245, 175, 25, 0.15) 70%, rgba(0,0,0,0.5) 100%);
+        box-shadow: inset 0 2px 8px rgba(255, 255, 255, 0.4), 0 5px 15px rgba(245, 175, 25, 0.3);
+        animation: shine 4s infinite linear;
+    }
+    
+    .medal-item.locked {
+        opacity: 0.65;
+    }
+    
+    .medal-item.locked .medal-icon-wrapper {
+        filter: grayscale(1) opacity(0.3);
+        background: rgba(255,255,255,0.02);
+    }
+    
+    /* Sparkle/Shine effect */
+    @keyframes shine {
+        0% { filter: drop-shadow(0 0 2px rgba(245, 175, 25, 0.3)); }
+        50% { filter: drop-shadow(0 0 10px rgba(245, 175, 25, 0.7)); }
+        100% { filter: drop-shadow(0 0 2px rgba(245, 175, 25, 0.3)); }
+    }
+    
+    .medal-ribbon {
+        position: absolute;
+        top: 0;
+        left: 20px;
+        width: 30px;
+        height: 35px;
+        background: linear-gradient(to right, #ff3333, #b30000);
+        border-bottom-left-radius: 4px;
+        border-bottom-right-radius: 4px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        z-index: 2;
+    }
+    
+    .medal-ribbon::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        border-left: 15px solid transparent;
+        border-right: 15px solid transparent;
+        border-bottom: 8px solid #0d0b18; /* Khớp màu nền background chính */
+    }
+    
+    /* Cải tiến Progress Bar giải thưởng */
+    .progress-bar-bg {
+        height: 12px;
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 10px;
+        margin: 1.2rem 0;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    
+    .progress-bar-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #ff5e36, #ffc107);
+        border-radius: 10px;
+        box-shadow: 0 0 12px rgba(255, 94, 54, 0.4);
+        transition: width 1.2s cubic-bezier(0.075, 0.82, 0.165, 1);
+    }
+</style>
 {% endblock %}
 
 {% block content %}
 <!-- Back button -->
-<a href="/" class="btn btn-secondary btn-sm" style="margin-bottom: 1.5rem;">
+<a href="/?event_id={{ selected_event_id or '' }}" class="btn btn-secondary btn-sm" style="margin-bottom: 1.5rem; display: inline-flex; align-items: center; gap: 0.4rem;">
     <i class="fa-solid fa-arrow-left"></i> Quay lại Bảng xếp hạng
 </a>
 
@@ -30,6 +195,58 @@
             <span><i class="fa-brands fa-strava" style="color: #ff5e36;"></i> @{{ athlete.strava_name }}</span>
         </div>
     </div>
+</div>
+
+<!-- Competition Switcher & Registration -->
+<div style="margin: 1.5rem 0; display: flex; flex-direction: column; gap: 1.2rem;">
+    <!-- Tabs giải đấu đã đăng ký -->
+    {% if registered_events %}
+    <div>
+        <h4 style="font-family: 'Outfit', sans-serif; font-size: 0.95rem; color: var(--text-muted); margin-bottom: 0.6rem; display: flex; align-items: center; gap: 0.4rem;">
+            <i class="fa-solid fa-trophy" style="color: var(--color-gold);"></i> GIẢI ĐẤU ĐÃ THAM GIA:
+        </h4>
+        <div style="display: flex; gap: 0.6rem; flex-wrap: wrap;">
+            {% for ev in registered_events %}
+            <a href="/profile/{{ athlete.id }}?event_id={{ ev.id }}" 
+               class="glass-card" 
+               style="padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.85rem; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 0.4rem; transition: all 0.3s ease; margin: 0;
+                      {% if selected_event_id == ev.id %}
+                        background: var(--primary-gradient); color: var(--text-main); border-color: transparent; box-shadow: 0 0 10px rgba(143,205,240,0.3);
+                      {% else %}
+                        background: rgba(255,255,255,0.02); color: var(--text-muted); border: 1px solid var(--border-color);
+                      {% endif %}">
+                <i class="fa-solid fa-circle-check"></i> {{ ev.title }}
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Giải đấu đang mở nhưng chưa tham gia -->
+    {% if unregistered_events %}
+    <div class="glass-card" style="border-color: rgba(74, 222, 128, 0.3); background: rgba(74, 222, 128, 0.02); padding: 1.2rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; border-radius: 12px;">
+        <div style="flex: 1; min-width: 250px;">
+            <h4 style="font-family: 'Outfit', sans-serif; color: #4ade80; display: flex; align-items: center; gap: 0.5rem; margin: 0;">
+                <i class="fa-solid fa-star" style="animation: pulse 2s infinite;"></i> Có giải chạy mới đang mở đăng ký!
+            </h4>
+            <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.3rem; margin-bottom: 0;">
+                Tham gia ngay để tích lũy thành tích và tranh giải thưởng hấp dẫn.
+            </p>
+        </div>
+        <div style="display: flex; gap: 0.8rem; flex-wrap: wrap; align-items: center;">
+            <form action="/profile/{{ athlete.id }}/register-event" method="POST" style="margin: 0; display: flex; align-items: center; gap: 0.6rem;">
+                <select name="event_id" class="form-control" style="background: rgba(10, 8, 20, 0.8); border: 1px solid rgba(255,255,255,0.15); color: var(--text-main); height: 36px; padding: 0 0.5rem; border-radius: 6px; font-size: 0.85rem; width: 200px;" required>
+                    {% for ev in unregistered_events %}
+                    <option value="{{ ev.id }}">{{ ev.title }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" class="btn btn-primary btn-sm" style="height: 36px; display: inline-flex; align-items: center; gap: 0.4rem; font-weight: bold; background: linear-gradient(135deg, #4ade80, #22c55e); border: none; color: #0a0814; cursor: pointer;">
+                    <i class="fa-solid fa-user-plus"></i> Đăng Ký Tham Gia
+                </button>
+            </form>
+        </div>
+    </div>
+    {% endif %}
 </div>
 
 <!-- Award Status Card -->
@@ -57,6 +274,13 @@
     <div class="progress-bar-bg">
         <div id="awardProgressBar" class="progress-bar-fill" style="width: 0%;"></div>
     </div>
+
+    {% if award_info.next_threshold > 0 %}
+    <p style="color: #ffc107; font-size: 0.9rem; margin-top: -0.5rem; margin-bottom: 1rem; font-weight: 500; display: flex; align-items: center; gap: 0.4rem; justify-content: center;">
+        <i class="fa-solid fa-fire-flame-simple" style="animation: pulse 1.5s infinite;"></i>
+        Cố lên! Bạn chỉ còn cách mốc giải thưởng tiếp theo <strong>{{ "{:,}".format(award_info.next_threshold - total_kcal).replace(",", ".") }} KCAL</strong>!
+    </p>
+    {% endif %}
 
     <div style="display: flex; justify-content: space-between; font-size: 0.9rem; color: var(--text-muted);">
         <span>0 KCAL</span>
@@ -111,26 +335,33 @@
 <!-- Badges Section -->
 <div class="glass-card" style="margin-bottom: 2rem;">
     <h3 class="card-title" style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.6rem; border-bottom: 1px solid rgba(255, 255, 255, 0.1); padding-bottom: 0.5rem; font-family: 'Outfit', sans-serif;">
-        <i class="fa-solid fa-medal" style="color: var(--color-gold);"></i> Huy Hiệu Thành Tích Cá Nhân
+        <i class="fa-solid fa-medal" style="color: var(--color-gold);"></i> Bộ Sưu Tập Huy Chương Giải Đấu
     </h3>
-    <div class="badges-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.2rem; margin-top: 1rem;">
+    <div class="badges-grid">
         {% for badge in badges %}
-        <div class="badge-item {% if not badge.achieved %}locked{% endif %}" style="padding: 1.2rem; border-radius: 12px; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); display: flex; flex-direction: column; align-items: center; text-align: center; gap: 0.5rem; transition: all 0.3s ease; position: relative;">
-            <div class="badge-icon" style="font-size: 2.8rem; color: {{ badge.color }}; filter: {% if badge.achieved %}none{% else %}grayscale(1) opacity(0.2){% endif %}; margin-bottom: 0.3rem;">
+        <div class="medal-item {% if badge.achieved %}achieved{% else %}locked{% endif %} {{ badge.id }}">
+            {% if badge.achieved %}
+            <div class="medal-ribbon"></div>
+            {% endif %}
+            
+            <div class="medal-icon-wrapper" style="color: {% if badge.achieved %}{{ badge.color }}{% else %}var(--text-muted){% endif %};">
                 <i class="fa-solid {{ badge.icon }}"></i>
             </div>
-            <div style="font-weight: 700; font-family: 'Outfit', sans-serif; font-size: 1rem; color: {% if badge.achieved %}var(--text-main){% else %}var(--text-muted){% endif %};">
+            
+            <div style="font-weight: 700; font-family: 'Outfit', sans-serif; font-size: 1.05rem; color: {% if badge.achieved %}var(--text-main){% else %}var(--text-muted){% endif %};">
                 {{ badge.name }}
             </div>
+            
             <div style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.4; flex: 1;">
                 {{ badge.description }}
             </div>
+            
             {% if badge.achieved %}
-            <span style="font-size: 0.75rem; color: var(--color-green); font-weight: 600; background: rgba(60, 186, 146, 0.1); padding: 0.2rem 0.6rem; border-radius: 20px; border: 1px solid rgba(60, 186, 146, 0.2); display: inline-flex; align-items: center; gap: 0.3rem;">
+            <span style="font-size: 0.75rem; color: #4ade80; font-weight: 600; background: rgba(74, 222, 128, 0.1); padding: 0.25rem 0.75rem; border-radius: 20px; border: 1px solid rgba(74, 222, 128, 0.2); display: inline-flex; align-items: center; gap: 0.3rem;">
                 <i class="fa-solid fa-circle-check"></i> Đạt: {{ badge.achieved_date }}
             </span>
             {% else %}
-            <span style="font-size: 0.75rem; color: var(--text-muted); background: rgba(255, 255, 255, 0.04); padding: 0.2rem 0.6rem; border-radius: 20px; border: 1px solid rgba(255, 255, 255, 0.05); display: inline-flex; align-items: center; gap: 0.3rem;">
+            <span style="font-size: 0.75rem; color: var(--text-muted); background: rgba(255, 255, 255, 0.03); padding: 0.25rem 0.75rem; border-radius: 20px; border: 1px solid rgba(255, 255, 255, 0.05); display: inline-flex; align-items: center; gap: 0.3rem;">
                 <i class="fa-solid fa-lock" style="font-size: 0.7rem;"></i> Chưa đạt
             </span>
             {% endif %}

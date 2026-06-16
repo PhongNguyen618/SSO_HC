@@ -36,6 +36,7 @@ class Athlete(Base):
 class MetsRule(Base):
     __tablename__ = "mets_rules"
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    event_id = Column(Integer, ForeignKey("competition_events.id", ondelete="CASCADE"), nullable=True)
     sport_type = Column(String, index=True) # e.g. Walk, Run, Ride, Swim, Elliptical
     min_speed = Column(Float)
     max_speed = Column(Float)
@@ -44,13 +45,16 @@ class MetsRule(Base):
 class RewardRule(Base):
     __tablename__ = "reward_rules"
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    event_id = Column(Integer, ForeignKey("competition_events.id", ondelete="CASCADE"), nullable=True)
     gender = Column(String) # Nam / Nữ
     kcal_threshold = Column(Float)
     reward_amount = Column(Float) # VND
 
 class BadgeRule(Base):
     __tablename__ = "badge_rules"
-    id = Column(String, primary_key=True, index=True) # e.g. "fresh_start"
+    id = Column(String, primary_key=True, index=True) # e.g. "fresh_start" hoặc "fresh_start_2"
+    badge_key = Column(String, index=True, nullable=True) # e.g. "fresh_start"
+    event_id = Column(Integer, ForeignKey("competition_events.id", ondelete="CASCADE"), nullable=True)
     name = Column(String)
     description = Column(String)
     icon = Column(String)
@@ -67,11 +71,37 @@ class ArchivedEvent(Base):
     summary_text = Column(String)
     gallery_images = Column(String, nullable=True) # Danh sách ảnh ngăn cách bởi dấu phẩy
 
+class CompetitionEvent(Base):
+    __tablename__ = "competition_events"
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    title = Column(String, index=True)
+    strava_club_id = Column(String)
+    start_date = Column(String) # Format: YYYY-MM-DD
+    end_date = Column(String)   # Format: YYYY-MM-DD
+    is_active = Column(Boolean, default=True)
+    description = Column(String, nullable=True)
+    banner_image = Column(String, nullable=True)
+    rules_description = Column(String, nullable=True)
+    rules_banner_text = Column(String, nullable=True)
+    rules_general_text = Column(String, nullable=True)
+
+    activities = relationship("Activity", back_populates="event", cascade="all, delete-orphan")
+
+class CompetitionRegistration(Base):
+    __tablename__ = "competition_registrations"
+    athlete_id = Column(Integer, ForeignKey("athletes.id", ondelete="CASCADE"), primary_key=True)
+    event_id = Column(Integer, ForeignKey("competition_events.id", ondelete="CASCADE"), primary_key=True)
+    registered_at = Column(DateTime, default=datetime.utcnow)
+
+    athlete = relationship("Athlete")
+    event = relationship("CompetitionEvent")
+
 class Activity(Base):
     __tablename__ = "activities"
     # id can be a SHA256 of composite key if Strava ID is missing
     id = Column(String, primary_key=True, index=True)
     athlete_id = Column(Integer, ForeignKey("athletes.id"), nullable=True)
+    event_id = Column(Integer, ForeignKey("competition_events.id"), nullable=True)
     athlete_name_raw = Column(String)
     name = Column(String)
     type = Column(String)
@@ -89,6 +119,7 @@ class Activity(Base):
     suspicion_reason = Column(String, nullable=True)
 
     athlete = relationship("Athlete", back_populates="activities")
+    event = relationship("CompetitionEvent", back_populates="activities")
 
 def get_db():
     db = SessionLocal()
@@ -102,6 +133,45 @@ def hash_password(password: str) -> str:
 
 def init_db(excel_filepath: str = "TDTT_SSO.xlsx"):
     Base.metadata.create_all(bind=engine)
+    
+    # Thực hiện di trú cột event_id nếu chưa có
+    from sqlalchemy import inspect, text
+    inspector = inspect(engine)
+    columns = [c['name'] for c in inspector.get_columns('activities')]
+    if 'event_id' not in columns:
+        print("Database Migration: Adding event_id column to activities table...")
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE activities ADD COLUMN event_id INTEGER REFERENCES competition_events(id)"))
+            conn.commit()
+
+    # Di trú các cột cho mets_rules, reward_rules, badge_rules
+    mets_columns = [c['name'] for c in inspector.get_columns('mets_rules')]
+    if 'event_id' not in mets_columns:
+        print("Database Migration: Adding event_id column to mets_rules...")
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE mets_rules ADD COLUMN event_id INTEGER REFERENCES competition_events(id)"))
+            conn.commit()
+
+    reward_columns = [c['name'] for c in inspector.get_columns('reward_rules')]
+    if 'event_id' not in reward_columns:
+        print("Database Migration: Adding event_id column to reward_rules...")
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE reward_rules ADD COLUMN event_id INTEGER REFERENCES competition_events(id)"))
+            conn.commit()
+
+    badge_columns = [c['name'] for c in inspector.get_columns('badge_rules')]
+    if 'event_id' not in badge_columns:
+        print("Database Migration: Adding event_id column to badge_rules...")
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE badge_rules ADD COLUMN event_id INTEGER REFERENCES competition_events(id)"))
+            conn.commit()
+            
+    if 'badge_key' not in badge_columns:
+        print("Database Migration: Adding badge_key column to badge_rules...")
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE badge_rules ADD COLUMN badge_key VARCHAR"))
+            conn.commit()
+
     db = SessionLocal()
 
     default_admin_user = os.getenv("DEFAULT_ADMIN_USER", "admin")
@@ -158,6 +228,70 @@ def init_db(excel_filepath: str = "TDTT_SSO.xlsx"):
             db.add(Config(key=key, value=value))
     db.commit()
 
+    # 1.5. Khởi tạo Giải đấu mặc định (nếu chưa có)
+    if db.query(CompetitionEvent).count() == 0:
+        print("Database Migration: Creating default CompetitionEvent...")
+        rules_title_conf = db.query(Config).filter(Config.key == "rules_title").first()
+        club_id_conf = db.query(Config).filter(Config.key == "strava_club_id").first()
+        rules_desc_conf = db.query(Config).filter(Config.key == "rules_description").first()
+        banner_text_conf = db.query(Config).filter(Config.key == "rules_banner_text").first()
+        gen_text_conf = db.query(Config).filter(Config.key == "rules_general_text").first()
+        banner_img_conf = db.query(Config).filter(Config.key == "rules_banner_image").first()
+        
+        default_title = rules_title_conf.value if rules_title_conf else "Giải Chạy Bộ SSO HC Mặc Định"
+        default_club = club_id_conf.value if club_id_conf else ""
+        default_desc = rules_desc_conf.value if rules_desc_conf else "Chào mừng các Vận động viên tham gia giải chạy phong trào SSO HC!"
+        default_banner_text = banner_text_conf.value if banner_text_conf else ""
+        default_gen_text = gen_text_conf.value if gen_text_conf else ""
+        default_banner_img = banner_img_conf.value if banner_img_conf else ""
+        
+        default_event = CompetitionEvent(
+            title=default_title,
+            strava_club_id=default_club,
+            start_date="2020-01-01",
+            end_date="2030-12-31",
+            is_active=True,
+            description=default_desc,
+            banner_image=default_banner_img,
+            rules_description=default_desc,
+            rules_banner_text=default_banner_text,
+            rules_general_text=default_gen_text
+        )
+        db.add(default_event)
+        db.commit()
+        
+        # Liên kết toàn bộ hoạt động cũ chưa có event_id sang giải đấu mặc định này
+        print("Database Migration: Linking existing null-event activities to default event...")
+        db.query(Activity).filter(Activity.event_id == None).update({Activity.event_id: default_event.id})
+        db.commit()
+
+    # 1.7. Khởi tạo Đăng ký giải đấu mặc định & tự động (di trú dữ liệu đăng ký)
+    first_event = db.query(CompetitionEvent).order_by(CompetitionEvent.id).first()
+    if first_event:
+        to_register = set()
+        
+        # Tự động gom đăng ký toàn bộ Athlete hiện tại vào giải đấu mặc định
+        all_athletes = db.query(Athlete).all()
+        for athlete in all_athletes:
+            to_register.add((athlete.id, first_event.id))
+        
+        # Tự động gom đăng ký VĐV vào các giải đấu khác nếu họ đã có hoạt động thuộc giải đấu đó
+        active_activities_events = db.query(Activity.athlete_id, Activity.event_id)\
+            .filter(Activity.athlete_id != None, Activity.event_id != None)\
+            .distinct().all()
+        for ath_id, ev_id in active_activities_events:
+            to_register.add((ath_id, ev_id))
+            
+        # Thêm các đăng ký chưa tồn tại trong database
+        for ath_id, ev_id in to_register:
+            exists = db.query(CompetitionRegistration).filter(
+                CompetitionRegistration.athlete_id == ath_id,
+                CompetitionRegistration.event_id == ev_id
+            ).first()
+            if not exists:
+                db.add(CompetitionRegistration(athlete_id=ath_id, event_id=ev_id))
+        db.commit()
+
     # 2. Khởi tạo cấu hình Giải thưởng mặc định
     default_rewards = [
         RewardRule(gender="Nam", kcal_threshold=10000.0, reward_amount=100000.0),
@@ -171,16 +305,20 @@ def init_db(excel_filepath: str = "TDTT_SSO.xlsx"):
 
     # 2.5. Khởi tạo cấu hình Huy hiệu mặc định
     default_badges = [
-        BadgeRule(id="fresh_start", name="Khởi Đầu Mới", description="Hoàn thành 1 hoạt động thể thao hợp lệ đầu tiên.", icon="fa-shoe-prints", color="#8FCDF0", threshold=1.0, unit="activities"),
-        BadgeRule(id="golden_boot", name="Bàn Chân Vàng", description="Hoàn thành hoạt động Chạy bộ (Run) có quãng đường dài >= 10 km.", icon="fa-person-running", color="#ff5e36", threshold=10.0, unit="run_distance_km"),
-        BadgeRule(id="fire_wheel", name="Bánh Xe Lửa", description="Hoàn thành hoạt động Đạp xe (Ride) có quãng đường dài >= 25 km.", icon="fa-bicycle", color="#b554f7", threshold=25.0, unit="ride_distance_km"),
-        BadgeRule(id="iron_will", name="Sức Bền Vô Hạn", description="Tích lũy tổng thời gian tập luyện hợp lệ đạt từ 10 giờ trở lên.", icon="fa-hourglass-half", color="#94B5DE", threshold=10.0, unit="total_time_hours"),
-        BadgeRule(id="calorie_hunter", name="Thợ Săn Calo", description="Đốt cháy lượng năng lượng tích lũy đạt từ 5.000 KCAL trở lên.", icon="fa-fire", color="#ffc107", threshold=5000.0, unit="total_kcal"),
-        BadgeRule(id="perseverance", name="Chiến Binh Bền Bỉ", description="Duy trì tần suất tập luyện liên tục trong ít nhất 5 ngày.", icon="fa-calendar-check", color="#20c997", threshold=5.0, unit="max_streak_days")
+        BadgeRule(id="fresh_start", badge_key="fresh_start", name="Khởi Đầu Mới", description="Hoàn thành 1 hoạt động thể thao hợp lệ đầu tiên.", icon="fa-shoe-prints", color="#8FCDF0", threshold=1.0, unit="activities"),
+        BadgeRule(id="golden_boot", badge_key="golden_boot", name="Bàn Chân Vàng", description="Hoàn thành hoạt động Chạy bộ (Run) có quãng đường dài >= 10 km.", icon="fa-person-running", color="#ff5e36", threshold=10.0, unit="run_distance_km"),
+        BadgeRule(id="fire_wheel", badge_key="fire_wheel", name="Bánh Xe Lửa", description="Hoàn thành hoạt động Đạp xe (Ride) có quãng đường dài >= 25 km.", icon="fa-bicycle", color="#b554f7", threshold=25.0, unit="ride_distance_km"),
+        BadgeRule(id="iron_will", badge_key="iron_will", name="Sức Bền Vô Hạn", description="Tích lũy tổng thời gian tập luyện hợp lệ đạt từ 10 giờ trở lên.", icon="fa-hourglass-half", color="#94B5DE", threshold=10.0, unit="total_time_hours"),
+        BadgeRule(id="calorie_hunter", badge_key="calorie_hunter", name="Thợ Săn Calo", description="Đốt cháy lượng năng lượng tích lũy đạt từ 5.000 KCAL trở lên.", icon="fa-fire", color="#ffc107", threshold=5000.0, unit="total_kcal"),
+        BadgeRule(id="perseverance", badge_key="perseverance", name="Chiến Binh Bền Bỉ", description="Duy trì tần suất tập luyện liên tục trong ít nhất 5 ngày.", icon="fa-calendar-check", color="#20c997", threshold=5.0, unit="max_streak_days")
     ]
     if db.query(BadgeRule).count() == 0:
         db.add_all(default_badges)
         db.commit()
+        
+    # Điền badge_key cho các huy hiệu mặc định cũ nếu chưa có
+    db.query(BadgeRule).filter(BadgeRule.badge_key == None).update({BadgeRule.badge_key: BadgeRule.id}, synchronize_session=False)
+    db.commit()
 
     # 2.7. Khởi tạo Archived Events (Giải chạy quá khứ) mặc định
     default_events = [

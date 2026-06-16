@@ -3,7 +3,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 from backend.database import MetsRule, RewardRule, Config
 
-def get_mets_value(sport_type: str, speed_kmh: float, db: Session, distance_km: float = 0.0, elevation_gain_m: float = 0.0) -> float:
+def get_mets_value(sport_type: str, speed_kmh: float, db: Session, distance_km: float = 0.0, elevation_gain_m: float = 0.0, event_id: int = None) -> float:
     """
     Tra cứu hệ số METs động từ cơ sở dữ liệu.
     - Đối với Chạy bộ (Run) và Đi bộ (Walk): Áp dụng công thức chuẩn của Hiệp hội Y học Thể thao Hoa Kỳ (ACSM) tích hợp tốc độ và độ dốc.
@@ -31,7 +31,11 @@ def get_mets_value(sport_type: str, speed_kmh: float, db: Session, distance_km: 
         return max(round(mets, 2), 1.0) # Tối thiểu là 1.0 METs (nghỉ ngơi)
 
     # 2. Áp dụng Nội suy tuyến tính cho các bộ môn khác
-    rules = db.query(MetsRule).filter(MetsRule.sport_type.ilike(sport_type)).order_by(MetsRule.min_speed).all()
+    rules = None
+    if event_id:
+        rules = db.query(MetsRule).filter(MetsRule.sport_type.ilike(sport_type), MetsRule.event_id == event_id).order_by(MetsRule.min_speed).all()
+    if not rules:
+        rules = db.query(MetsRule).filter(MetsRule.sport_type.ilike(sport_type), MetsRule.event_id == None).order_by(MetsRule.min_speed).all()
     if not rules:
         return 0.0
         
@@ -82,12 +86,16 @@ def calculate_kcal(mets_value: float, athlete_weight: float, moving_time_min: fl
         
     return round(kcal)
 
-def get_award_info(gender: str, total_kcal: float, db: Session) -> dict:
+def get_award_info(gender: str, total_kcal: float, db: Session, event_id: int = None) -> dict:
     """
     Tính giải thưởng dựa trên tổng KCAL và Giới tính từ bảng reward_rules.
     Trả về dict chứa: reward_amount (VND), next_threshold (KCAL cho mốc tiếp theo).
     """
-    rules = db.query(RewardRule).filter(RewardRule.gender == gender).order_by(RewardRule.kcal_threshold.desc()).all()
+    rules = None
+    if event_id:
+        rules = db.query(RewardRule).filter(RewardRule.gender == gender, RewardRule.event_id == event_id).order_by(RewardRule.kcal_threshold.desc()).all()
+    if not rules:
+        rules = db.query(RewardRule).filter(RewardRule.gender == gender, RewardRule.event_id == None).order_by(RewardRule.kcal_threshold.desc()).all()
     
     award_amount = 0.0
     next_threshold = 0.0
@@ -205,12 +213,24 @@ def check_suspicious_activity(sport_type: str, distance_km: float, pace_min_km: 
         return True, "; ".join(reasons)
     return False, None
 
-def get_athlete_badges(athlete, valid_activities, max_streak: int, total_kcal: float, total_time_hours: float, db: Session) -> list[dict]:
+def get_athlete_badges(
+    athlete,
+    valid_activities: list,
+    max_streak: int,
+    total_kcal: float,
+    total_time_hours: float,
+    db: Session,
+    event_id: int = None
+) -> list:
     """
     Tính toán và xác định danh sách huy hiệu ảo mà VĐV đã đạt được dựa trên các quy tắc cấu hình động trong DB.
     """
     from backend.database import BadgeRule
-    rules = db.query(BadgeRule).all()
+    rules = None
+    if event_id:
+        rules = db.query(BadgeRule).filter(BadgeRule.event_id == event_id).all()
+    if not rules:
+        rules = db.query(BadgeRule).filter(BadgeRule.event_id == None).all()
 
     result = []
     for r in rules:
@@ -268,7 +288,7 @@ def get_athlete_badges(athlete, valid_activities, max_streak: int, total_kcal: f
                     pass
         
         result.append({
-            "id": r.id,
+            "id": r.badge_key or r.id,
             "name": r.name,
             "description": r.description,
             "icon": r.icon,

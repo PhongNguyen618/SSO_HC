@@ -20,12 +20,31 @@ load_dotenv()
 # Ví dụ: https://yourdomain.com hoặc http://localhost:8000 khi dev local
 APP_URL = os.getenv("APP_URL", "").rstrip("/")
 
-from backend.database import SessionLocal, init_db, get_db, Config, Athlete, Activity, MetsRule, RewardRule, hash_password
+from backend.database import SessionLocal, init_db, get_db, Config, Athlete, Activity, MetsRule, RewardRule, hash_password, CompetitionEvent, CompetitionRegistration
 from backend.calculations import get_award_info
 from backend.sync_engine import sync_club_activities, get_config_dict, update_config, link_unlinked_activities, import_excel_files
 from backend.auth import get_admin_session, COOKIE_NAME, verify_password
 
 app = FastAPI(title="Strava SSO HC Web App")
+
+def extract_strava_club_id(input_str: str) -> str:
+    """Tự động trích xuất ID nhóm Strava từ đường link URL hoặc chuỗi nhập vào."""
+    if not input_str:
+        return ""
+    input_str = input_str.strip()
+    import re
+    # Hỗ trợ link định dạng: https://www.strava.com/clubs/1534169 hoặc strava.com/clubs/1534169/...
+    match = re.search(r'clubs/(\d+)', input_str)
+    if match:
+        return match.group(1)
+    # Hỗ trợ link định dạng query param: club_id=1534169
+    match2 = re.search(r'club.*?=(\d+)', input_str)
+    if match2:
+        return match2.group(1)
+    # Nếu chỉ có chữ số thì trả về luôn
+    if input_str.isdigit():
+        return input_str
+    return input_str
 
 # Đảm bảo các thư mục templates và static tồn tại
 os.makedirs("templates", exist_ok=True)
@@ -99,7 +118,25 @@ def get_global_configs():
     db = SessionLocal()
     try:
         from backend.sync_engine import get_config_dict
-        return get_config_dict(db)
+        configs = get_config_dict(db)
+        
+        # Tìm giải đấu đang hoạt động đầu tiên để ghi đè các cấu hình toàn cục
+        active_event = db.query(CompetitionEvent).filter(CompetitionEvent.is_active == True).order_by(CompetitionEvent.id).first()
+        if active_event:
+            if active_event.title:
+                configs["rules_title"] = active_event.title
+            if active_event.rules_description or active_event.description:
+                configs["rules_description"] = active_event.rules_description or active_event.description
+            if active_event.rules_banner_text:
+                configs["rules_banner_text"] = active_event.rules_banner_text
+            if active_event.rules_general_text:
+                configs["rules_general_text"] = active_event.rules_general_text
+            if active_event.banner_image:
+                configs["rules_banner_image"] = active_event.banner_image
+            if active_event.strava_club_id:
+                configs["strava_club_id"] = active_event.strava_club_id
+                
+        return configs
     except Exception:
         return {}
     finally:
@@ -144,14 +181,27 @@ def get_department_members(db: Session, start_date: str = None, end_date: str = 
 @app.get("/", response_class=HTMLResponse)
 def index(
     request: Request,
+    event_id: int = None,
     start_date: str = None,
     end_date: str = None,
     db: Session = Depends(get_db)
 ):
     """
     Trang chủ hiển thị Bảng xếp hạng (BXH), Tìm kiếm và Thống kê tổng quan theo khung thời gian.
+    Hỗ trợ lọc theo giải đấu (event_id).
     """
     configs = get_config_dict(db)
+    
+    # Lấy danh sách giải đấu đang hoạt động
+    active_competitions = db.query(CompetitionEvent).filter(CompetitionEvent.is_active == True).order_by(CompetitionEvent.id).all()
+    
+    # Xác định giải đấu được chọn
+    selected_event = None
+    if event_id:
+        selected_event = db.query(CompetitionEvent).filter(CompetitionEvent.id == event_id).first()
+    if not selected_event and active_competitions:
+        selected_event = active_competitions[0]
+        event_id = selected_event.id
     
     # Lấy cấu hình hiển thị cột của BXH Cá nhân
     col_configs = {
@@ -162,35 +212,51 @@ def index(
         "show_col_award": configs.get("show_col_award", "true").lower() == "true",
     }
     
-    # 0. Xử lý khung thời gian mặc định (7 ngày từ ngày có hoạt động mới nhất)
+    # 0. Xử lý khung thời gian mặc định
+    # Nếu có giải đấu được chọn, sử dụng khoảng thời gian của giải đấu đó
     if not start_date or not end_date:
-        max_date_str = db.query(func.max(Activity.activity_date)).scalar()
-        if max_date_str:
-            try:
-                end_dt = datetime.strptime(max_date_str, "%Y-%m-%d")
-            except ValueError:
-                end_dt = datetime.now()
+        if selected_event and selected_event.start_date and selected_event.end_date:
+            if not start_date:
+                start_date = selected_event.start_date
+            if not end_date:
+                end_date = selected_event.end_date
         else:
-            end_dt = datetime.now()
-        
-        start_dt = end_dt - timedelta(days=6)
-        
-        if not start_date:
-            start_date = start_dt.strftime("%Y-%m-%d")
-        if not end_date:
-            end_date = end_dt.strftime("%Y-%m-%d")
+            # Fallback: 7 ngày từ ngày có hoạt động mới nhất
+            base_query = db.query(func.max(Activity.activity_date))
+            if event_id:
+                base_query = base_query.filter(Activity.event_id == event_id)
+            max_date_str = base_query.scalar()
+            if max_date_str:
+                try:
+                    end_dt = datetime.strptime(max_date_str, "%Y-%m-%d")
+                except ValueError:
+                    end_dt = datetime.now()
+            else:
+                end_dt = datetime.now()
+            
+            start_dt = end_dt - timedelta(days=6)
+            
+            if not start_date:
+                start_date = start_dt.strftime("%Y-%m-%d")
+            if not end_date:
+                end_date = end_dt.strftime("%Y-%m-%d")
 
-    # 1. Thống kê tổng quan (Kpi Cards) theo khung thời gian
+    # Xây dựng bộ lọc cơ bản cho giải đấu + khoảng thời gian
+    base_filters = [Activity.activity_date >= start_date, Activity.activity_date <= end_date]
+    if event_id:
+        base_filters.append(Activity.event_id == event_id)
+
+    # 1. Thống kê tổng quan (Kpi Cards)
     total_kcal = db.query(func.sum(Activity.kcal_burned))\
-        .filter(Activity.activity_date >= start_date, Activity.activity_date <= end_date)\
+        .filter(*base_filters)\
         .scalar() or 0
     total_dist = db.query(func.sum(Activity.distance_km))\
-        .filter(Activity.activity_date >= start_date, Activity.activity_date <= end_date)\
+        .filter(*base_filters)\
         .scalar() or 0
     total_athletes = db.query(Athlete).filter(Athlete.is_active == True).count()
     
-    # 2. Xếp hạng cá nhân (BXH Tổng) theo KCAL
-    athlete_stats = db.query(
+    # 2. Xếp hạng cá nhân (BXH Tổng) theo KCAL (Chỉ các VĐV đã đăng ký giải đấu này)
+    query_stats = db.query(
         Athlete.id,
         Athlete.full_name,
         Athlete.gender,
@@ -198,8 +264,15 @@ def index(
         func.sum(Activity.distance_km).label("total_dist"),
         func.sum(Activity.moving_time_min).label("total_time"),
         func.sum(Activity.kcal_burned).label("total_kcal")
-    ).join(Activity, Athlete.id == Activity.athlete_id)\
-     .filter(Athlete.is_active == True, Activity.activity_date >= start_date, Activity.activity_date <= end_date)\
+    ).join(Activity, Athlete.id == Activity.athlete_id)
+    
+    if event_id:
+        query_stats = query_stats.join(
+            CompetitionRegistration,
+            (Athlete.id == CompetitionRegistration.athlete_id) & (CompetitionRegistration.event_id == event_id)
+        )
+        
+    athlete_stats = query_stats.filter(Athlete.is_active == True, *base_filters)\
      .group_by(Athlete.id)\
      .order_by(func.sum(Activity.kcal_burned).desc()).all()
      
@@ -220,20 +293,28 @@ def index(
             "has_award": award_info["has_award"]
         })
 
-    # 3. Xếp hạng theo Phòng ban (Trung bình KCAL = Tổng KCAL / Số thành viên của phòng)
+    # 3. Xếp hạng theo Phòng ban
     dept_members = get_department_members(db, start_date, end_date)
     
-    dept_stats_raw = db.query(
+    dept_query = db.query(
         Athlete.department,
         func.sum(Activity.kcal_burned).label("total_kcal")
-    ).join(Activity, Athlete.id == Activity.athlete_id)\
-     .filter(Athlete.is_active == True, Activity.activity_date >= start_date, Activity.activity_date <= end_date)\
-     .group_by(Athlete.department).all()
+    ).join(Activity, Athlete.id == Activity.athlete_id)
+    
+    if event_id:
+        dept_query = dept_query.join(
+            CompetitionRegistration,
+            (Athlete.id == CompetitionRegistration.athlete_id) & (CompetitionRegistration.event_id == event_id)
+        )
+        
+    dept_query = dept_query.filter(Athlete.is_active == True, *base_filters)\
+     .group_by(Athlete.department)
+    dept_stats_raw = dept_query.all()
      
     dept_stats = []
     for item in dept_stats_raw:
         dept_name = item.department
-        members = dept_members.get(dept_name, 1) # Sĩ số phòng ban từ DB config, mặc định 1 nếu không định nghĩa
+        members = dept_members.get(dept_name, 1)
         total_k = item.total_kcal or 0
         avg_k = total_k / members
         dept_stats.append({
@@ -248,14 +329,21 @@ def index(
 
     # 4. Xếp hạng theo Môn Thể Thao (Nam / Nữ riêng)
     def get_sport_ranking(gender: str):
-        stats = db.query(
+        stats_query = db.query(
             Athlete.id,
             Athlete.full_name,
             Activity.sport_type,
             func.sum(Activity.kcal_burned).label("total_kcal"),
             func.sum(Activity.distance_km).label("total_dist")
-        ).join(Activity, Athlete.id == Activity.athlete_id)\
-         .filter(Athlete.is_active == True, Athlete.gender == gender, Activity.activity_date >= start_date, Activity.activity_date <= end_date)\
+        ).join(Activity, Athlete.id == Activity.athlete_id)
+        
+        if event_id:
+            stats_query = stats_query.join(
+                CompetitionRegistration,
+                (Athlete.id == CompetitionRegistration.athlete_id) & (CompetitionRegistration.event_id == event_id)
+            )
+            
+        stats = stats_query.filter(Athlete.is_active == True, Athlete.gender == gender, *base_filters)\
          .group_by(Athlete.id, Activity.sport_type)\
          .order_by(Activity.sport_type, func.sum(Activity.kcal_burned).desc()).all()
          
@@ -313,14 +401,46 @@ def index(
             "start_date": start_date,
             "end_date": end_date,
             "archived_events": archived_events,
-            "col_configs": col_configs
+            "col_configs": col_configs,
+            "active_competitions": active_competitions,
+            "selected_event": selected_event,
+            "selected_event_id": event_id
         }
     )
 
 @app.get("/rules", response_class=HTMLResponse)
-def rules_page(request: Request, db: Session = Depends(get_db)):
+def rules_page(
+    request: Request,
+    event_id: int = None,
+    db: Session = Depends(get_db)
+):
     """Trang quy chế giải đấu."""
     configs = get_config_dict(db)
+    
+    # Lấy danh sách giải đấu đang hoạt động
+    active_competitions = db.query(CompetitionEvent).filter(CompetitionEvent.is_active == True).order_by(CompetitionEvent.id).all()
+    
+    # Xác định giải đấu được chọn
+    selected_event = None
+    if event_id:
+        selected_event = db.query(CompetitionEvent).filter(CompetitionEvent.id == event_id).first()
+    if not selected_event and active_competitions:
+        selected_event = active_competitions[0]
+        
+    if selected_event:
+        if selected_event.title:
+            configs["rules_title"] = selected_event.title
+        if selected_event.rules_description or selected_event.description:
+            configs["rules_description"] = selected_event.rules_description or selected_event.description
+        if selected_event.rules_banner_text:
+            configs["rules_banner_text"] = selected_event.rules_banner_text
+        if selected_event.rules_general_text:
+            configs["rules_general_text"] = selected_event.rules_general_text
+        if selected_event.banner_image:
+            configs["rules_banner_image"] = selected_event.banner_image
+        if selected_event.strava_club_id:
+            configs["strava_club_id"] = selected_event.strava_club_id
+            
     mets = db.query(MetsRule).order_by(MetsRule.sport_type, MetsRule.min_speed).all()
     rewards = db.query(RewardRule).order_by(RewardRule.gender, RewardRule.kcal_threshold).all()
     return templates.TemplateResponse(
@@ -329,7 +449,10 @@ def rules_page(request: Request, db: Session = Depends(get_db)):
         context={
             "configs": configs,
             "mets": mets,
-            "rewards": rewards
+            "rewards": rewards,
+            "active_competitions": active_competitions,
+            "selected_event": selected_event,
+            "selected_event_id": selected_event.id if selected_event else None
         }
     )
 
@@ -477,16 +600,55 @@ def register_athlete(
         )
 
 @app.get("/profile/{athlete_id}", response_class=HTMLResponse)
-def profile_page(request: Request, athlete_id: int, db: Session = Depends(get_db)):
+def profile_page(
+    request: Request,
+    athlete_id: int,
+    event_id: int = None,
+    db: Session = Depends(get_db)
+):
     """Trang thống kê chi tiết cá nhân vận động viên."""
     athlete = db.query(Athlete).filter(Athlete.id == athlete_id, Athlete.is_active == True).first()
     if not athlete:
         raise HTTPException(status_code=404, detail="Không tìm thấy Vận động viên.")
 
-    # 1. Lấy danh sách hoạt động
-    activities = db.query(Activity).filter(Activity.athlete_id == athlete.id)\
-                   .order_by(Activity.activity_date.desc()).all()
-                   
+    # Lấy danh sách các giải đấu VĐV đã đăng ký
+    registered_events = db.query(CompetitionEvent).join(
+        CompetitionRegistration,
+        CompetitionEvent.id == CompetitionRegistration.event_id
+    ).filter(CompetitionRegistration.athlete_id == athlete.id).order_by(CompetitionEvent.id).all()
+    
+    # Xác định giải đấu được chọn xem chi tiết
+    selected_event = None
+    if event_id:
+        is_reg = db.query(CompetitionRegistration).filter(
+            CompetitionRegistration.athlete_id == athlete.id,
+            CompetitionRegistration.event_id == event_id
+        ).first()
+        if is_reg:
+            selected_event = db.query(CompetitionEvent).filter(CompetitionEvent.id == event_id).first()
+            
+    if not selected_event and registered_events:
+        selected_event = registered_events[0]
+        
+    if not selected_event:
+        # Fallback nếu chưa đăng ký giải nào, lấy giải hoạt động đầu tiên
+        selected_event = db.query(CompetitionEvent).filter(CompetitionEvent.is_active == True).order_by(CompetitionEvent.id).first()
+        
+    selected_event_id = selected_event.id if selected_event else None
+
+    # Lấy các giải đấu đang mở mà VĐV chưa đăng ký
+    registered_ids = [re.id for re in registered_events]
+    unregistered_events = db.query(CompetitionEvent).filter(
+        CompetitionEvent.is_active == True,
+        ~CompetitionEvent.id.in_(registered_ids) if registered_ids else True
+    ).order_by(CompetitionEvent.id).all()
+
+    # 1. Lấy danh sách hoạt động thuộc giải đấu được chọn
+    activities_query = db.query(Activity).filter(Activity.athlete_id == athlete.id)
+    if selected_event_id:
+        activities_query = activities_query.filter(Activity.event_id == selected_event_id)
+        
+    activities = activities_query.order_by(Activity.activity_date.desc()).all()
     valid_activities = activities
     
     # 2. Tính toán các KPI
@@ -564,9 +726,47 @@ def profile_page(request: Request, athlete_id: int, db: Session = Depends(get_db
             "chart_sports": chart_sports,
             "chart_sport_dists": chart_sport_dists,
             "badges": badges,
-            "is_admin": is_admin
+            "is_admin": is_admin,
+            "registered_events": registered_events,
+            "unregistered_events": unregistered_events,
+            "selected_event": selected_event,
+            "selected_event_id": selected_event_id
         }
     )
+
+@app.post("/profile/{athlete_id}/register-event")
+def register_event_for_athlete(
+    athlete_id: int,
+    request: Request,
+    event_id: int = Form(...),
+    db: Session = Depends(get_db)
+):
+    """Đăng ký tham gia một giải đấu cho vận động viên."""
+    athlete = db.query(Athlete).filter(Athlete.id == athlete_id, Athlete.is_active == True).first()
+    if not athlete:
+        raise HTTPException(status_code=404, detail="Không tìm thấy Vận động viên.")
+        
+    event = db.query(CompetitionEvent).filter(CompetitionEvent.id == event_id, CompetitionEvent.is_active == True).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Giải đấu không khả dụng hoặc đã kết thúc.")
+        
+    # Kiểm tra xem đã đăng ký chưa
+    exists = db.query(CompetitionRegistration).filter(
+        CompetitionRegistration.athlete_id == athlete.id,
+        CompetitionRegistration.event_id == event_id
+    ).first()
+    
+    if not exists:
+        try:
+            reg = CompetitionRegistration(athlete_id=athlete.id, event_id=event_id)
+            db.add(reg)
+            db.commit()
+            print(f"Main.py: Registered Athlete {athlete.full_name} for event '{event.title}'.")
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(status_code=500, detail=f"Lỗi khi lưu đăng ký: {str(e)}")
+            
+    return RedirectResponse(url=f"/profile/{athlete_id}?event_id={event_id}", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.get("/event/{event_id}", response_class=HTMLResponse)
 def event_detail_page(request: Request, event_id: int, db: Session = Depends(get_db)):
@@ -616,7 +816,13 @@ def event_detail_page(request: Request, event_id: int, db: Session = Depends(get
 # --- ADMIN PANEL ROUTES ---
 
 @app.get("/admin", response_class=HTMLResponse)
-def admin_dashboard(request: Request, error: str = None, success: str = None, db: Session = Depends(get_db)):
+def admin_dashboard(
+    request: Request,
+    error: str = None,
+    success: str = None,
+    event_id: str = None,
+    db: Session = Depends(get_db)
+):
     """Trang quản trị (Admin Dashboard)."""
     admin_session = get_admin_session(request, db)
     if not admin_session:
@@ -632,11 +838,35 @@ def admin_dashboard(request: Request, error: str = None, success: str = None, db
         
     configs = get_config_dict(db)
     athletes = db.query(Athlete).order_by(Athlete.id).all()
-    mets = db.query(MetsRule).order_by(MetsRule.sport_type).all()
-    rewards = db.query(RewardRule).order_by(RewardRule.gender, RewardRule.kcal_threshold).all()
     
+    selected_event_id = None
+    if event_id and event_id.strip():
+        try:
+            selected_event_id = int(event_id)
+        except ValueError:
+            pass
+
+    # Lấy METs Rules
+    mets = []
+    if selected_event_id:
+        mets = db.query(MetsRule).filter(MetsRule.event_id == selected_event_id).order_by(MetsRule.sport_type, MetsRule.min_speed).all()
+    if not mets:
+        mets = db.query(MetsRule).filter(MetsRule.event_id == None).order_by(MetsRule.sport_type, MetsRule.min_speed).all()
+
+    # Lấy Reward Rules
+    rewards = []
+    if selected_event_id:
+        rewards = db.query(RewardRule).filter(RewardRule.event_id == selected_event_id).order_by(RewardRule.gender, RewardRule.kcal_threshold).all()
+    if not rewards:
+        rewards = db.query(RewardRule).filter(RewardRule.event_id == None).order_by(RewardRule.gender, RewardRule.kcal_threshold).all()
+
+    # Lấy Badge Rules
     from backend.database import BadgeRule
-    badges = db.query(BadgeRule).order_by(BadgeRule.id).all()
+    badges = []
+    if selected_event_id:
+        badges = db.query(BadgeRule).filter(BadgeRule.event_id == selected_event_id).order_by(BadgeRule.id).all()
+    if not badges:
+        badges = db.query(BadgeRule).filter(BadgeRule.event_id == None).order_by(BadgeRule.id).all()
 
     # Lấy danh sách thành viên Strava có hoạt động nhưng chưa đăng ký Web App
     unlinked_names = db.query(Activity.athlete_name_raw)\
@@ -660,6 +890,9 @@ def admin_dashboard(request: Request, error: str = None, success: str = None, db
 
     from backend.database import ArchivedEvent
     archived_events = db.query(ArchivedEvent).order_by(ArchivedEvent.id.desc()).all()
+
+    # Lấy danh sách giải đấu để hiển thị trong tab quản lý
+    all_competitions = db.query(CompetitionEvent).order_by(CompetitionEvent.id.desc()).all()
 
     # --- LOGIC THỐNG KÊ PHÂN TÍCH CHO ADMIN ---
     # 1. Chỉ số KPIs tổng hợp
@@ -814,7 +1047,9 @@ def admin_dashboard(request: Request, error: str = None, success: str = None, db
             "badges": badges,
             "archived_events": archived_events,
             "stats_data": stats_data,
-            "departments": departments
+            "departments": departments,
+            "all_competitions": all_competitions,
+            "selected_event_id": selected_event_id
         }
     )
 
@@ -888,7 +1123,7 @@ async def update_configs(
     try:
         update_config(db, "strava_client_id", strava_client_id)
         update_config(db, "strava_client_secret", strava_client_secret)
-        update_config(db, "strava_club_id", strava_club_id)
+        update_config(db, "strava_club_id", extract_strava_club_id(strava_club_id))
         
         # Nếu thay đổi tần suất đồng bộ, cần cập nhật lại Scheduler
         old_interval = db.query(Config).filter(Config.key == "sync_interval_hours").first()
@@ -1149,7 +1384,6 @@ def admin_edit_athlete(
                     speed_kmh = act.distance_km / (act.moving_time_min / 60.0)
                 actual_time_min = act.elapsed_time_min if act.moving_time_min < 1.0 else act.moving_time_min
                 
-                # Import dynamic calculations
                 from backend.calculations import get_mets_value, calculate_kcal
                 mets_val = get_mets_value(act.sport_type, speed_kmh, db, act.distance_km, act.elevation_gain_m)
                 act.mets_value = mets_val
@@ -1182,6 +1416,75 @@ def admin_delete_athlete(athlete_id: int, request: Request, db: Session = Depend
 
 # --- QUẢN LÝ METS & GIẢI THƯỞNG TRÊN ADMIN ---
 
+from typing import Optional
+
+@app.get("/admin/api/rules")
+def get_rules_api(
+    request: Request,
+    event_id: str = None,
+    db: Session = Depends(get_db)
+):
+    admin = get_admin_session(request, db)
+    if not admin:
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập")
+
+    ev_id = None
+    if event_id and event_id.strip():
+        try:
+            ev_id = int(event_id)
+        except ValueError:
+            pass
+
+    # METs Rules
+    mets_rules = []
+    if ev_id:
+        mets_rules = db.query(MetsRule).filter(MetsRule.event_id == ev_id).order_by(MetsRule.sport_type, MetsRule.min_speed).all()
+    if not mets_rules:
+        mets_rules = db.query(MetsRule).filter(MetsRule.event_id == None).order_by(MetsRule.sport_type, MetsRule.min_speed).all()
+
+    # Reward Rules
+    reward_rules = []
+    if ev_id:
+        reward_rules = db.query(RewardRule).filter(RewardRule.event_id == ev_id).order_by(RewardRule.gender, RewardRule.kcal_threshold).all()
+    if not reward_rules:
+        reward_rules = db.query(RewardRule).filter(RewardRule.event_id == None).order_by(RewardRule.gender, RewardRule.kcal_threshold).all()
+
+    # Badge Rules
+    from backend.database import BadgeRule
+    badge_rules = []
+    if ev_id:
+        badge_rules = db.query(BadgeRule).filter(BadgeRule.event_id == ev_id).order_by(BadgeRule.id).all()
+    if not badge_rules:
+        badge_rules = db.query(BadgeRule).filter(BadgeRule.event_id == None).order_by(BadgeRule.id).all()
+
+    return {
+        "mets": [
+            {
+                "sport_type": m.sport_type,
+                "min_speed": m.min_speed,
+                "max_speed": m.max_speed,
+                "met_value": m.met_value
+            } for m in mets_rules
+        ],
+        "rewards": [
+            {
+                "gender": r.gender,
+                "kcal_threshold": r.kcal_threshold,
+                "reward_amount": r.reward_amount
+            } for r in reward_rules
+        ],
+        "badges": [
+            {
+                "id": b.badge_key or b.id,
+                "name": b.name,
+                "description": b.description,
+                "icon": b.icon,
+                "color": b.color,
+                "threshold": b.threshold,
+                "unit": b.unit
+            } for b in badge_rules
+        ]
+    }
 @app.post("/admin/mets/edit")
 def edit_mets_rules(
     request: Request,
@@ -1190,6 +1493,7 @@ def edit_mets_rules(
     min_speed: list[float] = Form(...),
     max_speed: list[float] = Form(...),
     met_value: list[float] = Form(...),
+    event_id: Optional[str] = Form(None),
     db: Session = Depends(get_db)
 ):
     admin = get_admin_session(request, db)
@@ -1197,13 +1501,16 @@ def edit_mets_rules(
         return RedirectResponse("/admin?error=Chua dang nhap", status_code=303)
         
     try:
-        # Xóa các quy tắc METs cũ và viết lại mới
-        db.query(MetsRule).delete()
+        ev_id = int(event_id) if event_id and str(event_id).strip() else None
+        
+        # Xóa các quy tắc METs cũ thuộc giải đấu được chọn (hoặc mặc định)
+        db.query(MetsRule).filter(MetsRule.event_id == ev_id).delete()
         
         for i in range(len(sport_type)):
             if not sport_type[i].strip():
                 continue
             rule = MetsRule(
+                event_id=ev_id,
                 sport_type=sport_type[i].strip(),
                 min_speed=min_speed[i],
                 max_speed=max_speed[i],
@@ -1211,7 +1518,7 @@ def edit_mets_rules(
             )
             db.add(rule)
         db.commit()
-        return RedirectResponse("/admin?success=Cap nhat he so METs thanh cong", status_code=303)
+        return RedirectResponse(f"/admin?success=Cap nhat he so METs thanh cong&event_id={event_id or ''}", status_code=303)
     except Exception as e:
         db.rollback()
         return RedirectResponse(f"/admin?error=Loi cap nhat METs: {str(e)}", status_code=303)
@@ -1222,6 +1529,7 @@ def edit_rewards_rules(
     gender: list[str] = Form(...),
     kcal_threshold: list[float] = Form(...),
     reward_amount: list[float] = Form(...),
+    event_id: Optional[str] = Form(None),
     db: Session = Depends(get_db)
 ):
     admin = get_admin_session(request, db)
@@ -1229,18 +1537,77 @@ def edit_rewards_rules(
         return RedirectResponse("/admin?error=Chua dang nhap", status_code=303)
         
     try:
-        db.query(RewardRule).delete()
+        ev_id = int(event_id) if event_id and str(event_id).strip() else None
+        
+        # Xóa các quy tắc Rewards cũ thuộc giải đấu được chọn (hoặc mặc định)
+        db.query(RewardRule).filter(RewardRule.event_id == ev_id).delete()
+        
         for i in range(len(gender)):
             if not gender[i].strip():
                 continue
             rule = RewardRule(
+                event_id=ev_id,
                 gender=gender[i].strip(),
                 kcal_threshold=kcal_threshold[i],
                 reward_amount=reward_amount[i]
             )
             db.add(rule)
         db.commit()
-        return RedirectResponse("/admin?success=Cap nhat mốc giải thưởng thành công", status_code=303)
+        return RedirectResponse(f"/admin?success=Cap nhat moc giai thuong thanh cong&event_id={event_id or ''}", status_code=303)
+    except Exception as e:
+        db.rollback()
+        return RedirectResponse(f"/admin?error=Loi cap nhat giai thuong: {str(e)}", status_code=303)
+
+@app.post("/admin/badges/edit")
+def edit_badges_rules(
+    request: Request,
+    id: list[str] = Form(...), # badge_key
+    name: list[str] = Form(...),
+    description: list[str] = Form(...),
+    icon: list[str] = Form(...),
+    color: list[str] = Form(...),
+    threshold: list[float] = Form(...),
+    unit: list[str] = Form(...),
+    event_id: Optional[str] = Form(None),
+    db: Session = Depends(get_db)
+):
+    admin = get_admin_session(request, db)
+    if not admin:
+        return RedirectResponse("/admin?error=Chua dang nhap", status_code=303)
+        
+    try:
+        from backend.database import BadgeRule
+        ev_id = int(event_id) if event_id and str(event_id).strip() else None
+        
+        # Xóa các quy tắc Badges cũ thuộc giải đấu được chọn (hoặc mặc định)
+        db.query(BadgeRule).filter(BadgeRule.event_id == ev_id).delete()
+        
+        for i in range(len(id)):
+            badge_key = id[i].strip()
+            if not badge_key:
+                continue
+            new_id = f"{badge_key}_{ev_id}" if ev_id else badge_key
+            rule = BadgeRule(
+                id=new_id,
+                badge_key=badge_key,
+                event_id=ev_id,
+                name=name[i].strip(),
+                description=description[i].strip(),
+                icon=icon[i].strip(),
+                color=color[i].strip(),
+                threshold=threshold[i],
+                unit=unit[i].strip()
+            )
+            db.add(rule)
+        db.commit()
+        return RedirectResponse(f"/admin?success=Cap nhat cau hinh huy hieu thanh cong&event_id={event_id or ''}", status_code=303)
+    except Exception as e:
+        db.rollback()
+        return RedirectResponse(f"/admin?error=Loi cap nhat huy hieu: {str(e)}", status_code=303)
+    except Exception as e:
+        db.rollback()
+        return RedirectResponse(f"/admin?error=Loi cap nhat giai thuong: {str(e)}", status_code=303)
+
     except Exception as e:
         db.rollback()
         return RedirectResponse(f"/admin?error=Lỗi cập nhật giải thưởng: {str(e)}", status_code=303)
@@ -1287,8 +1654,13 @@ async def trigger_historical_import(
     admin_session = get_admin_session(request, db)
     if not admin_session:
         return JSONResponse(status_code=401, content={"error": "Chưa đăng nhập admin"})
+    
+    # Lấy event_id từ form data nếu có
+    form = await request.form()
+    event_id_str = form.get("event_id", None)
+    event_id = int(event_id_str) if event_id_str and event_id_str.strip() else None
         
-    res = await import_excel_files(files, db)
+    res = await import_excel_files(files, db, event_id=event_id)
     
     # Tự động liên kết các hoạt động lịch sử vừa import với các vận động viên tương ứng trong DB
     try:
@@ -1498,6 +1870,7 @@ def export_excel(
     request: Request,
     start_date: str = None,
     end_date: str = None,
+    event_id: int = None,
     db: Session = Depends(get_db)
 ):
     """
@@ -1513,25 +1886,42 @@ def export_excel(
     from backend.calculations import get_award_info
 
     # 0. Xử lý khung thời gian mặc định (giống trang chủ)
-    if not start_date or not end_date:
-        max_date_str = db.query(func.max(Activity.activity_date)).scalar()
-        if max_date_str:
-            try:
-                end_dt = datetime.strptime(max_date_str, "%Y-%m-%d")
-            except ValueError:
-                end_dt = datetime.now()
-        else:
-            end_dt = datetime.now()
-        
-        start_dt = end_dt - timedelta(days=6)
-        
-        if not start_date:
-            start_date = start_dt.strftime("%Y-%m-%d")
-        if not end_date:
-            end_date = end_dt.strftime("%Y-%m-%d")
+    selected_event = None
+    if event_id:
+        selected_event = db.query(CompetitionEvent).filter(CompetitionEvent.id == event_id).first()
 
-    # 1. Lấy dữ liệu BXH Cá nhân
-    athlete_stats = db.query(
+    if not start_date or not end_date:
+        if selected_event and selected_event.start_date and selected_event.end_date:
+            if not start_date:
+                start_date = selected_event.start_date
+            if not end_date:
+                end_date = selected_event.end_date
+        else:
+            base_query = db.query(func.max(Activity.activity_date))
+            if event_id:
+                base_query = base_query.filter(Activity.event_id == event_id)
+            max_date_str = base_query.scalar()
+            if max_date_str:
+                try:
+                    end_dt = datetime.strptime(max_date_str, "%Y-%m-%d")
+                except ValueError:
+                    end_dt = datetime.now()
+            else:
+                end_dt = datetime.now()
+            
+            start_dt = end_dt - timedelta(days=6)
+            
+            if not start_date:
+                start_date = start_dt.strftime("%Y-%m-%d")
+            if not end_date:
+                end_date = end_dt.strftime("%Y-%m-%d")
+
+    base_filters = [Activity.activity_date >= start_date, Activity.activity_date <= end_date]
+    if event_id:
+        base_filters.append(Activity.event_id == event_id)
+
+    # 1. Lấy dữ liệu BXH Cá nhân (chỉ các VĐV đã đăng ký giải đấu này)
+    query_stats = db.query(
         Athlete.id,
         Athlete.full_name,
         Athlete.gender,
@@ -1539,14 +1929,21 @@ def export_excel(
         func.sum(Activity.distance_km).label("total_dist"),
         func.sum(Activity.moving_time_min).label("total_time"),
         func.sum(Activity.kcal_burned).label("total_kcal")
-    ).join(Activity, Athlete.id == Activity.athlete_id)\
-     .filter(Athlete.is_active == True, Activity.activity_date >= start_date, Activity.activity_date <= end_date)\
+    ).join(Activity, Athlete.id == Activity.athlete_id)
+    
+    if event_id:
+        query_stats = query_stats.join(
+            CompetitionRegistration,
+            (Athlete.id == CompetitionRegistration.athlete_id) & (CompetitionRegistration.event_id == event_id)
+        )
+        
+    athlete_stats = query_stats.filter(Athlete.is_active == True, *base_filters)\
      .group_by(Athlete.id)\
      .order_by(func.sum(Activity.kcal_burned).desc()).all()
 
     ranked_athletes = []
     for rank, item in enumerate(athlete_stats, 1):
-        award_info = get_award_info(item.gender, item.total_kcal or 0, db)
+        award_info = get_award_info(item.gender, item.total_kcal or 0, db, event_id=event_id)
         ranked_athletes.append({
             "Hạng": rank,
             "Họ và Tên": item.full_name,
@@ -1564,11 +1961,18 @@ def export_excel(
     # 2. Lấy dữ liệu BXH Phòng ban
     dept_members = get_department_members(db, start_date, end_date)
     
-    dept_stats_raw = db.query(
+    dept_query = db.query(
         Athlete.department,
         func.sum(Activity.kcal_burned).label("total_kcal")
-    ).join(Activity, Athlete.id == Activity.athlete_id)\
-     .filter(Athlete.is_active == True, Activity.activity_date >= start_date, Activity.activity_date <= end_date)\
+    ).join(Activity, Athlete.id == Activity.athlete_id)
+    
+    if event_id:
+        dept_query = dept_query.join(
+            CompetitionRegistration,
+            (Athlete.id == CompetitionRegistration.athlete_id) & (CompetitionRegistration.event_id == event_id)
+        )
+        
+    dept_stats_raw = dept_query.filter(Athlete.is_active == True, *base_filters)\
      .group_by(Athlete.department).all()
      
     dept_stats = []
@@ -1595,14 +1999,21 @@ def export_excel(
 
     # 3. Lấy dữ liệu BXH Theo bộ môn (Nam / Nữ)
     def get_sport_data(gender: str):
-        stats = db.query(
+        stats_query = db.query(
             Athlete.full_name,
             Athlete.department,
             Activity.sport_type,
             func.sum(Activity.kcal_burned).label("total_kcal"),
             func.sum(Activity.distance_km).label("total_dist")
-        ).join(Activity, Athlete.id == Activity.athlete_id)\
-         .filter(Athlete.is_active == True, Athlete.gender == gender, Activity.activity_date >= start_date, Activity.activity_date <= end_date)\
+        ).join(Activity, Athlete.id == Activity.athlete_id)
+        
+        if event_id:
+            stats_query = stats_query.join(
+                CompetitionRegistration,
+                (Athlete.id == CompetitionRegistration.athlete_id) & (CompetitionRegistration.event_id == event_id)
+            )
+            
+        stats = stats_query.filter(Athlete.is_active == True, Athlete.gender == gender, *base_filters)\
          .group_by(Athlete.id, Activity.sport_type)\
          .order_by(Activity.sport_type, func.sum(Activity.kcal_burned).desc()).all()
         return stats
@@ -1820,6 +2231,162 @@ def admin_delete_event(event_id: int, request: Request, db: Session = Depends(ge
     except Exception as e:
         db.rollback()
         return RedirectResponse(f"/admin?error=Lỗi khi xóa: {str(e)}", status_code=303)
+
+# --- QUẢN LÝ GIẢI ĐẤU (COMPETITIONS) ---
+
+@app.post("/admin/competitions/add")
+async def admin_add_competition(
+    request: Request,
+    title: str = Form(...),
+    strava_club_id: str = Form(""),
+    start_date: str = Form(...),
+    end_date: str = Form(...),
+    description: str = Form(""),
+    rules_description: str = Form(""),
+    rules_banner_text: str = Form(""),
+    rules_general_text: str = Form(""),
+    is_active: bool = Form(True),
+    banner_file: UploadFile = File(None),
+    db: Session = Depends(get_db)
+):
+    admin = get_admin_session(request, db)
+    if not admin:
+        return RedirectResponse("/admin?error=Chua dang nhap", status_code=303)
+        
+    try:
+        import time as time_mod
+        # Lưu ảnh banner nếu có
+        banner_path = ""
+        if banner_file and banner_file.filename:
+            ext = os.path.splitext(banner_file.filename)[1].lower()
+            if ext in [".png", ".jpg", ".jpeg", ".webp", ".gif"]:
+                filename = f"comp_banner_{int(time_mod.time())}{ext}"
+                upload_dir = "static/uploads"
+                os.makedirs(upload_dir, exist_ok=True)
+                file_path = os.path.join(upload_dir, filename)
+                with open(file_path, "wb") as f:
+                    content = await banner_file.read()
+                    f.write(content)
+                banner_path = f"/static/uploads/{filename}"
+        
+        new_comp = CompetitionEvent(
+            title=title.strip(),
+            strava_club_id=extract_strava_club_id(strava_club_id),
+            start_date=start_date.strip(),
+            end_date=end_date.strip(),
+            is_active=is_active,
+            description=description.strip(),
+            banner_image=banner_path,
+            rules_description=rules_description.strip(),
+            rules_banner_text=rules_banner_text.strip(),
+            rules_general_text=rules_general_text.strip()
+        )
+        db.add(new_comp)
+        db.commit()
+        return RedirectResponse("/admin?success=Thêm giải đấu mới thành công", status_code=303)
+    except Exception as e:
+        db.rollback()
+        return RedirectResponse(f"/admin?error=Lỗi khi thêm giải đấu: {str(e)}", status_code=303)
+
+
+@app.post("/admin/competitions/edit/{comp_id}")
+async def admin_edit_competition(
+    comp_id: int,
+    request: Request,
+    title: str = Form(...),
+    strava_club_id: str = Form(""),
+    start_date: str = Form(...),
+    end_date: str = Form(...),
+    description: str = Form(""),
+    rules_description: str = Form(""),
+    rules_banner_text: str = Form(""),
+    rules_general_text: str = Form(""),
+    is_active: bool = Form(True),
+    banner_file: UploadFile = File(None),
+    db: Session = Depends(get_db)
+):
+    admin = get_admin_session(request, db)
+    if not admin:
+        return RedirectResponse("/admin?error=Chua dang nhap", status_code=303)
+    
+    comp = db.query(CompetitionEvent).filter(CompetitionEvent.id == comp_id).first()
+    if not comp:
+        return RedirectResponse("/admin?error=Không tìm thấy giải đấu", status_code=303)
+    
+    try:
+        import time as time_mod
+        comp.title = title.strip()
+        comp.strava_club_id = extract_strava_club_id(strava_club_id)
+        comp.start_date = start_date.strip()
+        comp.end_date = end_date.strip()
+        comp.is_active = is_active
+        comp.description = description.strip()
+        comp.rules_description = rules_description.strip()
+        comp.rules_banner_text = rules_banner_text.strip()
+        comp.rules_general_text = rules_general_text.strip()
+        
+        # Cập nhật banner nếu có upload mới
+        if banner_file and banner_file.filename:
+            ext = os.path.splitext(banner_file.filename)[1].lower()
+            if ext in [".png", ".jpg", ".jpeg", ".webp", ".gif"]:
+                filename = f"comp_banner_{int(time_mod.time())}{ext}"
+                upload_dir = "static/uploads"
+                os.makedirs(upload_dir, exist_ok=True)
+                file_path = os.path.join(upload_dir, filename)
+                with open(file_path, "wb") as f:
+                    content = await banner_file.read()
+                    f.write(content)
+                # Xóa banner cũ nếu có
+                if comp.banner_image:
+                    old_path = comp.banner_image.lstrip("/")
+                    if os.path.exists(old_path) and "static/uploads/" in old_path:
+                        try: os.remove(old_path)
+                        except: pass
+                comp.banner_image = f"/static/uploads/{filename}"
+        
+        db.commit()
+        return RedirectResponse("/admin?success=Cập nhật giải đấu thành công", status_code=303)
+    except Exception as e:
+        db.rollback()
+        return RedirectResponse(f"/admin?error=Lỗi cập nhật giải đấu: {str(e)}", status_code=303)
+
+
+@app.post("/admin/competitions/delete/{comp_id}")
+def admin_delete_competition(comp_id: int, request: Request, db: Session = Depends(get_db)):
+    admin = get_admin_session(request, db)
+    if not admin:
+        return RedirectResponse("/admin?error=Chua dang nhap", status_code=303)
+    
+    comp = db.query(CompetitionEvent).filter(CompetitionEvent.id == comp_id).first()
+    if not comp:
+        return RedirectResponse("/admin?error=Không tìm thấy giải đấu", status_code=303)
+    
+    try:
+        # Xóa banner trên đĩa
+        if comp.banner_image:
+            path = comp.banner_image.lstrip("/")
+            if os.path.exists(path) and "static/uploads/" in path:
+                try: os.remove(path)
+                except: pass
+        
+        db.delete(comp)  # cascade sẽ xóa activities liên quan
+        db.commit()
+        return RedirectResponse("/admin?success=Đã xóa giải đấu và tất cả hoạt động liên quan", status_code=303)
+    except Exception as e:
+        db.rollback()
+        return RedirectResponse(f"/admin?error=Lỗi khi xóa giải đấu: {str(e)}", status_code=303)
+
+
+@app.post("/admin/competitions/sync/{comp_id}")
+def admin_sync_competition(comp_id: int, request: Request, db: Session = Depends(get_db)):
+    """API đồng bộ thủ công cho một giải đấu cụ thể."""
+    admin_session = get_admin_session(request, db)
+    if not admin_session:
+        return JSONResponse(status_code=401, content={"error": "Chưa đăng nhập admin"})
+    
+    res = sync_club_activities(event_id=comp_id)
+    return JSONResponse(content=res)
+
 
 if __name__ == "__main__":
     import uvicorn

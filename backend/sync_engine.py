@@ -4,7 +4,7 @@ import hashlib
 from datetime import datetime
 from sqlalchemy.orm import Session
 from fastapi import UploadFile
-from backend.database import SessionLocal, Config, Athlete, Activity
+from backend.database import SessionLocal, Config, Athlete, Activity, CompetitionEvent
 from backend.calculations import get_mets_value, calculate_kcal, check_suspicious_activity
 
 def get_config_dict(db: Session) -> dict:
@@ -58,142 +58,188 @@ def refresh_strava_token(db: Session, configs: dict) -> str:
         print(f"Sync Engine: Error refreshing token: {e}")
         return None
 
-def sync_club_activities() -> dict:
+def _sync_single_event(db, configs, access_token, event) -> dict:
+    """
+    Đồng bộ hoạt động từ Strava Club của một giải đấu cụ thể.
+    """
+    result = {"status": "idle", "new_activities": 0, "error": None}
+    club_id = event.strava_club_id
+    event_id = event.id
+    
+    if not club_id:
+        result["status"] = "error"
+        result["error"] = f"Giải đấu '{event.title}' thiếu Club ID."
+        return result
+
+    # Gọi API Strava Club Activities
+    print(f"Sync Engine: Starting sync for Event '{event.title}' (Club {club_id})...")
+    url = f"https://www.strava.com/api/v3/clubs/{club_id}/activities"
+    headers = {"Authorization": f"Bearer {access_token}"}
+    
+    all_activities = []
+    page = 1
+    per_page = 200
+    
+    while True:
+        response = requests.get(url, headers=headers, params={"page": page, "per_page": per_page})
+        response.raise_for_status()
+        chunk = response.json()
+        if not chunk:
+            break
+        all_activities.extend(chunk)
+        if len(chunk) < per_page:
+            break
+        page += 1
+
+    print(f"Sync Engine: Downloaded {len(all_activities)} activities from Strava for event '{event.title}'.")
+    
+    new_count = 0
+    today_str = datetime.now().strftime("%Y-%m-%d")
+
+    for act in all_activities:
+        athlete_data = act.get("athlete", {})
+        firstname = athlete_data.get("firstname", "")
+        lastname = athlete_data.get("lastname", "")
+        athlete_name_raw = f"{firstname} {lastname}".strip()
+        
+        name = act.get("name", "Hoạt động Strava")
+        act_type = act.get("type", "Run")
+        sport_type = act.get("sport_type", "Run")
+        
+        distance_m = float(act.get("distance", 0.0))
+        moving_time_s = float(act.get("moving_time", 0.0))
+        elapsed_time_s = float(act.get("elapsed_time", 0.0))
+        elevation_gain_m = float(act.get("total_elevation_gain", 0.0))
+        
+        distance_km = round(distance_m / 1000.0, 2)
+        moving_time_min = round(moving_time_s / 60.0, 1)
+        elapsed_time_min = round(elapsed_time_s / 60.0, 1)
+        
+        pace_min_km = 0.0
+        if distance_km > 0:
+            pace_min_km = round(moving_time_min / distance_km, 2)
+
+        # Tạo mã định danh duy nhất bao gồm event_id để chống trùng lặp giữa các giải
+        unique_str = f"{athlete_name_raw}_{name}_{act_type}_{distance_km}_{moving_time_min}_{elapsed_time_min}_{elevation_gain_m}_{event_id}"
+        act_id = hashlib.sha256(unique_str.encode("utf-8")).hexdigest()
+        
+        # Kiểm tra xem hoạt động đã có trong DB chưa
+        exists = db.query(Activity).filter(Activity.id == act_id).first()
+        if exists:
+            continue
+            
+        # Khớp vận động viên đã đăng ký
+        athlete = db.query(Athlete).filter(Athlete.strava_name == athlete_name_raw).first()
+        athlete_id = athlete.id if athlete else None
+        
+        # Tính toán METs & KCAL
+        mets_value = 0.0
+        kcal_burned = 0.0
+        
+        if athlete:
+            speed_kmh = 0.0
+            if moving_time_min > 0:
+                speed_kmh = distance_km / (moving_time_min / 60.0)
+            
+            actual_time_min = elapsed_time_min if moving_time_min < 1.0 else moving_time_min
+            
+            mets_value = get_mets_value(sport_type, speed_kmh, db, distance_km, elevation_gain_m, event_id=event_id)
+            kcal_burned = calculate_kcal(mets_value, athlete.weight, actual_time_min, elevation_gain_m, sport_type)
+
+        # Kiểm tra gian lận
+        is_suspicious, suspicion_reason = check_suspicious_activity(
+            sport_type=sport_type,
+            distance_km=distance_km,
+            pace_min_km=pace_min_km,
+            elevation_gain_m=elevation_gain_m,
+            configs=configs
+        )
+
+        new_activity = Activity(
+            id=act_id,
+            athlete_id=athlete_id,
+            event_id=event_id,
+            athlete_name_raw=athlete_name_raw,
+            name=name,
+            type=act_type,
+            sport_type=sport_type,
+            distance_km=distance_km,
+            moving_time_min=moving_time_min,
+            elapsed_time_min=elapsed_time_min,
+            pace_min_km=pace_min_km,
+            elevation_gain_m=elevation_gain_m,
+            activity_date=today_str, # Không có timestamp trong API, gán ngày đồng bộ
+            kcal_burned=kcal_burned,
+            mets_value=mets_value,
+            is_suspicious=is_suspicious,
+            suspicion_reason=suspicion_reason
+        )
+        
+        db.add(new_activity)
+        new_count += 1
+        
+    db.commit()
+    print(f"Sync Engine: Saved {new_count} new activities for event '{event.title}'.")
+    result["status"] = "success"
+    result["new_activities"] = new_count
+    return result
+
+
+def sync_club_activities(event_id: int = None) -> dict:
     """
     Đồng bộ hoạt động từ Strava Club và lưu vào SQLite Database.
+    Nếu truyền event_id: chỉ đồng bộ cho giải đấu đó.
+    Nếu không truyền: lặp qua tất cả giải đấu đang hoạt động.
     """
     db = SessionLocal()
-    result = {"status": "idle", "new_activities": 0, "error": None}
+    result = {"status": "idle", "new_activities": 0, "error": None, "details": []}
     try:
         configs = get_config_dict(db)
         
-        # 1. Kiểm tra cấu hình cần thiết
-        club_id = configs.get("strava_club_id")
-        if not club_id:
-            result["status"] = "error"
-            result["error"] = "Thiếu Club ID trong cấu hình."
-            return result
-
-        # 2. Lấy Access Token hợp lệ
+        # Lấy Access Token hợp lệ
         access_token = refresh_strava_token(db, configs)
         if not access_token:
             result["status"] = "error"
             result["error"] = "Không thể lấy Access Token. Vui lòng cấu hình OAuth."
             return result
 
-        # 3. Gọi API Strava Club Activities
-        print(f"Sync Engine: Starting sync for Club {club_id}...")
-        url = f"https://www.strava.com/api/v3/clubs/{club_id}/activities"
-        headers = {"Authorization": f"Bearer {access_token}"}
+        # Xác định danh sách giải đấu cần đồng bộ
+        if event_id:
+            events = db.query(CompetitionEvent).filter(CompetitionEvent.id == event_id).all()
+        else:
+            events = db.query(CompetitionEvent).filter(CompetitionEvent.is_active == True).all()
         
-        all_activities = []
-        page = 1
-        per_page = 200
+        if not events:
+            # Fallback: đồng bộ theo club_id toàn cục (tương thích ngược)
+            club_id = configs.get("strava_club_id")
+            if not club_id:
+                result["status"] = "error"
+                result["error"] = "Không tìm thấy giải đấu hoạt động nào và thiếu Club ID trong cấu hình."
+                return result
+            # Tạo event giả tạm thời để sử dụng hàm _sync_single_event
+            from types import SimpleNamespace
+            fake_event = SimpleNamespace(id=None, title="Global (Legacy)", strava_club_id=club_id)
+            sub_result = _sync_single_event(db, configs, access_token, fake_event)
+            result["status"] = sub_result["status"]
+            result["new_activities"] = sub_result["new_activities"]
+            result["error"] = sub_result.get("error")
+            return result
         
-        while True:
-            response = requests.get(url, headers=headers, params={"page": page, "per_page": per_page})
-            response.raise_for_status()
-            chunk = response.json()
-            if not chunk:
-                break
-            all_activities.extend(chunk)
-            if len(chunk) < per_page:
-                break
-            page += 1
-
-        print(f"Sync Engine: Downloaded {len(all_activities)} activities from Strava.")
+        total_new = 0
+        all_success = True
+        for ev in events:
+            try:
+                sub_result = _sync_single_event(db, configs, access_token, ev)
+                total_new += sub_result.get("new_activities", 0)
+                result["details"].append({"event": ev.title, "status": sub_result["status"], "new": sub_result.get("new_activities", 0)})
+                if sub_result["status"] == "error":
+                    all_success = False
+            except Exception as e:
+                result["details"].append({"event": ev.title, "status": "error", "error": str(e)})
+                all_success = False
         
-        new_count = 0
-        today_str = datetime.now().strftime("%Y-%m-%d")
-
-        # 4. Lưu hoạt động vào Database
-        for act in all_activities:
-            athlete_data = act.get("athlete", {})
-            firstname = athlete_data.get("firstname", "")
-            lastname = athlete_data.get("lastname", "")
-            athlete_name_raw = f"{firstname} {lastname}".strip()
-            
-            name = act.get("name", "Hoạt động Strava")
-            act_type = act.get("type", "Run")
-            sport_type = act.get("sport_type", "Run")
-            
-            distance_m = float(act.get("distance", 0.0))
-            moving_time_s = float(act.get("moving_time", 0.0))
-            elapsed_time_s = float(act.get("elapsed_time", 0.0))
-            elevation_gain_m = float(act.get("total_elevation_gain", 0.0))
-            
-            distance_km = round(distance_m / 1000.0, 2)
-            moving_time_min = round(moving_time_s / 60.0, 1)
-            elapsed_time_min = round(elapsed_time_s / 60.0, 1)
-            
-            pace_min_km = 0.0
-            if distance_km > 0:
-                pace_min_km = round(moving_time_min / distance_km, 2)
-
-            # Tạo mã định danh duy nhất (SHA256 của các thuộc tính chính) để chống trùng lặp
-            unique_str = f"{athlete_name_raw}_{name}_{act_type}_{distance_km}_{moving_time_min}_{elapsed_time_min}_{elevation_gain_m}"
-            act_id = hashlib.sha256(unique_str.encode("utf-8")).hexdigest()
-            
-            # Kiểm tra xem hoạt động đã có trong DB chưa
-            exists = db.query(Activity).filter(Activity.id == act_id).first()
-            if exists:
-                continue
-                
-            # Khớp vận động viên đã đăng ký
-            athlete = db.query(Athlete).filter(Athlete.strava_name == athlete_name_raw).first()
-            athlete_id = athlete.id if athlete else None
-            
-            # Tính toán METs & KCAL
-            mets_value = 0.0
-            kcal_burned = 0.0
-            
-            if athlete:
-                speed_kmh = 0.0
-                if moving_time_min > 0:
-                    speed_kmh = distance_km / (moving_time_min / 60.0)
-                
-                # Sửa đổi thời gian di chuyển theo logic cũ (sử dụng elapsed_time nếu moving_time quá nhỏ)
-                # tg = lambda t1, t2: t2 if t1 < 1 else t1
-                actual_time_min = elapsed_time_min if moving_time_min < 1.0 else moving_time_min
-                
-                mets_value = get_mets_value(sport_type, speed_kmh, db, distance_km, elevation_gain_m)
-                kcal_burned = calculate_kcal(mets_value, athlete.weight, actual_time_min, elevation_gain_m, sport_type)
-
-            # Kiểm tra gian lận
-            is_suspicious, suspicion_reason = check_suspicious_activity(
-                sport_type=sport_type,
-                distance_km=distance_km,
-                pace_min_km=pace_min_km,
-                elevation_gain_m=elevation_gain_m,
-                configs=configs
-            )
-
-            new_activity = Activity(
-                id=act_id,
-                athlete_id=athlete_id,
-                athlete_name_raw=athlete_name_raw,
-                name=name,
-                type=act_type,
-                sport_type=sport_type,
-                distance_km=distance_km,
-                moving_time_min=moving_time_min,
-                elapsed_time_min=elapsed_time_min,
-                pace_min_km=pace_min_km,
-                elevation_gain_m=elevation_gain_m,
-                activity_date=today_str, # Không có timestamp trong API, gán ngày đồng bộ
-                kcal_burned=kcal_burned,
-                mets_value=mets_value,
-                is_suspicious=is_suspicious,
-                suspicion_reason=suspicion_reason
-            )
-            
-            db.add(new_activity)
-            new_count += 1
-            
-        db.commit()
-        print(f"Sync Engine: Saved {new_count} new activities to database.")
-        result["status"] = "success"
-        result["new_activities"] = new_count
+        result["status"] = "success" if all_success else "partial"
+        result["new_activities"] = total_new
         
     except Exception as e:
         db.rollback()
@@ -228,7 +274,7 @@ def link_unlinked_activities(db: Session, athlete: Athlete):
             speed_kmh = act.distance_km / (act.moving_time_min / 60.0)
             
         actual_time_min = act.elapsed_time_min if act.moving_time_min < 1.0 else act.moving_time_min
-        mets_val = get_mets_value(act.sport_type, speed_kmh, db, act.distance_km, act.elevation_gain_m)
+        mets_val = get_mets_value(act.sport_type, speed_kmh, db, act.distance_km, act.elevation_gain_m, event_id=act.event_id)
         
         act.mets_value = mets_val
         act.kcal_burned = calculate_kcal(mets_val, athlete.weight, actual_time_min, act.elevation_gain_m, act.sport_type)
@@ -236,10 +282,11 @@ def link_unlinked_activities(db: Session, athlete: Athlete):
     db.commit()
     print(f"Sync Engine: Linked {len(unlinked)} old activities for athlete {athlete.full_name}.")
 
-async def import_excel_files(files: list[UploadFile], db: Session) -> dict:
+async def import_excel_files(files: list[UploadFile], db: Session, event_id: int = None) -> dict:
     """
     Nhận danh sách các file Excel tải lên từ trình duyệt,
     đọc trực tiếp và nạp dữ liệu hoạt động vào SQLite.
+    Nếu event_id được truyền, gắn hoạt động vào giải đấu tương ứng.
     """
     import pandas as pd
     import io
@@ -253,6 +300,12 @@ async def import_excel_files(files: list[UploadFile], db: Session) -> dict:
     athletes = db.query(Athlete).all()
     athlete_map = {a.strava_name.strip().lower(): a for a in athletes}
     seen_ids = set()
+    
+    # Nếu không truyền event_id, lấy giải đấu đang hoạt động đầu tiên
+    if event_id is None:
+        active_event = db.query(CompetitionEvent).filter(CompetitionEvent.is_active == True).first()
+        if active_event:
+            event_id = active_event.id
     
     for file in files:
         if not file.filename.endswith(".xlsx"):
@@ -332,14 +385,13 @@ async def import_excel_files(files: list[UploadFile], db: Session) -> dict:
                 if not name_raw or (dist_km == 0.0 and mov_time == 0.0):
                     continue
                     
-                # Đồng bộ công thức tạo hash ID với Strava sync (không dùng ngày do Strava API Club không trả về ngày)
-                # Làm tròn các giá trị giống hệt như khi sync từ Strava để đảm bảo tạo ra cùng một mã hash
+                # Đồng bộ công thức tạo hash ID bao gồm event_id để chống trùng lặp giữa các giải
                 dist_km_round = round(dist_km, 2)
                 mov_time_round = round(mov_time, 1)
                 ela_time_round = round(ela_time, 1)
                 elev_round = float(elev)
                 
-                composite_key = f"{name_raw}_{act_name}_{act_type}_{dist_km_round}_{mov_time_round}_{ela_time_round}_{elev_round}"
+                composite_key = f"{name_raw}_{act_name}_{act_type}_{dist_km_round}_{mov_time_round}_{ela_time_round}_{elev_round}_{event_id}"
                 activity_id = hashlib.sha256(composite_key.encode('utf-8')).hexdigest()
                 
                 if activity_id in seen_ids:
@@ -361,12 +413,13 @@ async def import_excel_files(files: list[UploadFile], db: Session) -> dict:
                 speed_kmh = (dist_km / (mov_time / 60.0)) if mov_time > 0 else 0.0
                 actual_time_min = ela_time if mov_time < 1.0 else mov_time
                 
-                mets_val = get_mets_value(sport_type, speed_kmh, db, dist_km, elev)
+                mets_val = get_mets_value(sport_type, speed_kmh, db, dist_km, elev, event_id=event_id)
                 kcal_val = calculate_kcal(mets_val, weight, actual_time_min, elev, sport_type)
                 
                 new_act = Activity(
                     id=activity_id,
                     athlete_id=athlete_id,
+                    event_id=event_id,
                     athlete_name_raw=name_raw,
                     name=act_name,
                     type=act_type,
