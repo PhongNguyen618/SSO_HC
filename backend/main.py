@@ -469,7 +469,10 @@ def rules_page(
     rewards = []
     if selected_event_id:
         rewards = db.query(RewardRule).filter(RewardRule.event_id == selected_event_id).order_by(RewardRule.gender, RewardRule.kcal_threshold).all()
-    if not rewards:
+        # Chỉ fallback về mốc mặc định nếu giải đấu là milestone và chưa cấu hình mốc nào
+        if not rewards and selected_event and (selected_event.reward_type or "milestone") == "milestone":
+            rewards = db.query(RewardRule).filter(RewardRule.event_id == None).order_by(RewardRule.gender, RewardRule.kcal_threshold).all()
+    else:
         rewards = db.query(RewardRule).filter(RewardRule.event_id == None).order_by(RewardRule.gender, RewardRule.kcal_threshold).all()
     return templates.TemplateResponse(
         request=request,
@@ -1519,6 +1522,17 @@ def get_rules_api(
         except ValueError:
             pass
 
+    # Lấy thông tin event
+    reward_type = "milestone"
+    reward_linear_kcal = 100.0
+    reward_linear_amount = 5000.0
+    if ev_id:
+        event_obj = db.query(CompetitionEvent).filter(CompetitionEvent.id == ev_id).first()
+        if event_obj:
+            reward_type = event_obj.reward_type or "milestone"
+            reward_linear_kcal = event_obj.reward_linear_kcal or 100.0
+            reward_linear_amount = event_obj.reward_linear_amount or 5000.0
+
     # METs Rules
     mets_rules = []
     if ev_id:
@@ -1530,7 +1544,10 @@ def get_rules_api(
     reward_rules = []
     if ev_id:
         reward_rules = db.query(RewardRule).filter(RewardRule.event_id == ev_id).order_by(RewardRule.gender, RewardRule.kcal_threshold).all()
-    if not reward_rules:
+        # Chỉ fallback về mốc mặc định nếu giải đấu là milestone và chưa cấu hình mốc nào
+        if not reward_rules and reward_type == "milestone":
+            reward_rules = db.query(RewardRule).filter(RewardRule.event_id == None).order_by(RewardRule.gender, RewardRule.kcal_threshold).all()
+    else:
         reward_rules = db.query(RewardRule).filter(RewardRule.event_id == None).order_by(RewardRule.gender, RewardRule.kcal_threshold).all()
 
     # Badge Rules
@@ -1542,6 +1559,9 @@ def get_rules_api(
         badge_rules = db.query(BadgeRule).filter(BadgeRule.event_id == None).order_by(BadgeRule.id).all()
 
     return {
+        "reward_type": reward_type,
+        "reward_linear_kcal": reward_linear_kcal,
+        "reward_linear_amount": reward_linear_amount,
         "mets": [
             {
                 "sport_type": m.sport_type,
@@ -1610,9 +1630,11 @@ def edit_mets_rules(
 @app.post("/admin/rewards/edit")
 def edit_rewards_rules(
     request: Request,
-    gender: list[str] = Form(...),
-    kcal_threshold: list[float] = Form(...),
-    reward_amount: list[float] = Form(...),
+    gender: Optional[list[str]] = Form(default=[]),
+    kcal_threshold: Optional[list[float]] = Form(default=[]),
+    reward_amount: Optional[list[float]] = Form(default=[]),
+    reward_linear_kcal: Optional[float] = Form(None),
+    reward_linear_amount: Optional[float] = Form(None),
     event_id: Optional[str] = Form(None),
     db: Session = Depends(get_db)
 ):
@@ -1623,21 +1645,36 @@ def edit_rewards_rules(
     try:
         ev_id = int(event_id) if event_id and str(event_id).strip() else None
         
-        # Xóa các quy tắc Rewards cũ thuộc giải đấu được chọn (hoặc mặc định)
+        # Nếu giải đấu chọn có kiểu tính thưởng là quy đổi tuyến tính (linear)
+        is_linear = False
+        if ev_id:
+            comp = db.query(CompetitionEvent).filter(CompetitionEvent.id == ev_id).first()
+            if comp and comp.reward_type == "linear":
+                is_linear = True
+                if reward_linear_kcal is not None:
+                    comp.reward_linear_kcal = reward_linear_kcal
+                if reward_linear_amount is not None:
+                    comp.reward_linear_amount = reward_linear_amount
+                db.commit()
+
+        # Luôn xoá các quy tắc Rewards mốc cũ thuộc giải đấu được chọn (hoặc mặc định)
         db.query(RewardRule).filter(RewardRule.event_id == ev_id).delete()
         
-        for i in range(len(gender)):
-            if not gender[i].strip():
-                continue
-            rule = RewardRule(
-                event_id=ev_id,
-                gender=gender[i].strip(),
-                kcal_threshold=kcal_threshold[i],
-                reward_amount=reward_amount[i]
-            )
-            db.add(rule)
+        # Chỉ thêm quy tắc mốc nếu không phải là giải đấu dạng tuyến tính
+        if not is_linear and gender:
+            for i in range(len(gender)):
+                if not gender[i].strip():
+                    continue
+                rule = RewardRule(
+                    event_id=ev_id,
+                    gender=gender[i].strip(),
+                    kcal_threshold=kcal_threshold[i],
+                    reward_amount=reward_amount[i]
+                )
+                db.add(rule)
+        
         db.commit()
-        return RedirectResponse(f"/admin?success=Cap nhat moc giai thuong thanh cong&event_id={event_id or ''}", status_code=303)
+        return RedirectResponse(f"/admin?success=Cap nhat cau hinh giai thuong thanh cong&event_id={event_id or ''}", status_code=303)
     except Exception as e:
         db.rollback()
         return RedirectResponse(f"/admin?error=Loi cap nhat giai thuong: {str(e)}", status_code=303)

@@ -867,7 +867,7 @@
         <div class="glass-card" style="background: rgba(255,255,255,0.01);">
             <h3 class="admin-section-title">
                 <span>Thiết Lập Mốc Giải Thưởng</span>
-                <button type="button" class="btn btn-secondary btn-sm" onclick="addRewardRow()">
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-add-reward-row" onclick="addRewardRow()" style="{% if selected_event and selected_event.reward_type == 'linear' %}display: none;{% endif %}">
                     <i class="fa-solid fa-plus"></i> Thêm Mốc Mới
                 </button>
             </h3>
@@ -884,7 +884,25 @@
 
             <form action="/admin/rewards/edit" method="POST" style="margin-top: 1.5rem;">
                 <input type="hidden" name="event_id" class="hidden-event-id" value="{{ selected_event_id or '' }}">
-                <div id="rewardsRulesList">
+                
+                <!-- Cấu hình Tuyến tính (Linear) -->
+                <div id="linearRewardConfig" style="{% if not selected_event or selected_event.reward_type != 'linear' %}display: none;{% endif %} margin-bottom: 1.5rem;">
+                    <div style="display: flex; gap: 1rem; align-items: center; max-width: 600px; margin-bottom: 1rem;">
+                        <div class="form-group" style="flex: 1; margin: 0;">
+                            <label style="font-weight: 600; font-size: 0.9rem; color: var(--text-muted); margin-bottom: 0.5rem; display: block;">Mỗi mốc KCAL quy đổi</label>
+                            <input type="number" name="reward_linear_kcal" id="input_reward_linear_kcal" class="form-control" min="1" value="{{ selected_event.reward_linear_kcal | int if selected_event and selected_event.reward_linear_kcal else 100 }}">
+                        </div>
+                        <div class="form-group" style="flex: 1.5; margin: 0;">
+                            <label style="font-weight: 600; font-size: 0.9rem; color: var(--text-muted); margin-bottom: 0.5rem; display: block;">Số tiền quy đổi tương ứng (VND)</label>
+                            <input type="number" name="reward_linear_amount" id="input_reward_linear_amount" class="form-control" min="0" value="{{ selected_event.reward_linear_amount | int if selected_event and selected_event.reward_linear_amount else 5000 }}">
+                        </div>
+                    </div>
+                    <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.5rem; margin-bottom: 0;">
+                        <i class="fa-solid fa-circle-info"></i> Giải đấu này đang sử dụng kiểu tính thưởng: <strong>Quy đổi tuyến tính</strong>. Số tiền thưởng tăng tuyến tính theo thành tích KCAL và không dùng mốc cố định.
+                    </p>
+                </div>
+
+                <div id="rewardsRulesList" style="{% if selected_event and selected_event.reward_type == 'linear' %}display: none;{% endif %}">
                     <div style="display: grid; grid-template-columns: 1.5fr 1.5fr 1.5fr 0.5fr; gap: 0.5rem; font-weight:600; color:var(--text-muted); font-size:0.8rem; margin-bottom: 0.8rem;">
                         <span>Giới tính áp dụng</span>
                         <span>Mốc năng lượng đạt giải (KCAL)</span>
@@ -1822,24 +1840,43 @@
                 }
                 
                 // B. Cập nhật Rewards
+                const linearConfig = document.getElementById('linearRewardConfig');
                 const rewardsList = document.getElementById('rewardsRulesList');
-                if (rewardsList) {
-                    const header = rewardsList.firstElementChild.outerHTML;
-                    rewardsList.innerHTML = header;
-                    data.rewards.forEach(r => {
-                        const div = document.createElement('div');
-                        div.className = 'rewards-row-input';
-                        div.innerHTML = `
-                            <select name="gender" class="form-control" required>
-                                <option value="Nam" ${r.gender === 'Nam' ? 'selected' : ''}>Nam</option>
-                                <option value="Nữ" ${r.gender === 'Nữ' ? 'selected' : ''}>Nữ</option>
-                            </select>
-                            <input type="number" step="1" name="kcal_threshold" class="form-control" value="${parseInt(r.kcal_threshold)}" required>
-                            <input type="number" step="1000" name="reward_amount" class="form-control" value="${parseInt(r.reward_amount)}" required>
-                            <button type="button" class="remove-row-btn" onclick="removeMetsRow(this)"><i class="fa-solid fa-circle-minus"></i></button>
-                        `;
-                        rewardsList.appendChild(div);
-                    });
+                const addRewardBtn = document.getElementById('btn-add-reward-row');
+                
+                if (data.reward_type === 'linear') {
+                    if (linearConfig) linearConfig.style.display = 'block';
+                    if (rewardsList) {
+                        rewardsList.style.display = 'none';
+                        const header = rewardsList.firstElementChild.outerHTML;
+                        rewardsList.innerHTML = header;
+                    }
+                    if (addRewardBtn) addRewardBtn.style.display = 'none';
+                    
+                    document.getElementById('input_reward_linear_kcal').value = data.reward_linear_kcal || 100;
+                    document.getElementById('input_reward_linear_amount').value = data.reward_linear_amount || 5000;
+                } else {
+                    if (linearConfig) linearConfig.style.display = 'none';
+                    if (rewardsList) {
+                        rewardsList.style.display = 'block';
+                        const header = rewardsList.firstElementChild.outerHTML;
+                        rewardsList.innerHTML = header;
+                        data.rewards.forEach(r => {
+                            const div = document.createElement('div');
+                            div.className = 'rewards-row-input';
+                            div.innerHTML = `
+                                <select name="gender" class="form-control" required>
+                                    <option value="Nam" ${r.gender === 'Nam' ? 'selected' : ''}>Nam</option>
+                                    <option value="Nữ" ${r.gender === 'Nữ' ? 'selected' : ''}>Nữ</option>
+                                </select>
+                                <input type="number" step="1" name="kcal_threshold" class="form-control" value="${parseInt(r.kcal_threshold)}" required>
+                                <input type="number" step="1000" name="reward_amount" class="form-control" value="${parseInt(r.reward_amount)}" required>
+                                <button type="button" class="remove-row-btn" onclick="removeMetsRow(this)"><i class="fa-solid fa-circle-minus"></i></button>
+                            `;
+                            rewardsList.appendChild(div);
+                        });
+                    }
+                    if (addRewardBtn) addRewardBtn.style.display = 'inline-block';
                 }
                 
                 // C. Cập nhật Badges
