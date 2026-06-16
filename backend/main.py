@@ -262,7 +262,10 @@ def index(
     total_dist = db.query(func.sum(Activity.distance_km))\
         .filter(*base_filters)\
         .scalar() or 0
-    total_athletes = db.query(Athlete).filter(Athlete.is_active == True).count()
+    if event_id:
+        total_athletes = db.query(CompetitionRegistration).filter(CompetitionRegistration.event_id == event_id).count()
+    else:
+        total_athletes = db.query(Athlete).filter(Athlete.is_active == True).count()
     
     # 2. Xếp hạng cá nhân (BXH Tổng) theo KCAL (Chỉ các VĐV đã đăng ký giải đấu này)
     query_stats = db.query(
