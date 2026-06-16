@@ -18,6 +18,7 @@ build/
 *.db
 *.sqlite
 *.sqlite3
+data/
 
 # --- Sensitive Configs ---
 # .env chứa client_secret, mật khẩu → KHÔNG bao giờ commit

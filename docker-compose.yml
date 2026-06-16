@@ -15,11 +15,11 @@ services:
     # Override DATABASE_URL: .env dùng đường dẫn local (sqlite:///./SSO_HC.db)
     # Docker cần đường dẫn tuyệt đối trong container tương ứng volume mount bên dưới
     environment:
-      - DATABASE_URL=sqlite:////app/SSO_HC.db
+      - DATABASE_URL=sqlite:////app/data/SSO_HC.db
 
     volumes:
-      # Mount DB từ thư mục gốc của host vào container (dữ liệu không mất khi rebuild)
-      - ./SSO_HC.db:/app/SSO_HC.db
+      # Mount thư mục chứa DB để giữ các file journal/wal không bị mất khi rebuild
+      - ./data:/app/data
       # Mount thư mục uploads để giữ ảnh đã upload khi rebuild
       - ./static/uploads:/app/static/uploads
 
