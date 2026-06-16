@@ -208,11 +208,12 @@ def sync_club_activities() -> dict:
 def link_unlinked_activities(db: Session, athlete: Athlete):
     """
     Khi một VĐV đăng ký mới, tự động liên kết các hoạt động chưa được liên kết
-    nhưng có tên trùng khớp với `strava_name` của VĐV đó.
+    nhưng có tên trùng khớp với `strava_name` của VĐV đó (không phân biệt hoa thường).
     """
+    from sqlalchemy import func
     unlinked = db.query(Activity).filter(
         Activity.athlete_id == None,
-        Activity.athlete_name_raw == athlete.strava_name
+        func.lower(Activity.athlete_name_raw) == func.lower(athlete.strava_name)
     ).all()
     
     if not unlinked:
@@ -331,7 +332,14 @@ async def import_excel_files(files: list[UploadFile], db: Session) -> dict:
                 if not name_raw or (dist_km == 0.0 and mov_time == 0.0):
                     continue
                     
-                composite_key = f"{name_raw}_{act_name}_{activity_date}_{dist_km}_{mov_time}"
+                # Đồng bộ công thức tạo hash ID với Strava sync (không dùng ngày do Strava API Club không trả về ngày)
+                # Làm tròn các giá trị giống hệt như khi sync từ Strava để đảm bảo tạo ra cùng một mã hash
+                dist_km_round = round(dist_km, 2)
+                mov_time_round = round(mov_time, 1)
+                ela_time_round = round(ela_time, 1)
+                elev_round = float(elev)
+                
+                composite_key = f"{name_raw}_{act_name}_{act_type}_{dist_km_round}_{mov_time_round}_{ela_time_round}_{elev_round}"
                 activity_id = hashlib.sha256(composite_key.encode('utf-8')).hexdigest()
                 
                 if activity_id in seen_ids:
