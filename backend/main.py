@@ -120,8 +120,11 @@ def get_global_configs():
         from backend.sync_engine import get_config_dict
         configs = get_config_dict(db)
         
-        # Tìm giải đấu đang hoạt động đầu tiên để ghi đè các cấu hình toàn cục
-        active_event = db.query(CompetitionEvent).filter(CompetitionEvent.is_active == True).order_by(CompetitionEvent.id).first()
+        # Chỉ hiện Welcome Banner cho các giải đấu mới đang hoạt động (không hiện cho giải trường kỳ SSO's HC ID=1)
+        active_event = db.query(CompetitionEvent).filter(
+            CompetitionEvent.is_active == True,
+            CompetitionEvent.id != 1
+        ).order_by(CompetitionEvent.id.desc()).first()
         if active_event:
             if active_event.title:
                 configs["rules_title"] = active_event.title
@@ -201,7 +204,12 @@ def index(
     if event_id:
         selected_event = db.query(CompetitionEvent).filter(CompetitionEvent.id == event_id).first()
     if not selected_event and active_competitions:
-        selected_event = active_competitions[0]
+        # Ưu tiên chọn giải đấu mới hoạt động (ID != 1) sắp xếp theo ID giảm dần, nếu không có thì fallback giải ID=1
+        new_active = [c for c in active_competitions if c.id != 1]
+        if new_active:
+            selected_event = sorted(new_active, key=lambda x: x.id, reverse=True)[0]
+        else:
+            selected_event = active_competitions[0]
         event_id = selected_event.id
     
     # Lấy cấu hình hiển thị cột của BXH Cá nhân
@@ -426,7 +434,12 @@ def rules_page(
     if event_id:
         selected_event = db.query(CompetitionEvent).filter(CompetitionEvent.id == event_id).first()
     if not selected_event and active_competitions:
-        selected_event = active_competitions[0]
+        # Ưu tiên chọn giải đấu mới hoạt động (ID != 1) sắp xếp theo ID giảm dần, nếu không có thì fallback giải ID=1
+        new_active = [c for c in active_competitions if c.id != 1]
+        if new_active:
+            selected_event = sorted(new_active, key=lambda x: x.id, reverse=True)[0]
+        else:
+            selected_event = active_competitions[0]
         
     if selected_event:
         if selected_event.title:

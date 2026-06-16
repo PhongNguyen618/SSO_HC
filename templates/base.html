@@ -149,7 +149,10 @@
             const isRulesPage = window.location.pathname === '/rules';
             const isAdminPage = window.location.pathname.startsWith('/admin');
             
-            if (!isRulesPage && !isAdminPage) {
+            // Chỉ hiển thị popup chào mừng nếu có giải đấu mới đang hoạt động (active_event_id có giá trị và khác 1)
+            const hasActiveNewEvent = '{{ configs.active_event_id or "" }}' !== '' && '{{ configs.active_event_id or "" }}' !== '1';
+            
+            if (!isRulesPage && !isAdminPage && hasActiveNewEvent) {
                 const bannerMode = '{{ configs.rules_banner_mode or "version" }}';
                 const resetDays = parseFloat('{{ configs.rules_banner_reset_days or "1" }}');
                 
