@@ -1439,13 +1439,13 @@
             }
             
             tr.innerHTML = `
-                <td><strong>${act.athlete_name_raw}</strong></td>
-                <td>${act.name}</td>
-                <td><span class="badge badge-info" style="font-size:0.75rem; background: rgba(0, 188, 212, 0.15); color: #00bcd4; border: 1px solid rgba(0, 188, 212, 0.2); padding: 0.2rem 0.5rem; border-radius: 4px;">${act.sport_type}</span></td>
-                <td style="text-align: right;">${act.distance_km.toFixed(2)} km</td>
-                <td style="text-align: right;">${act.moving_time_min.toFixed(1)} m</td>
-                <td style="text-align: right; color: var(--color-primary); font-weight:600;">${act.kcal_burned} KCAL</td>
-                <td style="text-align: center;">${act.activity_date}</td>
+                <td><strong>${act.athlete_name_raw || 'Không tên'}</strong></td>
+                <td>${act.name || 'Hoạt động không tên'}</td>
+                <td><span class="badge badge-info" style="font-size:0.75rem; background: rgba(0, 188, 212, 0.15); color: #00bcd4; border: 1px solid rgba(0, 188, 212, 0.2); padding: 0.2rem 0.5rem; border-radius: 4px;">${act.sport_type || 'Run'}</span></td>
+                <td style="text-align: right;">${(act.distance_km || 0).toFixed(2)} km</td>
+                <td style="text-align: right;">${(act.moving_time_min || 0).toFixed(1)} m</td>
+                <td style="text-align: right; color: var(--color-primary); font-weight:600;">${act.kcal_burned || 0} KCAL</td>
+                <td style="text-align: center;">${act.activity_date || ''}</td>
                 <td style="text-align: center;">${statusBadge}</td>
                 <td style="text-align: center;">
                     <div style="display: flex; gap: 0.3rem; justify-content: center;">
@@ -1599,17 +1599,6 @@
         });
     }
 
-    // --- ADMIN TAB TRANSITION LOGIC ---
-    function switchAdminTab(evt, tabId) {
-        const tabPanes = document.querySelectorAll('#tab-config, #tab-analytics, #tab-athletes, #tab-mets, #tab-rewards, #tab-badges, #tab-events, #tab-security');
-        tabPanes.forEach(pane => pane.classList.remove('active'));
-
-        const tabBtns = document.querySelectorAll('.tab-btn');
-        tabBtns.forEach(btn => btn.classList.remove('active'));
-
-        document.getElementById(tabId).classList.add('active');
-        evt.currentTarget.classList.add('active');
-    }
 
     // --- AJAX EVENTS RULES LOADER ---
     function loadConfigForEvent(selectEl, type) {
