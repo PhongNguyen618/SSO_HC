@@ -288,7 +288,7 @@ def index(
     # Tính giải thưởng tương ứng cho từng VĐV trên BXH
     ranked_athletes = []
     for rank, item in enumerate(athlete_stats, 1):
-        award_info = get_award_info(item.gender, item.total_kcal or 0, db)
+        award_info = get_award_info(item.gender, item.total_kcal or 0, db, event_id=event_id)
         ranked_athletes.append({
             "rank": rank,
             "id": item.id,
