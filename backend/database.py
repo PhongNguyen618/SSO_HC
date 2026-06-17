@@ -90,7 +90,7 @@ class CompetitionEvent(Base):
     show_rewards_in_rules = Column(Boolean, default=True, nullable=True)
     department_members = Column(String, nullable=True) # Cấu hình sĩ số phòng ban dạng JSON string
     ranking_metric = Column(String, default="kcal", nullable=True) # "kcal" hoặc "distance"
-    ranking_sports = Column(String, default="Run,Walk,Ride,Swim", nullable=True) # "Run,Walk,Ride,Swim"
+    ranking_sports = Column(String, default="All", nullable=True) # Mặc định là tất cả bộ môn "All"
 
     activities = relationship("Activity", back_populates="event", cascade="all, delete-orphan")
 
@@ -254,8 +254,13 @@ def init_db(excel_filepath: str = "TDTT_SSO.xlsx"):
     if 'ranking_sports' not in comp_columns:
         print("Database Migration: Adding ranking_sports column to competition_events...")
         with engine.connect() as conn:
-            conn.execute(text("ALTER TABLE competition_events ADD COLUMN ranking_sports VARCHAR DEFAULT 'Run,Walk,Ride,Swim'"))
+            conn.execute(text("ALTER TABLE competition_events ADD COLUMN ranking_sports VARCHAR DEFAULT 'All'"))
             conn.commit()
+
+    # Phục hồi các giải đấu đang bị giới hạn về 4 môn mặc định hoặc NULL/rỗng trở lại thành 'All' để tính calo cho tất cả các môn như ban đầu
+    with engine.connect() as conn:
+        conn.execute(text("UPDATE competition_events SET ranking_sports = 'All' WHERE ranking_sports = 'Run,Walk,Ride,Swim' OR ranking_sports IS NULL OR ranking_sports = ''"))
+        conn.commit()
 
     db = SessionLocal()
 

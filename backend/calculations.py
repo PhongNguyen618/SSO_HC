@@ -73,7 +73,21 @@ def get_mets_value(sport_type: str, speed_kmh: float, db: Session, distance_km: 
     if not rules:
         rules = db.query(MetsRule).filter(MetsRule.sport_type.ilike(sport_type), MetsRule.event_id == None).order_by(MetsRule.min_speed).all()
     if not rules:
-        return 0.0
+        # Fallback METs cho các bộ môn khác nếu chưa cấu hình quy tắc cụ thể
+        lower_sport = sport_type.lower() if sport_type else ""
+        if 'hike' in lower_sport or 'trail' in lower_sport:
+            return 5.0
+        elif 'ride' in lower_sport or 'cycle' in lower_sport:
+            return 6.0
+        elif 'swim' in lower_sport:
+            return 7.0
+        elif 'run' in lower_sport:
+            return 8.0
+        elif 'walk' in lower_sport:
+            return 3.5
+        elif 'yoga' in lower_sport or 'pilates' in lower_sport:
+            return 2.5
+        return 4.0
         
     # Nếu chỉ có 1 quy tắc (Gym, Yoga...) hoặc tốc độ không hợp lệ, trả về giá trị tĩnh luôn
     if len(rules) == 1 or speed_kmh <= 0.0:

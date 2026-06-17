@@ -287,8 +287,9 @@ def index(
     if event_id:
         base_filters.append(Activity.event_id == event_id)
         if selected_event:
-            allowed_sports = [s.strip() for s in (selected_event.ranking_sports or "Run,Walk,Ride,Swim").split(",") if s.strip()]
-            base_filters.append(Activity.sport_type.in_(allowed_sports))
+            allowed_sports = [s.strip() for s in (selected_event.ranking_sports or "All").split(",") if s.strip()]
+            if "All" not in allowed_sports:
+                base_filters.append(Activity.sport_type.in_(allowed_sports))
 
     # 1. Thống kê tổng quan (Kpi Cards)
     total_kcal = db.query(func.sum(Activity.kcal_burned))\
@@ -528,7 +529,7 @@ def rules_page(
     
     allowed_sports = None
     if selected_event:
-        allowed_sports = [s.strip() for s in (selected_event.ranking_sports or "Run,Walk,Ride,Swim").split(",") if s.strip()]
+        allowed_sports = [s.strip() for s in (selected_event.ranking_sports or "All").split(",") if s.strip()]
 
     mets = []
     if selected_event_id:
@@ -536,7 +537,7 @@ def rules_page(
     if not mets:
         mets = db.query(MetsRule).filter(MetsRule.event_id == None).order_by(MetsRule.sport_type, MetsRule.min_speed).all()
         
-    if allowed_sports:
+    if allowed_sports and "All" not in allowed_sports:
         mets = [m for m in mets if m.sport_type in allowed_sports]
         
     rewards = []
@@ -849,8 +850,9 @@ def profile_page(
     if selected_event_id:
         activities_query = activities_query.filter(Activity.event_id == selected_event_id)
         if selected_event:
-            allowed_sports = [s.strip() for s in (selected_event.ranking_sports or "Run,Walk,Ride,Swim").split(",") if s.strip()]
-            activities_query = activities_query.filter(Activity.sport_type.in_(allowed_sports))
+            allowed_sports = [s.strip() for s in (selected_event.ranking_sports or "All").split(",") if s.strip()]
+            if "All" not in allowed_sports:
+                activities_query = activities_query.filter(Activity.sport_type.in_(allowed_sports))
         
     activities = activities_query.order_by(Activity.activity_date.desc()).all()
     valid_activities = activities
@@ -1131,7 +1133,7 @@ def admin_dashboard(
     if selected_event_id:
         selected_event = db.query(CompetitionEvent).filter(CompetitionEvent.id == selected_event_id).first()
         if selected_event:
-            allowed_sports = [s.strip() for s in (selected_event.ranking_sports or "Run,Walk,Ride,Swim").split(",") if s.strip()]
+            allowed_sports = [s.strip() for s in (selected_event.ranking_sports or "All").split(",") if s.strip()]
 
     if selected_event_id:
         total_active_athletes = db.query(Athlete).join(
@@ -1144,7 +1146,7 @@ def admin_dashboard(
         dist_query = db.query(func.sum(Activity.distance_km)).filter(Activity.event_id == selected_event_id)
         time_query = db.query(func.sum(Activity.moving_time_min)).filter(Activity.event_id == selected_event_id)
         
-        if allowed_sports:
+        if allowed_sports and "All" not in allowed_sports:
             act_query = act_query.filter(Activity.sport_type.in_(allowed_sports))
             kcal_query = kcal_query.filter(Activity.sport_type.in_(allowed_sports))
             dist_query = dist_query.filter(Activity.sport_type.in_(allowed_sports))
@@ -1194,7 +1196,7 @@ def admin_dashboard(
         .filter(Activity.activity_date <= max_date_str)
     if selected_event_id:
         week_query = week_query.filter(Activity.event_id == selected_event_id)
-        if allowed_sports:
+        if allowed_sports and "All" not in allowed_sports:
             week_query = week_query.filter(Activity.sport_type.in_(allowed_sports))
     week_activities = week_query.all()
 
@@ -1237,7 +1239,7 @@ def admin_dashboard(
         .filter(Activity.activity_date <= max_date_str)
     if selected_event_id:
         month_query = month_query.filter(Activity.event_id == selected_event_id)
-        if allowed_sports:
+        if allowed_sports and "All" not in allowed_sports:
             month_query = month_query.filter(Activity.sport_type.in_(allowed_sports))
     month_activities = month_query.all()
 
@@ -1265,7 +1267,7 @@ def admin_dashboard(
     )
     if selected_event_id:
         sport_query = sport_query.filter(Activity.event_id == selected_event_id)
-        if allowed_sports:
+        if allowed_sports and "All" not in allowed_sports:
             sport_query = sport_query.filter(Activity.sport_type.in_(allowed_sports))
     sport_stats = sport_query.group_by(Activity.sport_type).all()
 
@@ -2564,8 +2566,9 @@ def export_excel(
     if event_id:
         base_filters.append(Activity.event_id == event_id)
         if selected_event:
-            allowed_sports = [s.strip() for s in (selected_event.ranking_sports or "Run,Walk,Ride,Swim").split(",") if s.strip()]
-            base_filters.append(Activity.sport_type.in_(allowed_sports))
+            allowed_sports = [s.strip() for s in (selected_event.ranking_sports or "All").split(",") if s.strip()]
+            if "All" not in allowed_sports:
+                base_filters.append(Activity.sport_type.in_(allowed_sports))
 
     is_distance = selected_event and getattr(selected_event, "ranking_metric", "kcal") == "distance"
 
@@ -2930,10 +2933,6 @@ async def admin_add_competition(
     show_rewards_in_rules: bool = Form(True),
     department_members: str = Form(""),
     ranking_metric: str = Form("kcal"),
-    ranking_sports_run: Optional[str] = Form(None),
-    ranking_sports_walk: Optional[str] = Form(None),
-    ranking_sports_ride: Optional[str] = Form(None),
-    ranking_sports_swim: Optional[str] = Form(None),
     banner_file: UploadFile = File(None),
     db: Session = Depends(get_db)
 ):
@@ -2968,14 +2967,7 @@ async def admin_add_competition(
                     f.write(content)
                 banner_path = f"/static/uploads/{filename}"
         
-        sports_list = []
-        if ranking_sports_run: sports_list.append("Run")
-        if ranking_sports_walk: sports_list.append("Walk")
-        if ranking_sports_ride: sports_list.append("Ride")
-        if ranking_sports_swim: sports_list.append("Swim")
-        if not sports_list:
-            sports_list = ["Run", "Walk", "Ride", "Swim"]
-        ranking_sports_str = ",".join(sports_list)
+        ranking_sports_str = "All"
 
         new_comp = CompetitionEvent(
             title=title.strip(),
@@ -3023,10 +3015,6 @@ async def admin_edit_competition(
     show_rewards_in_rules: bool = Form(True),
     department_members: str = Form(""),
     ranking_metric: str = Form("kcal"),
-    ranking_sports_run: Optional[str] = Form(None),
-    ranking_sports_walk: Optional[str] = Form(None),
-    ranking_sports_ride: Optional[str] = Form(None),
-    ranking_sports_swim: Optional[str] = Form(None),
     banner_file: UploadFile = File(None),
     db: Session = Depends(get_db)
 ):
@@ -3051,14 +3039,7 @@ async def admin_edit_competition(
                 return RedirectResponse(f"/admin?error=Lỗi cấu hình sĩ số phòng ban JSON: {str(e)}#tab-competitions", status_code=303)
 
         import time as time_mod
-        sports_list = []
-        if ranking_sports_run: sports_list.append("Run")
-        if ranking_sports_walk: sports_list.append("Walk")
-        if ranking_sports_ride: sports_list.append("Ride")
-        if ranking_sports_swim: sports_list.append("Swim")
-        if not sports_list:
-            sports_list = ["Run", "Walk", "Ride", "Swim"]
-        ranking_sports_str = ",".join(sports_list)
+        ranking_sports_str = "All"
 
         comp.title = title.strip()
         comp.strava_club_id = extract_strava_club_id(strava_club_id)

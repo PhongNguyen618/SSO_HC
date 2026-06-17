@@ -1216,15 +1216,6 @@
                             <option value="distance">Quãng đường (KM)</option>
                         </select>
                     </div>
-                    <div class="form-group" style="flex: 2;">
-                        <label>Bộ môn tính điểm</label>
-                        <div style="display: flex; gap: 1rem; margin-top: 0.5rem; flex-wrap: wrap;">
-                            <label style="cursor: pointer; display: flex; align-items: center; gap: 0.3rem;"><input type="checkbox" name="ranking_sports_run" value="Run" checked> Chạy bộ (Run)</label>
-                            <label style="cursor: pointer; display: flex; align-items: center; gap: 0.3rem;"><input type="checkbox" name="ranking_sports_walk" value="Walk" checked> Đi bộ (Walk)</label>
-                            <label style="cursor: pointer; display: flex; align-items: center; gap: 0.3rem;"><input type="checkbox" name="ranking_sports_ride" value="Ride" checked> Đạp xe (Ride)</label>
-                            <label style="cursor: pointer; display: flex; align-items: center; gap: 0.3rem;"><input type="checkbox" name="ranking_sports_swim" value="Swim" checked> Bơi lội (Swim)</label>
-                        </div>
-                    </div>
                 </div>
                 <div class="form-row">
                     <div class="form-group" style="flex: 1.5;">
@@ -1369,7 +1360,6 @@
                                             </select>
                                         </div>
                                     </div>
-                                    {% set allowed_sports = (comp.ranking_sports or "Run,Walk,Ride,Swim").split(',') %}
                                     <div class="form-row">
                                         <div class="form-group" style="flex: 1;">
                                             <label>Tiêu chí xếp hạng</label>
@@ -1377,15 +1367,6 @@
                                                 <option value="kcal" {% if not comp.ranking_metric or comp.ranking_metric == 'kcal' %}selected{% endif %}>Năng lượng (KCAL)</option>
                                                 <option value="distance" {% if comp.ranking_metric == 'distance' %}selected{% endif %}>Quãng đường (KM)</option>
                                             </select>
-                                        </div>
-                                        <div class="form-group" style="flex: 2;">
-                                            <label>Bộ môn tính điểm</label>
-                                            <div style="display: flex; gap: 1rem; margin-top: 0.5rem; flex-wrap: wrap;">
-                                                <label style="cursor: pointer; display: flex; align-items: center; gap: 0.3rem;"><input type="checkbox" name="ranking_sports_run" value="Run" {% if 'Run' in allowed_sports %}checked{% endif %}> Chạy bộ (Run)</label>
-                                                <label style="cursor: pointer; display: flex; align-items: center; gap: 0.3rem;"><input type="checkbox" name="ranking_sports_walk" value="Walk" {% if 'Walk' in allowed_sports %}checked{% endif %}> Đi bộ (Walk)</label>
-                                                <label style="cursor: pointer; display: flex; align-items: center; gap: 0.3rem;"><input type="checkbox" name="ranking_sports_ride" value="Ride" {% if 'Ride' in allowed_sports %}checked{% endif %}> Đạp xe (Ride)</label>
-                                                <label style="cursor: pointer; display: flex; align-items: center; gap: 0.3rem;"><input type="checkbox" name="ranking_sports_swim" value="Swim" {% if 'Swim' in allowed_sports %}checked{% endif %}> Bơi lội (Swim)</label>
-                                            </div>
                                         </div>
                                     </div>
                                     <div class="form-row">
