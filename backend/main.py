@@ -563,7 +563,7 @@ def register_athlete(
                     actual_time_min = act.elapsed_time_min if act.moving_time_min < 1.0 else act.moving_time_min
                     
                     from backend.calculations import get_mets_value, calculate_kcal
-                    mets_val = get_mets_value(act.sport_type, speed_kmh, db, act.distance_km, act.elevation_gain_m)
+                    mets_val = get_mets_value(act.sport_type, speed_kmh, db, act.distance_km, act.elevation_gain_m, event_id=act.event_id)
                     act.mets_value = mets_val
                     mult = get_multiplier_for_date(act.activity_date, act.event_id, db)
                     kcal_raw = calculate_kcal(mets_val, weight, actual_time_min, act.elevation_gain_m, act.sport_type)
@@ -1333,9 +1333,9 @@ async def update_configs(
         if old_val != sync_interval_hours:
             start_scheduler()
 
-        return RedirectResponse("/admin?success=Cap nhat cau hinh thanh cong", status_code=303)
+        return RedirectResponse("/admin?success=Cap nhat cau hinh thanh cong#tab-config", status_code=303)
     except Exception as e:
-        return RedirectResponse(f"/admin?error=Loi khi luu cau hinh: {str(e)}", status_code=303)
+        return RedirectResponse(f"/admin?error=Loi khi luu cau hinh: {str(e)}#tab-config", status_code=303)
 
 @app.post("/admin/security")
 def update_admin_security(
@@ -1461,6 +1461,7 @@ def admin_edit_athlete(
     weight: float = Form(...),
     strava_name: str = Form(...),
     is_active: bool = Form(True),
+    event_id: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
     admin = get_admin_session(request, db)
@@ -1477,7 +1478,7 @@ def admin_edit_athlete(
     # Kiểm tra trùng strava_name với người khác
     exists = db.query(Athlete).filter(Athlete.strava_name == strava_name, Athlete.id != athlete_id).first()
     if exists:
-        return RedirectResponse(f"/admin?error=Ten Strava {strava_name} da bi trung", status_code=303)
+        return RedirectResponse(f"/admin?error=Ten Strava {strava_name} da bi trung&event_id={event_id or ''}#tab-athletes", status_code=303)
         
     try:
         # Nếu thay đổi strava_name hoặc cân nặng, cần tính toán lại hoạt động cũ
@@ -1503,7 +1504,7 @@ def admin_edit_athlete(
                 actual_time_min = act.elapsed_time_min if act.moving_time_min < 1.0 else act.moving_time_min
                 
                 from backend.calculations import get_mets_value, calculate_kcal
-                mets_val = get_mets_value(act.sport_type, speed_kmh, db, act.distance_km, act.elevation_gain_m)
+                mets_val = get_mets_value(act.sport_type, speed_kmh, db, act.distance_km, act.elevation_gain_m, event_id=act.event_id)
                 act.mets_value = mets_val
                 mult = get_multiplier_for_date(act.activity_date, act.event_id, db)
                 kcal_raw = calculate_kcal(mets_val, weight, actual_time_min, act.elevation_gain_m, act.sport_type)
@@ -1512,12 +1513,17 @@ def admin_edit_athlete(
                 act.multiplier = mult
             db.commit()
             
-        return RedirectResponse("/admin?success=Cap nhat thanh vien thanh cong", status_code=303)
+        return RedirectResponse(f"/admin?success=Cap nhat thanh vien thanh cong&event_id={event_id or ''}#tab-athletes", status_code=303)
     except Exception as e:
-        return RedirectResponse(f"/admin?error=Loi khi cap nhat thanh vien: {str(e)}", status_code=303)
+        return RedirectResponse(f"/admin?error=Loi khi cap nhat thanh vien: {str(e)}&event_id={event_id or ''}#tab-athletes", status_code=303)
 
 @app.post("/admin/athlete/delete/{athlete_id}")
-def admin_delete_athlete(athlete_id: int, request: Request, db: Session = Depends(get_db)):
+def admin_delete_athlete(
+    athlete_id: int,
+    request: Request,
+    event_id: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
     admin = get_admin_session(request, db)
     if not admin:
         return RedirectResponse("/admin?error=Chua dang nhap", status_code=303)
@@ -1531,10 +1537,10 @@ def admin_delete_athlete(athlete_id: int, request: Request, db: Session = Depend
         db.query(Activity).filter(Activity.athlete_id == athlete.id).update({Activity.athlete_id: None})
         db.delete(athlete)
         db.commit()
-        return RedirectResponse("/admin?success=Da xoa thanh vien khoi giai chay", status_code=303)
+        return RedirectResponse(f"/admin?success=Da xoa thanh vien khoi giai chay&event_id={event_id or ''}#tab-athletes", status_code=303)
     except Exception as e:
         db.rollback()
-        return RedirectResponse(f"/admin?error=Loi khi xoa: {str(e)}", status_code=303)
+        return RedirectResponse(f"/admin?error=Loi khi xoa: {str(e)}&event_id={event_id or ''}#tab-athletes", status_code=303)
 
 # --- QUẢN LÝ METS & GIẢI THƯỞNG TRÊN ADMIN ---
 
@@ -1657,10 +1663,10 @@ def edit_mets_rules(
             )
             db.add(rule)
         db.commit()
-        return RedirectResponse(f"/admin?success=Cap nhat he so METs thanh cong&event_id={event_id or ''}", status_code=303)
+        return RedirectResponse(f"/admin?success=Cap nhat he so METs thanh cong&event_id={event_id or ''}#tab-mets", status_code=303)
     except Exception as e:
         db.rollback()
-        return RedirectResponse(f"/admin?error=Loi cap nhat METs: {str(e)}", status_code=303)
+        return RedirectResponse(f"/admin?error=Loi cap nhat METs: {str(e)}&event_id={event_id or ''}#tab-mets", status_code=303)
 
 @app.post("/admin/rewards/edit")
 def edit_rewards_rules(
@@ -1709,10 +1715,10 @@ def edit_rewards_rules(
                 db.add(rule)
         
         db.commit()
-        return RedirectResponse(f"/admin?success=Cap nhat cau hinh giai thuong thanh cong&event_id={event_id or ''}", status_code=303)
+        return RedirectResponse(f"/admin?success=Cap nhat cau hinh giai thuong thanh cong&event_id={event_id or ''}#tab-rewards", status_code=303)
     except Exception as e:
         db.rollback()
-        return RedirectResponse(f"/admin?error=Loi cap nhat giai thuong: {str(e)}", status_code=303)
+        return RedirectResponse(f"/admin?error=Loi cap nhat giai thuong: {str(e)}&event_id={event_id or ''}#tab-rewards", status_code=303)
 
 @app.post("/admin/badges/edit")
 def edit_badges_rules(
@@ -1756,49 +1762,10 @@ def edit_badges_rules(
             )
             db.add(rule)
         db.commit()
-        return RedirectResponse(f"/admin?success=Cap nhat cau hinh huy hieu thanh cong&event_id={event_id or ''}", status_code=303)
+        return RedirectResponse(f"/admin?success=Cap nhat cau hinh huy hieu thanh cong&event_id={event_id or ''}#tab-badges", status_code=303)
     except Exception as e:
         db.rollback()
-        return RedirectResponse(f"/admin?error=Loi cap nhat huy hieu: {str(e)}", status_code=303)
-    except Exception as e:
-        db.rollback()
-        return RedirectResponse(f"/admin?error=Loi cap nhat giai thuong: {str(e)}", status_code=303)
-
-    except Exception as e:
-        db.rollback()
-        return RedirectResponse(f"/admin?error=Lỗi cập nhật giải thưởng: {str(e)}", status_code=303)
-
-@app.post("/admin/badges/edit")
-def edit_badges_rules(
-    request: Request,
-    id: list[str] = Form(...),
-    name: list[str] = Form(...),
-    description: list[str] = Form(...),
-    icon: list[str] = Form(...),
-    color: list[str] = Form(...),
-    threshold: list[float] = Form(...),
-    db: Session = Depends(get_db)
-):
-    admin = get_admin_session(request, db)
-    if not admin:
-        return RedirectResponse("/admin?error=Chua dang nhap", status_code=303)
-        
-    try:
-        from backend.database import BadgeRule
-        for i in range(len(id)):
-            rule_id = id[i].strip()
-            rule = db.query(BadgeRule).filter(BadgeRule.id == rule_id).first()
-            if rule:
-                rule.name = name[i].strip()
-                rule.description = description[i].strip()
-                rule.icon = icon[i].strip()
-                rule.color = color[i].strip()
-                rule.threshold = threshold[i]
-        db.commit()
-        return RedirectResponse("/admin?success=Cập nhật cấu hình huy hiệu thành công", status_code=303)
-    except Exception as e:
-        db.rollback()
-        return RedirectResponse(f"/admin?error=Lỗi cập nhật huy hiệu: {str(e)}", status_code=303)
+        return RedirectResponse(f"/admin?error=Loi cap nhat huy hieu: {str(e)}&event_id={event_id or ''}#tab-badges", status_code=303)
 
 # ============== API QUẢN LÝ HỆ SỐ NHÂN THÀNH TÍCH (EventMultiplier) ==============
 
@@ -1888,10 +1855,10 @@ async def edit_multipliers(request: Request, db: Session = Depends(get_db)):
                 db.add(rule)
         
         db.commit()
-        return RedirectResponse(f"/admin?success=Luu he so nhan thanh cong&event_id={ev_id}", status_code=303)
+        return RedirectResponse(f"/admin?success=Luu he so nhan thanh cong&event_id={ev_id}#tab-multipliers", status_code=303)
     except Exception as e:
         db.rollback()
-        return RedirectResponse(f"/admin?error=Loi luu he so nhan: {str(e)}", status_code=303)
+        return RedirectResponse(f"/admin?error=Loi luu he so nhan: {str(e)}&event_id={ev_id}#tab-multipliers", status_code=303)
 
 @app.post("/admin/multipliers/recalculate")
 def recalculate_multipliers(request: Request, event_id: int = Form(...), db: Session = Depends(get_db)):
@@ -2088,14 +2055,20 @@ def edit_activity(
         speed_kmh = distance_km / (moving_time_min / 60.0) if moving_time_min > 0 else 0.0
         actual_time_min = elapsed_time_min if moving_time_min < 1.0 else moving_time_min
         
-        from backend.calculations import get_mets_value, calculate_kcal
-        mets_val = get_mets_value(sport_type.strip(), speed_kmh, db, distance_km, elevation_gain_m)
+        from backend.calculations import get_mets_value, calculate_kcal, get_multiplier_for_date
+        mets_val = get_mets_value(sport_type.strip(), speed_kmh, db, distance_km, elevation_gain_m, event_id=activity.event_id)
         activity.mets_value = mets_val
         
         if kcal_burned is not None:
             activity.kcal_burned = kcal_burned
+            activity.kcal_burned_raw = kcal_burned
+            activity.multiplier = 1.0
         else:
-            activity.kcal_burned = calculate_kcal(mets_val, weight, actual_time_min, elevation_gain_m, sport_type.strip())
+            mult = get_multiplier_for_date(activity_date.strip(), activity.event_id, db)
+            kcal_raw = calculate_kcal(mets_val, weight, actual_time_min, elevation_gain_m, sport_type.strip())
+            activity.kcal_burned_raw = kcal_raw
+            activity.kcal_burned = round(kcal_raw * mult)
+            activity.multiplier = mult
             
         # Tính lại pace
         if distance_km > 0:
@@ -2592,10 +2565,10 @@ async def admin_add_competition(
         )
         db.add(new_comp)
         db.commit()
-        return RedirectResponse("/admin?success=Thêm giải đấu mới thành công", status_code=303)
+        return RedirectResponse("/admin?success=Thêm giải đấu mới thành công#tab-competitions", status_code=303)
     except Exception as e:
         db.rollback()
-        return RedirectResponse(f"/admin?error=Lỗi khi thêm giải đấu: {str(e)}", status_code=303)
+        return RedirectResponse(f"/admin?error=Lỗi khi thêm giải đấu: {str(e)}#tab-competitions", status_code=303)
 
 
 @app.post("/admin/competitions/edit/{comp_id}")
@@ -2662,10 +2635,10 @@ async def admin_edit_competition(
                 comp.banner_image = f"/static/uploads/{filename}"
         
         db.commit()
-        return RedirectResponse("/admin?success=Cập nhật giải đấu thành công", status_code=303)
+        return RedirectResponse("/admin?success=Cập nhật giải đấu thành công#tab-competitions", status_code=303)
     except Exception as e:
         db.rollback()
-        return RedirectResponse(f"/admin?error=Lỗi cập nhật giải đấu: {str(e)}", status_code=303)
+        return RedirectResponse(f"/admin?error=Lỗi cập nhật giải đấu: {str(e)}#tab-competitions", status_code=303)
 
 
 @app.post("/admin/competitions/delete/{comp_id}")
@@ -2688,10 +2661,10 @@ def admin_delete_competition(comp_id: int, request: Request, db: Session = Depen
         
         db.delete(comp)  # cascade sẽ xóa activities liên quan
         db.commit()
-        return RedirectResponse("/admin?success=Đã xóa giải đấu và tất cả hoạt động liên quan", status_code=303)
+        return RedirectResponse("/admin?success=Đã xóa giải đấu và tất cả hoạt động liên quan#tab-competitions", status_code=303)
     except Exception as e:
         db.rollback()
-        return RedirectResponse(f"/admin?error=Lỗi khi xóa giải đấu: {str(e)}", status_code=303)
+        return RedirectResponse(f"/admin?error=Lỗi khi xóa giải đấu: {str(e)}#tab-competitions", status_code=303)
 
 
 @app.post("/admin/competitions/sync/{comp_id}")

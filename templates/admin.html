@@ -603,7 +603,7 @@
                     <tbody>
                         {% for ath in athletes %}
                         <tr>
-                            <form action="/admin/athlete/edit/{{ ath.id }}" method="POST">
+                            <form action="/admin/athlete/edit/{{ ath.id }}?event_id={{ selected_event_id or '' }}" method="POST">
                                 <td>
                                     <input type="text" name="full_name" class="form-control" value="{{ ath.full_name }}" style="padding:0.4rem; font-size:0.85rem;" required>
                                 </td>
@@ -632,7 +632,7 @@
                                     <button type="submit" class="btn btn-primary btn-sm" style="padding:0.4rem 0.6rem; font-size:0.8rem;" title="Lưu thay đổi">
                                         <i class="fa-solid fa-floppy-disk"></i>
                                     </button>
-                                    <button type="submit" formaction="/admin/athlete/delete/{{ ath.id }}" onclick="return confirm('Bạn có chắc chắn muốn xóa thành viên {{ ath.full_name }}? Toàn bộ lịch sử hoạt động sẽ bị hủy liên kết.')" class="btn btn-danger btn-sm" style="padding:0.4rem 0.6rem; font-size:0.8rem;" title="Xóa">
+                                    <button type="submit" formaction="/admin/athlete/delete/{{ ath.id }}?event_id={{ selected_event_id or '' }}" onclick="return confirm('Bạn có chắc chắn muốn xóa thành viên {{ ath.full_name }}? Toàn bộ lịch sử hoạt động sẽ bị hủy liên kết.')" class="btn btn-danger btn-sm" style="padding:0.4rem 0.6rem; font-size:0.8rem;" title="Xóa">
                                         <i class="fa-solid fa-trash-can"></i>
                                     </button>
                                 </td>
