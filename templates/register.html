@@ -161,14 +161,14 @@
 
             <div class="form-group">
                 <label for="strava_name">Tên hiển thị trên Strava</label>
-                <input type="text" id="strava_name" name="strava_name" list="strava-list" class="form-control" placeholder="Ví dụ: Tùng N. hoặc Tùng Nguyễn" value="{% if form_data %}{{ form_data.strava_name }}{% endif %}" {% if already_exists %}readonly style="background: rgba(255,255,255,0.02); color: var(--text-muted); cursor: not-allowed;"{% endif %} required autocomplete="off">
+                <input type="text" id="strava_name" name="strava_name" list="strava-list" class="form-control" placeholder="Ví dụ: Tên Mới, Tên Cũ" value="{% if form_data %}{{ form_data.strava_name }}{% endif %}" {% if already_exists %}readonly style="background: rgba(255,255,255,0.02); color: var(--text-muted); cursor: not-allowed;"{% endif %} required autocomplete="off">
                 <datalist id="strava-list">
                     {% for name in unlinked_athletes %}
                     <option value="{{ name }}"></option>
                     {% endfor %}
                 </datalist>
                 <small style="color: var(--text-muted); font-size: 0.8rem; display: block; margin-top: 0.4rem;">
-                    <i class="fa-solid fa-circle-info"></i> Rất quan trọng: Bạn có thể chọn tên của mình từ danh sách gợi ý (được lấy tự động từ group Strava) để tránh gõ sai.
+                    <i class="fa-solid fa-circle-info"></i> Nhập chính xác tên hiển thị Strava. Nếu bạn từng đổi tên Strava, hãy nhập các tên cách nhau bằng dấu phẩy (Ví dụ: Tên Mới, Tên Cũ) để hệ thống nhận diện đủ hoạt động. Bạn cũng có thể chọn tên gợi ý sẵn.
                 </small>
             </div>
 

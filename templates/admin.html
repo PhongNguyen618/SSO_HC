@@ -557,14 +557,23 @@
                         <input type="number" step="0.1" id="new_weight" name="weight" class="form-control" placeholder="60.0" required>
                     </div>
                 </div>
-                <div class="form-group" style="margin-top: 1rem;">
-                    <label for="new_event_id">Đăng ký giải đấu tham gia <span style="color: var(--color-primary);">*</span></label>
-                    <select id="new_event_id" name="event_id" class="form-control" required>
-                        <option value="" disabled selected>-- Chọn giải đấu bạn tham gia --</option>
-                        {% for comp in all_competitions %}
-                        <option value="{{ comp.id }}" {% if selected_event_id == comp.id %}selected{% endif %}>{{ comp.title }} (ID: {{ comp.id }})</option>
-                        {% endfor %}
-                    </select>
+                <div class="form-row" style="margin-top: 1rem;">
+                    <div class="form-group">
+                        <label for="new_strava_name">Tên hiển thị Strava <span style="color: var(--color-primary);">*</span></label>
+                        <input type="text" id="new_strava_name" name="strava_name" class="form-control" placeholder="Ví dụ: Tên Mới, Tên Cũ" required>
+                        <small style="color: var(--text-muted); font-size: 0.8rem; display: block; margin-top: 0.4rem;">
+                            <i class="fa-solid fa-circle-info"></i> Nhập các tên cách nhau bằng dấu phẩy nếu VĐV đổi tên Strava (Ví dụ: Tên Mới, Tên Cũ).
+                        </small>
+                    </div>
+                    <div class="form-group">
+                        <label for="new_event_id">Đăng ký giải đấu tham gia <span style="color: var(--color-primary);">*</span></label>
+                        <select id="new_event_id" name="event_id" class="form-control" required>
+                            <option value="" disabled selected>-- Chọn giải đấu bạn tham gia --</option>
+                            {% for comp in all_competitions %}
+                            <option value="{{ comp.id }}" {% if selected_event_id == comp.id %}selected{% endif %}>{{ comp.title }} (ID: {{ comp.id }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
                 </div>
                 <button type="submit" class="btn btn-primary btn-sm" style="margin-top: 1rem;">
                     <i class="fa-solid fa-plus"></i> Thêm Vận Động Viên
@@ -620,7 +629,7 @@
                                     <input type="number" step="0.1" name="weight" class="form-control" value="{{ ath.weight }}" style="padding:0.4rem; font-size:0.85rem; text-align:right;" required>
                                 </td>
                                 <td>
-                                    <input type="text" name="strava_name" class="form-control" value="{{ ath.strava_name }}" style="padding:0.4rem; font-size:0.85rem;" required>
+                                    <input type="text" name="strava_name" class="form-control" value="{{ ath.strava_name }}" placeholder="Ví dụ: Tên Mới, Tên Cũ" title="Nếu đổi tên Strava, nhập các tên cách nhau bởi dấu phẩy" style="padding:0.4rem; font-size:0.85rem;" required>
                                 </td>
                                 <td style="text-align: center;">
                                     <select name="is_active" class="form-control" style="padding:0.4rem; font-size:0.85rem; width:100px;">
@@ -1340,7 +1349,7 @@
                                         </div>
                                         <div class="form-group" style="flex: 1;">
                                             <label>Club ID</label>
-                                            <input type="text" name="strava_club_id" class="form-control" value="{{ comp.strava_club_id or '' }}">
+                                            <input type="text" name="strava_club_id" class="form-control" value="{{ comp.strava_club_id or '' }}" placeholder="Ví dụ: 1234567">
                                         </div>
                                     </div>
                                     <div class="form-row">
