@@ -149,36 +149,57 @@ def get_global_configs():
 
 templates.env.globals["get_configs"] = get_global_configs
 
-def get_department_members(db: Session, start_date: str = None, end_date: str = None) -> dict:
-    """Calculate department member counts dynamically based on active registered athletes who have activities in the timeframe."""
+def get_department_members(db: Session, start_date: str = None, end_date: str = None, event_id: int = None) -> dict:
+    """Calculate department member counts dynamically based on active registered athletes who have activities in the timeframe, or configured event department sizes."""
     dept_members = {}
-    try:
-        query = db.query(
-            Athlete.department,
-            func.count(func.distinct(Athlete.id)).label("count")
-        ).join(Activity, Athlete.id == Activity.athlete_id)\
-         .filter(Athlete.is_active == True)
-         
-        if start_date:
-            query = query.filter(Activity.activity_date >= start_date)
-        if end_date:
-            query = query.filter(Activity.activity_date <= end_date)
+    
+    # 1. Nếu có event_id và giải đấu đó cấu hình sĩ số phòng ban riêng (JSON)
+    if event_id:
+        event = db.query(CompetitionEvent).filter(CompetitionEvent.id == event_id).first()
+        if event and event.department_members:
+            try:
+                import json
+                configured = json.loads(event.department_members)
+                if isinstance(configured, dict):
+                    # Trích xuất sĩ số từ JSON
+                    dept_members = {k: int(v) for k, v in configured.items() if v}
+            except Exception as e:
+                print(f"Error parsing event department_members JSON: {e}")
+                
+    # 2. Nếu không có cấu hình riêng hoặc cấu hình bị lỗi, lấy cấu hình chung từ Config
+    if not dept_members:
+        try:
+            import json
+            dept_members_conf = db.query(Config).filter(Config.key == "department_members").first()
+            if dept_members_conf and dept_members_conf.value:
+                configured = json.loads(dept_members_conf.value)
+                if isinstance(configured, dict):
+                    dept_members = {k: int(v) for k, v in configured.items() if v}
+        except Exception as e:
+            print(f"Error parsing global department_members Config: {e}")
             
-        results = query.group_by(Athlete.department).all()
-        for row in results:
-            dept_name = row[0]
-            count = row[1]
-            dept_members[dept_name] = count or 1
-
-        # Bổ sung sĩ số mặc định (số VĐV đã đăng ký) cho các phòng ban không có hoạt động trong khoảng thời gian được lọc
+    # 3. Tính toán bổ sung động cho các phòng ban dựa trên số VĐV thực tế nếu không có cấu hình cố định
+    try:
+        # Lấy danh sách phòng ban thực tế từ database
         all_depts = db.query(Athlete.department).filter(Athlete.department != None, Athlete.department != '').distinct().all()
         for row in all_depts:
             dept_name = row[0]
-            if dept_name not in dept_members:
-                active_count = db.query(Athlete).filter(Athlete.department == dept_name, Athlete.is_active == True).count()
+            if dept_name and dept_name not in dept_members:
+                # Nếu chưa được cấu hình, đếm số VĐV thực tế đang hoạt động
+                if event_id:
+                    active_count = db.query(Athlete).join(
+                        CompetitionRegistration,
+                        Athlete.id == CompetitionRegistration.athlete_id
+                    ).filter(
+                        Athlete.department == dept_name,
+                        Athlete.is_active == True,
+                        CompetitionRegistration.event_id == event_id
+                    ).count()
+                else:
+                    active_count = db.query(Athlete).filter(Athlete.department == dept_name, Athlete.is_active == True).count()
                 dept_members[dept_name] = active_count or 1
     except Exception as e:
-        print(f"Error resolving dynamic department members: {e}")
+        print(f"Error resolving dynamic department members fallback: {e}")
         
     return dept_members
 
@@ -317,7 +338,7 @@ def index(
         })
 
     # 3. Xếp hạng theo Phòng ban
-    dept_members = get_department_members(db, start_date, end_date)
+    dept_members = get_department_members(db, start_date, end_date, event_id=event_id)
     
     dept_query = db.query(
         Athlete.department,
@@ -2494,7 +2515,7 @@ def export_excel(
         df_personal = pd.DataFrame(columns=["Hạng", "Họ và Tên", "Giới tính", "Phòng ban", "Quãng đường (km)", "Thời gian (giờ)", "Năng lượng (KCAL)", "Mức thưởng đạt được"])
 
     # 2. Lấy dữ liệu BXH Phòng ban
-    dept_members = get_department_members(db, start_date, end_date)
+    dept_members = get_department_members(db, start_date, end_date, event_id=event_id)
     
     dept_query = db.query(
         Athlete.department,
@@ -2785,6 +2806,7 @@ async def admin_add_competition(
     reward_linear_kcal: float = Form(100.0),
     reward_linear_amount: float = Form(5000.0),
     show_rewards_in_rules: bool = Form(True),
+    department_members: str = Form(""),
     banner_file: UploadFile = File(None),
     db: Session = Depends(get_db)
 ):
@@ -2793,6 +2815,17 @@ async def admin_add_competition(
         return RedirectResponse("/admin?error=Chua dang nhap", status_code=303)
         
     try:
+        # Xác thực JSON cấu hình sĩ số phòng ban nếu có
+        dept_json = department_members.strip()
+        if dept_json:
+            try:
+                import json
+                parsed = json.loads(dept_json)
+                if not isinstance(parsed, dict):
+                    raise ValueError("Cấu hình sĩ số phải là một JSON Object (dạng key-value)")
+            except Exception as e:
+                return RedirectResponse(f"/admin?error=Lỗi cấu hình sĩ số phòng ban JSON: {str(e)}#tab-competitions", status_code=303)
+
         import time as time_mod
         # Lưu ảnh banner nếu có
         banner_path = ""
@@ -2822,7 +2855,8 @@ async def admin_add_competition(
             reward_type=reward_type.strip(),
             reward_linear_kcal=reward_linear_kcal,
             reward_linear_amount=reward_linear_amount,
-            show_rewards_in_rules=show_rewards_in_rules
+            show_rewards_in_rules=show_rewards_in_rules,
+            department_members=dept_json if dept_json else None
         )
         db.add(new_comp)
         db.commit()
@@ -2849,6 +2883,7 @@ async def admin_edit_competition(
     reward_linear_kcal: float = Form(100.0),
     reward_linear_amount: float = Form(5000.0),
     show_rewards_in_rules: bool = Form(True),
+    department_members: str = Form(""),
     banner_file: UploadFile = File(None),
     db: Session = Depends(get_db)
 ):
@@ -2861,6 +2896,17 @@ async def admin_edit_competition(
         return RedirectResponse("/admin?error=Không tìm thấy giải đấu", status_code=303)
     
     try:
+        # Xác thực JSON cấu hình sĩ số phòng ban nếu có
+        dept_json = department_members.strip()
+        if dept_json:
+            try:
+                import json
+                parsed = json.loads(dept_json)
+                if not isinstance(parsed, dict):
+                    raise ValueError("Cấu hình sĩ số phải là một JSON Object (dạng key-value)")
+            except Exception as e:
+                return RedirectResponse(f"/admin?error=Lỗi cấu hình sĩ số phòng ban JSON: {str(e)}#tab-competitions", status_code=303)
+
         import time as time_mod
         comp.title = title.strip()
         comp.strava_club_id = extract_strava_club_id(strava_club_id)
@@ -2875,6 +2921,7 @@ async def admin_edit_competition(
         comp.reward_linear_kcal = reward_linear_kcal
         comp.reward_linear_amount = reward_linear_amount
         comp.show_rewards_in_rules = show_rewards_in_rules
+        comp.department_members = dept_json if dept_json else None
         
         # Cập nhật banner nếu có upload mới
         if banner_file and banner_file.filename:

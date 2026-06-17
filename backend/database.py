@@ -88,6 +88,7 @@ class CompetitionEvent(Base):
     reward_linear_kcal = Column(Float, default=100.0, nullable=True)
     reward_linear_amount = Column(Float, default=5000.0, nullable=True)
     show_rewards_in_rules = Column(Boolean, default=True, nullable=True)
+    department_members = Column(String, nullable=True) # Cấu hình sĩ số phòng ban dạng JSON string
 
     activities = relationship("Activity", back_populates="event", cascade="all, delete-orphan")
 
@@ -238,6 +239,11 @@ def init_db(excel_filepath: str = "TDTT_SSO.xlsx"):
         with engine.connect() as conn:
             conn.execute(text("ALTER TABLE competition_events ADD COLUMN show_rewards_in_rules BOOLEAN DEFAULT 1"))
             conn.commit()
+    if 'department_members' not in comp_columns:
+        print("Database Migration: Adding department_members column to competition_events...")
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE competition_events ADD COLUMN department_members TEXT"))
+            conn.commit()
 
     db = SessionLocal()
 
@@ -322,7 +328,8 @@ def init_db(excel_filepath: str = "TDTT_SSO.xlsx"):
             banner_image=default_banner_img,
             rules_description=default_desc,
             rules_banner_text=default_banner_text,
-            rules_general_text=default_gen_text
+            rules_general_text=default_gen_text,
+            department_members=json.dumps(default_department_members, ensure_ascii=False)
         )
         db.add(default_event)
         db.commit()

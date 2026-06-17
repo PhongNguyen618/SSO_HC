@@ -1249,6 +1249,13 @@
                     <textarea name="rules_general_text" class="form-control" rows="3" placeholder="1. Đối tượng tham gia...\n2. Thời gian ghi nhận..."></textarea>
                 </div>
                 <div class="form-group">
+                    <label>Cấu hình Sĩ số Phòng Ban (Định dạng JSON - Tùy chọn)</label>
+                    <textarea name="department_members" class="form-control" rows="4" placeholder='Ví dụ:&#10;{&#10;  "BAN GIÁM ĐỐC": 3,&#10;  "PHÒNG KỸ THUẬT": 15&#10;}'></textarea>
+                    <small style="color: var(--text-muted); font-size: 0.8rem; display: block; margin-top: 0.4rem;">
+                        <i class="fa-solid fa-circle-info"></i> Nếu bỏ trống, hệ thống sẽ sử dụng cấu hình sĩ số chung hoặc đếm số VĐV thực tế đã đăng ký.
+                    </small>
+                </div>
+                <div class="form-group">
                     <label>Ảnh banner (tuỳ chọn)</label>
                     <input type="file" name="banner_file" class="form-control" accept="image/*">
                 </div>
@@ -1383,6 +1390,13 @@
                                     <div class="form-group">
                                         <label>Quy định chung (General Rules)</label>
                                         <textarea name="rules_general_text" class="form-control" rows="3">{{ comp.rules_general_text or '' }}</textarea>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Cấu hình Sĩ số Phòng Ban (Định dạng JSON - Tùy chọn)</label>
+                                        <textarea name="department_members" class="form-control" rows="4" placeholder='Ví dụ:&#10;{&#10;  "BAN GIÁM ĐỐC": 3,&#10;  "PHÒNG KỸ THUẬT": 15&#10;}'>{{ comp.department_members or '' }}</textarea>
+                                        <small style="color: var(--text-muted); font-size: 0.8rem; display: block; margin-top: 0.4rem;">
+                                            <i class="fa-solid fa-circle-info"></i> Nhập chuỗi JSON chứa tên phòng ban và sĩ số để phục vụ tính hiệu suất trung bình riêng cho giải này.
+                                        </small>
                                     </div>
                                     <div class="form-group">
                                         <label>Ảnh banner mới (bỏ trống để giữ nguyên)</label>
