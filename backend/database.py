@@ -337,10 +337,15 @@ def init_db(excel_filepath: str = "TDTT_SSO.xlsx"):
     if first_event:
         to_register = set()
         
-        # Tự động gom đăng ký toàn bộ Athlete hiện tại vào giải đấu mặc định
+        # Tự động gom đăng ký toàn bộ Athlete hiện tại vào giải đấu mặc định (nếu chưa có đăng ký giải nào)
         all_athletes = db.query(Athlete).all()
         for athlete in all_athletes:
-            to_register.add((athlete.id, first_event.id))
+            # Chỉ tự động gom đăng ký nếu VĐV chưa đăng ký bất kỳ giải đấu nào
+            has_reg = db.query(CompetitionRegistration).filter(
+                CompetitionRegistration.athlete_id == athlete.id
+            ).first()
+            if not has_reg:
+                to_register.add((athlete.id, first_event.id))
         
         # Tự động gom đăng ký VĐV vào các giải đấu khác nếu họ đã có hoạt động thuộc giải đấu đó
         active_activities_events = db.query(Activity.athlete_id, Activity.event_id)\

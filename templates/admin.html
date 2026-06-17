@@ -1410,6 +1410,45 @@
             </p>
             {% endif %}
         </div>
+
+        <!-- Công cụ sửa lỗi đăng ký nhầm giải đấu -->
+        <div class="glass-card" style="margin-top: 1.5rem; background: rgba(255,255,255,0.01); border: 1px solid rgba(244, 142, 145, 0.25);">
+            <h3 class="admin-section-title" style="color: var(--color-orange);"><i class="fa-solid fa-triangle-exclamation"></i> Công cụ khắc phục đăng ký nhầm giải</h3>
+            <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1.2rem; line-height: 1.5;">
+                Công cụ này giúp di chuyển hàng loạt các đăng ký mới được tạo gần đây từ <strong>giải đấu cũ (ID = 1)</strong> sang giải chạy mới đang chạy (hoặc giải chạy đích do bạn chọn). 
+                Chỉ những đăng ký mới được tạo trong thời gian quy định mới bị di chuyển. Những VĐV đã tham gia giải cũ trước đây sẽ không bị ảnh hưởng.
+            </p>
+            <form id="migrate-regs-form" onsubmit="runMigrateRegistrations(event)" style="display: flex; flex-direction: column; gap: 1rem;">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Giải chạy đích (Target Event)</label>
+                        <select id="migrate_target_event_id" name="target_event_id" class="form-control" required>
+                            {% for comp in all_competitions %}
+                                {% if comp.id != 1 %}
+                                <option value="{{ comp.id }}">{{ comp.title }} (ID: {{ comp.id }})</option>
+                                {% endif %}
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Khoảng thời gian đăng ký (Số giờ qua)</label>
+                        <input type="number" id="migrate_hours_threshold" name="hours_threshold" class="form-control" value="24" min="0.5" step="0.5" required>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 1rem; align-items: center;">
+                    <button type="submit" class="btn btn-secondary">
+                        <i class="fa-solid fa-eye"></i> Chạy Thử (Xem danh sách VĐV)
+                    </button>
+                    <button type="button" onclick="confirmAndMigrate()" class="btn" style="background: var(--color-orange); color: #fff;">
+                        <i class="fa-solid fa-shuffle"></i> Thực Hiện Di Chuyển Thật
+                    </button>
+                </div>
+            </form>
+            <div id="migrate-result-container" class="glass-card" style="display: none; margin-top: 1rem; background: rgba(0,0,0,0.2); padding: 1rem; border-radius: 8px;">
+                <h4 style="font-family: 'Outfit'; font-size: 0.95rem; margin-bottom: 0.5rem; color: var(--color-primary);">Kết quả thực thi:</h4>
+                <pre id="migrate-result-output" style="font-family: monospace; font-size: 0.82rem; white-space: pre-wrap; margin: 0; color: #fff; line-height: 1.4;"></pre>
+            </div>
+        </div>
     </div>
 
     <!-- TAB: SỰ KIỆN LỊCH SỬ -->
@@ -1579,6 +1618,61 @@
         } finally {
             btn.innerHTML = originalText;
             btn.disabled = false;
+        }
+    }
+
+    async function runMigrateRegistrations(e, apply = false) {
+        if (e) e.preventDefault();
+        
+        const targetEventId = document.getElementById('migrate_target_event_id').value;
+        const hoursThreshold = document.getElementById('migrate_hours_threshold').value;
+        
+        const resultContainer = document.getElementById('migrate-result-container');
+        const resultOutput = document.getElementById('migrate-result-output');
+        
+        resultContainer.style.display = 'block';
+        resultOutput.innerText = 'Đang thực thi... Vui lòng đợi...';
+        
+        try {
+            const formData = new FormData();
+            formData.append('target_event_id', targetEventId);
+            formData.append('hours_threshold', hoursThreshold);
+            formData.append('apply', apply ? 'true' : 'false');
+            
+            const res = await fetch('/admin/api/migrate-registrations', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+            
+            if (res.ok) {
+                let text = `[Trạng thái: ${data.dry_run ? "Chạy thử (Dry Run)" : "Thực tế (Apply)"}]\n`;
+                text += `Thông điệp: ${data.message}\n\n`;
+                if (data.details && data.details.length > 0) {
+                    text += `Danh sách VĐV phát hiện (${data.details.length}):\n`;
+                    data.details.forEach(ath => {
+                        text += ` - ID: ${ath.athlete_id} | Tên: ${ath.name} | Đăng ký lúc: ${ath.registered_at}\n`;
+                    });
+                } else {
+                    text += `Không phát hiện đăng ký nào trong ${hoursThreshold} giờ qua ở giải cũ.`;
+                }
+                resultOutput.innerText = text;
+            } else {
+                resultOutput.innerText = '❌ Lỗi: ' + (data.error || 'Có lỗi xảy ra');
+            }
+        } catch (err) {
+            resultOutput.innerText = '❌ Lỗi kết nối: ' + err.message;
+        }
+    }
+    
+    function confirmAndMigrate() {
+        const targetSelect = document.getElementById('migrate_target_event_id');
+        const targetTitle = targetSelect.options[targetSelect.selectedIndex].text;
+        const hours = document.getElementById('migrate_hours_threshold').value;
+        
+        const msg = `CẢNH BÁO!\nBạn có chắc chắn muốn di chuyển THẬT các đăng ký ở GIẢI CŨ trong ${hours} giờ qua sang "${targetTitle}"?\n\nThao tác này sẽ làm thay đổi cơ sở dữ liệu!`;
+        if (confirm(msg)) {
+            runMigrateRegistrations(null, true);
         }
     }
 

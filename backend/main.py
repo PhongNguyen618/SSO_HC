@@ -186,7 +186,7 @@ def get_department_members(db: Session, start_date: str = None, end_date: str = 
 @app.get("/", response_class=HTMLResponse)
 def index(
     request: Request,
-    event_id: int = None,
+    event_id: Optional[str] = None,
     start_date: str = None,
     end_date: str = None,
     db: Session = Depends(get_db)
@@ -200,10 +200,18 @@ def index(
     # Lấy danh sách giải đấu đang hoạt động
     active_competitions = db.query(CompetitionEvent).filter(CompetitionEvent.is_active == True).order_by(CompetitionEvent.id).all()
     
+    # Parse event_id safely to avoid 422 errors for empty queries like event_id=
+    parsed_event_id = None
+    if event_id is not None and str(event_id).strip():
+        try:
+            parsed_event_id = int(str(event_id).strip())
+        except ValueError:
+            pass
+
     # Xác định giải đấu được chọn
     selected_event = None
-    if event_id:
-        selected_event = db.query(CompetitionEvent).filter(CompetitionEvent.id == event_id).first()
+    if parsed_event_id:
+        selected_event = db.query(CompetitionEvent).filter(CompetitionEvent.id == parsed_event_id).first()
     if not selected_event and active_competitions:
         # Ưu tiên chọn giải đấu mới hoạt động (ID != 1) sắp xếp theo ID giảm dần, nếu không có thì fallback giải ID=1
         new_active = [c for c in active_competitions if c.id != 1]
@@ -212,6 +220,8 @@ def index(
         else:
             selected_event = active_competitions[0]
         event_id = selected_event.id
+    else:
+        event_id = selected_event.id if selected_event else None
     
     # Lấy cấu hình hiển thị cột của BXH Cá nhân
     col_configs = {
@@ -402,6 +412,7 @@ def index(
         request=request,
         name="index.html",
         context={
+            "configs": configs,
             "total_kcal": int(total_kcal),
             "total_dist": round(total_dist, 1),
             "total_athletes": total_athletes,
@@ -424,7 +435,7 @@ def index(
 @app.get("/rules", response_class=HTMLResponse)
 def rules_page(
     request: Request,
-    event_id: int = None,
+    event_id: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
     """Trang quy chế giải đấu."""
@@ -433,10 +444,18 @@ def rules_page(
     # Lấy danh sách giải đấu đang hoạt động
     active_competitions = db.query(CompetitionEvent).filter(CompetitionEvent.is_active == True).order_by(CompetitionEvent.id).all()
     
+    # Parse event_id safely to avoid 422 errors for empty queries like event_id=
+    parsed_event_id = None
+    if event_id is not None and str(event_id).strip():
+        try:
+            parsed_event_id = int(str(event_id).strip())
+        except ValueError:
+            pass
+
     # Xác định giải đấu được chọn
     selected_event = None
-    if event_id:
-        selected_event = db.query(CompetitionEvent).filter(CompetitionEvent.id == event_id).first()
+    if parsed_event_id:
+        selected_event = db.query(CompetitionEvent).filter(CompetitionEvent.id == parsed_event_id).first()
     if not selected_event and active_competitions:
         # Ưu tiên chọn giải đấu mới hoạt động (ID != 1) sắp xếp theo ID giảm dần, nếu không có thì fallback giải ID=1
         new_active = [c for c in active_competitions if c.id != 1]
@@ -491,7 +510,7 @@ def rules_page(
 @app.get("/register", response_class=HTMLResponse)
 def register_page(
     request: Request,
-    event_id: int = None,
+    event_id: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
     """Trang đăng ký tham gia cho vận động viên."""
@@ -502,7 +521,15 @@ def register_page(
     ]
     active_competitions = db.query(CompetitionEvent).filter(CompetitionEvent.is_active == True).order_by(CompetitionEvent.id).all()
     
-    selected_event_id = event_id
+    # Parse event_id safely to avoid 422 errors for empty queries like event_id=
+    parsed_event_id = None
+    if event_id is not None and str(event_id).strip():
+        try:
+            parsed_event_id = int(str(event_id).strip())
+        except ValueError:
+            pass
+
+    selected_event_id = parsed_event_id
     if not selected_event_id and active_competitions:
         new_active = [c for c in active_competitions if c.id != 1]
         if new_active:
@@ -514,6 +541,7 @@ def register_page(
         request=request,
         name="register.html",
         context={
+            "configs": get_config_dict(db),
             "departments": departments,
             "active_competitions": active_competitions,
             "selected_event_id": selected_event_id,
@@ -583,10 +611,14 @@ def register_athlete(
                     db.commit()
                     print(f"Main.py: Registered existing Athlete {exists.full_name} for event {event_id} during update.")
                 
+                # Liên kết các hoạt động cũ (chưa được liên kết trước đó) cho VĐV này
+                link_unlinked_activities(db, exists)
+                
                 return templates.TemplateResponse(
                     request=request,
                     name="register.html",
                     context={
+                        "configs": get_config_dict(db),
                         "departments": departments,
                         "active_competitions": active_competitions,
                         "selected_event_id": event_id,
@@ -601,6 +633,7 @@ def register_athlete(
                     request=request,
                     name="register.html",
                     context={
+                        "configs": get_config_dict(db),
                         "departments": departments,
                         "active_competitions": active_competitions,
                         "selected_event_id": event_id,
@@ -615,6 +648,7 @@ def register_athlete(
                 request=request,
                 name="register.html",
                 context={
+                    "configs": get_config_dict(db),
                     "departments": departments,
                     "active_competitions": active_competitions,
                     "selected_event_id": event_id,
@@ -659,6 +693,7 @@ def register_athlete(
             request=request,
             name="register.html",
             context={
+                "configs": get_config_dict(db),
                 "departments": departments,
                 "active_competitions": active_competitions,
                 "selected_event_id": event_id,
@@ -673,6 +708,7 @@ def register_athlete(
             request=request,
             name="register.html",
             context={
+                "configs": get_config_dict(db),
                 "departments": departments,
                 "active_competitions": active_competitions,
                 "selected_event_id": event_id,
@@ -686,7 +722,7 @@ def register_athlete(
 def profile_page(
     request: Request,
     athlete_id: int,
-    event_id: int = None,
+    event_id: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
     """Trang thống kê chi tiết cá nhân vận động viên."""
@@ -700,15 +736,23 @@ def profile_page(
         CompetitionEvent.id == CompetitionRegistration.event_id
     ).filter(CompetitionRegistration.athlete_id == athlete.id).order_by(CompetitionEvent.id).all()
     
+    # Parse event_id safely to avoid 422 errors for empty queries like event_id=
+    parsed_event_id = None
+    if event_id is not None and str(event_id).strip():
+        try:
+            parsed_event_id = int(str(event_id).strip())
+        except ValueError:
+            pass
+
     # Xác định giải đấu được chọn xem chi tiết
     selected_event = None
-    if event_id:
+    if parsed_event_id:
         is_reg = db.query(CompetitionRegistration).filter(
             CompetitionRegistration.athlete_id == athlete.id,
-            CompetitionRegistration.event_id == event_id
+            CompetitionRegistration.event_id == parsed_event_id
         ).first()
         if is_reg:
-            selected_event = db.query(CompetitionEvent).filter(CompetitionEvent.id == event_id).first()
+            selected_event = db.query(CompetitionEvent).filter(CompetitionEvent.id == parsed_event_id).first()
             
     if not selected_event and registered_events:
         selected_event = registered_events[0]
@@ -1927,6 +1971,84 @@ async def trigger_historical_import(
         
     return JSONResponse(content=res)
 
+@app.post("/admin/api/migrate-registrations")
+def admin_migrate_registrations(
+    request: Request,
+    target_event_id: int = Form(...),
+    hours_threshold: float = Form(...),
+    apply: str = Form("false"),
+    db: Session = Depends(get_db)
+):
+    admin_session = get_admin_session(request, db)
+    if not admin_session:
+        return JSONResponse(status_code=401, content={"error": "Chưa đăng nhập admin"})
+        
+    is_apply = (apply.lower() == "true")
+    
+    try:
+        # Check target event
+        target_event = db.query(CompetitionEvent).filter(CompetitionEvent.id == target_event_id).first()
+        if not target_event:
+            return JSONResponse(status_code=404, content={"error": f"Không tìm thấy giải chạy đích ID {target_event_id}"})
+            
+        time_limit = datetime.utcnow() - timedelta(hours=hours_threshold)
+        
+        # Query registrations in event 1 created recently
+        regs_to_migrate = db.query(CompetitionRegistration).filter(
+            CompetitionRegistration.event_id == 1,
+            CompetitionRegistration.registered_at >= time_limit
+        ).all()
+        
+        details = []
+        for r in regs_to_migrate:
+            ath = db.query(Athlete).filter(Athlete.id == r.athlete_id).first()
+            details.append({
+                "athlete_id": r.athlete_id,
+                "name": ath.full_name if ath else "Không rõ",
+                "registered_at": r.registered_at.strftime("%Y-%m-%d %H:%M:%S")
+            })
+            
+        if not is_apply:
+            return JSONResponse(content={
+                "dry_run": True,
+                "message": f"Tìm thấy {len(regs_to_migrate)} đăng ký mới ở giải cũ. Chưa thực hiện thay đổi nào.",
+                "details": details
+            })
+            
+        moved_count = 0
+        deleted_dup_count = 0
+        
+        for r in regs_to_migrate:
+            exists_in_target = db.query(CompetitionRegistration).filter(
+                CompetitionRegistration.athlete_id == r.athlete_id,
+                CompetitionRegistration.event_id == target_event_id
+            ).first()
+            
+            if exists_in_target:
+                db.delete(r)
+                deleted_dup_count += 1
+            else:
+                r.event_id = target_event_id
+                moved_count += 1
+                
+        db.commit()
+        
+        # Link unlinked activities for these migrated athletes
+        for r in regs_to_migrate:
+            ath = db.query(Athlete).filter(Athlete.id == r.athlete_id).first()
+            if ath:
+                link_unlinked_activities(db, ath)
+                
+        return JSONResponse(content={
+            "dry_run": False,
+            "message": f"Di chuyển thành công {moved_count} VĐV sang giải '{target_event.title}'. Đã xóa {deleted_dup_count} đăng ký trùng lặp.",
+            "details": details
+        })
+        
+    except Exception as e:
+        db.rollback()
+        return JSONResponse(status_code=500, content={"error": f"Lỗi xử lý: {str(e)}"})
+
 @app.post("/admin/activity/delete/{activity_id}")
 def delete_activity(activity_id: str, request: Request, db: Session = Depends(get_db)):
     """API xóa hoạt động, chỉ dành cho Admin."""
@@ -2144,7 +2266,7 @@ def export_excel(
     request: Request,
     start_date: str = None,
     end_date: str = None,
-    event_id: int = None,
+    event_id: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
     """
@@ -2158,6 +2280,16 @@ def export_excel(
     import pandas as pd
     from fastapi.responses import StreamingResponse
     from backend.calculations import get_award_info
+
+    # Parse event_id safely to avoid 422 errors for empty queries like event_id=
+    parsed_event_id = None
+    if event_id is not None and str(event_id).strip():
+        try:
+            parsed_event_id = int(str(event_id).strip())
+        except ValueError:
+            pass
+
+    event_id = parsed_event_id
 
     # 0. Xử lý khung thời gian mặc định (giống trang chủ)
     selected_event = None
