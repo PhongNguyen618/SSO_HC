@@ -431,6 +431,19 @@
 
     <!-- TAB: THỐNG KÊ PHÂN TÍCH (ANALYTICS) -->
     <div id="tab-analytics" class="tab-pane">
+        <!-- Bộ lọc giải đấu cho Thống kê -->
+        <div style="display: flex; justify-content: flex-end; margin-bottom: 1.5rem;">
+            <div style="display: flex; align-items: center; gap: 0.5rem; background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.08); padding: 0.4rem 1rem; border-radius: 8px;">
+                <label style="font-weight: 600; font-size: 0.85rem; color: var(--text-muted); margin: 0; white-space: nowrap;">Xem thống kê giải:</label>
+                <select class="form-control" onchange="window.location.href='/admin?event_id=' + this.value + '#tab-analytics'" style="background: rgba(10, 8, 20, 0.8); border: 1px solid var(--border-color); color: var(--text-color); padding: 0.2rem 0.5rem; height: auto; font-size: 0.85rem; width: auto; min-width: 180px;">
+                    <option value="" {% if not selected_event_id %}selected{% endif %}>Hiển thị tất cả giải đấu (Tổng quan)</option>
+                    {% for comp in all_competitions %}
+                    <option value="{{ comp.id }}" {% if selected_event_id == comp.id %}selected{% endif %}>{{ comp.title }} (ID: {{ comp.id }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
         <!-- Hàng KPIs tổng hợp -->
         <div class="kpi-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.2rem; margin-bottom: 2rem;">
             <div class="kpi-card" style="padding: 1.2rem; border-radius: 12px; background: rgba(143, 205, 240, 0.05); border: 1px solid rgba(143, 205, 240, 0.15); display: flex; align-items: center; gap: 1rem;">
@@ -544,11 +557,16 @@
                         <input type="number" step="0.1" id="new_weight" name="weight" class="form-control" placeholder="60.0" required>
                     </div>
                 </div>
-                <div class="form-group">
-                    <label for="new_strava_name">Tên hiển thị trên Strava</label>
-                    <input type="text" id="new_strava_name" name="strava_name" class="form-control" placeholder="Ví dụ: Nguyen M." required>
+                <div class="form-group" style="margin-top: 1rem;">
+                    <label for="new_event_id">Đăng ký giải đấu tham gia <span style="color: var(--color-primary);">*</span></label>
+                    <select id="new_event_id" name="event_id" class="form-control" required>
+                        <option value="" disabled selected>-- Chọn giải đấu bạn tham gia --</option>
+                        {% for comp in all_competitions %}
+                        <option value="{{ comp.id }}" {% if selected_event_id == comp.id %}selected{% endif %}>{{ comp.title }} (ID: {{ comp.id }})</option>
+                        {% endfor %}
+                    </select>
                 </div>
-                <button type="submit" class="btn btn-primary btn-sm" style="margin-top: 0.5rem;">
+                <button type="submit" class="btn btn-primary btn-sm" style="margin-top: 1rem;">
                     <i class="fa-solid fa-plus"></i> Thêm Vận Động Viên
                 </button>
             </form>
@@ -556,7 +574,19 @@
 
         <!-- Athletes List Table -->
         <div class="glass-card" style="background: rgba(255,255,255,0.01);">
-            <h3 class="admin-section-title">Danh Sách Thành Viên ({{ athletes|length }} VĐV)</h3>
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem;">
+                <h3 class="admin-section-title" style="margin: 0;">Danh Sách Thành Viên ({{ athletes|length }} VĐV)</h3>
+                
+                <div style="display: flex; align-items: center; gap: 0.5rem; background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.08); padding: 0.4rem 1rem; border-radius: 8px;">
+                    <label style="font-weight: 600; font-size: 0.85rem; color: var(--text-muted); margin: 0; white-space: nowrap;">Giải đấu đang lọc:</label>
+                    <select class="form-control" onchange="window.location.href='/admin?event_id=' + this.value + '#tab-athletes'" style="background: rgba(10, 8, 20, 0.8); border: 1px solid var(--border-color); color: var(--text-color); padding: 0.2rem 0.5rem; height: auto; font-size: 0.85rem; width: auto; min-width: 180px;">
+                        <option value="" {% if not selected_event_id %}selected{% endif %}>Hiển thị tất cả giải đấu</option>
+                        {% for comp in all_competitions %}
+                        <option value="{{ comp.id }}" {% if selected_event_id == comp.id %}selected{% endif %}>{{ comp.title }} (ID: {{ comp.id }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
             <div class="table-responsive">
                 <table class="custom-table" style="font-size:0.85rem;">
                     <thead>
@@ -624,9 +654,21 @@
     <div id="tab-activities" class="tab-pane">
         <!-- Thanh công cụ -->
         <div class="glass-card" style="background: rgba(255,255,255,0.01); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem; padding: 1.2rem;">
-            <div style="display: flex; gap: 0.8rem; align-items: center; flex-grow: 1; max-width: 500px;">
-                <i class="fa-solid fa-magnifying-glass" style="color: var(--text-muted); font-size: 1.1rem;"></i>
-                <input type="text" id="search-activity-input" class="form-control" placeholder="Tìm tên VĐV, tên hoạt động hoặc bộ môn..." oninput="onSearchActivityInput(this.value)" style="margin-bottom:0;">
+            <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; flex-grow: 1;">
+                <div style="display: flex; gap: 0.8rem; align-items: center; width: 320px;">
+                    <i class="fa-solid fa-magnifying-glass" style="color: var(--text-muted); font-size: 1.1rem;"></i>
+                    <input type="text" id="search-activity-input" class="form-control" placeholder="Tìm tên VĐV, hoạt động..." oninput="onSearchActivityInput(this.value)" style="margin-bottom:0; font-size: 0.85rem;">
+                </div>
+                
+                <div style="display: flex; align-items: center; gap: 0.5rem; background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.08); padding: 0.3rem 0.8rem; border-radius: 8px;">
+                    <label style="font-weight: 600; font-size: 0.85rem; color: var(--text-muted); margin: 0; white-space: nowrap;">Giải đấu:</label>
+                    <select class="form-control event-config-select" data-type="activities" onchange="loadConfigForEvent(this, 'activities')" style="background: rgba(10, 8, 20, 0.8); border: 1px solid var(--border-color); color: var(--text-color); padding: 0.2rem 0.5rem; height: auto; font-size: 0.85rem; width: auto; min-width: 180px; margin-bottom: 0;">
+                        <option value="" {% if not selected_event_id %}selected{% endif %}>Hiển thị tất cả giải đấu</option>
+                        {% for comp in all_competitions %}
+                        <option value="{{ comp.id }}" {% if selected_event_id == comp.id %}selected{% endif %}>{{ comp.title }} (ID: {{ comp.id }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
             </div>
             <div>
                 <button onclick="runDeduplicateActivities(event)" class="btn btn-secondary btn-sm" style="background: linear-gradient(135deg, #ff5e36, #ff7b57); border: none; color: #fff; display: flex; align-items: center; gap: 0.5rem;" title="Quét và xóa các hoạt động trùng lặp về quãng đường/calo">
@@ -1573,7 +1615,11 @@
             </tr>
         `;
         
-        fetch(`/admin/api/activities?page=${page}&limit=20&search=${encodeURIComponent(searchActivityQuery)}`)
+        // Lấy event_id hiện tại từ dropdown giải đấu của activities
+        const eventSelect = document.querySelector('.event-config-select[data-type="activities"]');
+        const eventId = eventSelect ? eventSelect.value : '';
+        
+        fetch(`/admin/api/activities?page=${page}&limit=20&search=${encodeURIComponent(searchActivityQuery)}&event_id=${eventId}`)
             .then(res => res.json())
             .then(data => {
                 if (data.status === 'success') {
@@ -1807,6 +1853,9 @@
         document.querySelectorAll('.event-config-select').forEach(sel => {
             sel.value = eventId;
         });
+        
+        // Load lại danh sách hoạt động cho giải đấu mới chọn
+        loadActivities(1);
         
         // Cập nhật tất cả event_id ẩn trong các form
         document.querySelectorAll('.hidden-event-id').forEach(input => {
@@ -2088,6 +2137,17 @@
 
     // --- DOWNLOAD EXCEL REPORT WITH DATE RANGE LOGIC ---
     window.addEventListener('DOMContentLoaded', () => {
+        // Tự động chuyển tab theo URL Hash (ví dụ #tab-athletes)
+        const hash = window.location.hash;
+        if (hash) {
+            const cleanHash = hash.replace('#', '');
+            const tabBtn = document.querySelector(`.tab-btn[onclick*="${cleanHash}"]`);
+            if (tabBtn) {
+                // Kích hoạt click vào nút tab
+                tabBtn.click();
+            }
+        }
+
         const startInput = document.getElementById('excel_start');
         const endInput = document.getElementById('excel_end');
         if (startInput && endInput) {

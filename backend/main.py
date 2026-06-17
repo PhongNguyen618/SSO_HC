@@ -3,6 +3,7 @@ import hashlib
 import time
 import json
 import requests
+from typing import Optional
 from datetime import datetime, timedelta
 from fastapi import FastAPI, Depends, Request, Form, HTTPException, status, File, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
@@ -920,7 +921,6 @@ def admin_dashboard(
         )
         
     configs = get_config_dict(db)
-    athletes = db.query(Athlete).order_by(Athlete.id).all()
     
     selected_event_id = None
     if event_id and event_id.strip():
@@ -928,6 +928,14 @@ def admin_dashboard(
             selected_event_id = int(event_id)
         except ValueError:
             pass
+
+    if selected_event_id:
+        athletes = db.query(Athlete).join(
+            CompetitionRegistration,
+            Athlete.id == CompetitionRegistration.athlete_id
+        ).filter(CompetitionRegistration.event_id == selected_event_id).order_by(Athlete.id).all()
+    else:
+        athletes = db.query(Athlete).order_by(Athlete.id).all()
 
     # Lấy METs Rules
     mets = []
@@ -978,12 +986,25 @@ def admin_dashboard(
     all_competitions = db.query(CompetitionEvent).order_by(CompetitionEvent.id.desc()).all()
 
     # --- LOGIC THỐNG KÊ PHÂN TÍCH CHO ADMIN ---
+    # --- LOGIC THỐNG KÊ PHÂN TÍCH CHO ADMIN ---
     # 1. Chỉ số KPIs tổng hợp
-    total_active_athletes = db.query(Athlete).filter(Athlete.is_active == True).count()
-    total_valid_activities = db.query(Activity).count()
-    total_kcal_burned = db.query(func.sum(Activity.kcal_burned)).scalar() or 0.0
-    total_distance = db.query(func.sum(Activity.distance_km)).scalar() or 0.0
-    total_moving_time_min = db.query(func.sum(Activity.moving_time_min)).scalar() or 0.0
+    if selected_event_id:
+        total_active_athletes = db.query(Athlete).join(
+            CompetitionRegistration,
+            Athlete.id == CompetitionRegistration.athlete_id
+        ).filter(CompetitionRegistration.event_id == selected_event_id, Athlete.is_active == True).count()
+        
+        total_valid_activities = db.query(Activity).filter(Activity.event_id == selected_event_id).count()
+        total_kcal_burned = db.query(func.sum(Activity.kcal_burned)).filter(Activity.event_id == selected_event_id).scalar() or 0.0
+        total_distance = db.query(func.sum(Activity.distance_km)).filter(Activity.event_id == selected_event_id).scalar() or 0.0
+        total_moving_time_min = db.query(func.sum(Activity.moving_time_min)).filter(Activity.event_id == selected_event_id).scalar() or 0.0
+    else:
+        total_active_athletes = db.query(Athlete).filter(Athlete.is_active == True).count()
+        total_valid_activities = db.query(Activity).count()
+        total_kcal_burned = db.query(func.sum(Activity.kcal_burned)).scalar() or 0.0
+        total_distance = db.query(func.sum(Activity.distance_km)).scalar() or 0.0
+        total_moving_time_min = db.query(func.sum(Activity.moving_time_min)).scalar() or 0.0
+        
     total_hours = total_moving_time_min / 60.0
 
     # 2. Thống kê Calo theo tuần (12 tuần gần nhất) và tháng (6 tháng gần nhất)
@@ -1008,10 +1029,12 @@ def admin_dashboard(
     start_week_date = max_date_monday - datetime.timedelta(weeks=11)
     start_week_date_str = start_week_date.strftime("%Y-%m-%d")
     
-    week_activities = db.query(Activity.activity_date, Activity.kcal_burned)\
+    week_query = db.query(Activity.activity_date, Activity.kcal_burned)\
         .filter(Activity.activity_date >= start_week_date_str)\
-        .filter(Activity.activity_date <= max_date_str)\
-        .all()
+        .filter(Activity.activity_date <= max_date_str)
+    if selected_event_id:
+        week_query = week_query.filter(Activity.event_id == selected_event_id)
+    week_activities = week_query.all()
 
     for act_date_str, kcal in week_activities:
         try:
@@ -1046,10 +1069,12 @@ def admin_dashboard(
     start_month_str = sorted_months_keys[0]
     start_month_date_str = f"{start_month_str}-01"
 
-    month_activities = db.query(Activity.activity_date, Activity.kcal_burned)\
+    month_query = db.query(Activity.activity_date, Activity.kcal_burned)\
         .filter(Activity.activity_date >= start_month_date_str)\
-        .filter(Activity.activity_date <= max_date_str)\
-        .all()
+        .filter(Activity.activity_date <= max_date_str)
+    if selected_event_id:
+        month_query = month_query.filter(Activity.event_id == selected_event_id)
+    month_activities = month_query.all()
 
     for act_date_str, kcal in month_activities:
         try:
@@ -1066,12 +1091,15 @@ def admin_dashboard(
     monthly_kcal = [round(monthly_data[ym], 1) for ym in sorted_months_keys]
 
     # 3. Cơ cấu hoạt động theo bộ môn (Sport Type Distribution)
-    sport_stats = db.query(
+    sport_query = db.query(
         Activity.sport_type,
         func.count(Activity.id).label("count"),
         func.sum(Activity.kcal_burned).label("kcal"),
         func.sum(Activity.distance_km).label("dist")
-    ).group_by(Activity.sport_type).all()
+    )
+    if selected_event_id:
+        sport_query = sport_query.filter(Activity.event_id == selected_event_id)
+    sport_stats = sport_query.group_by(Activity.sport_type).all()
 
     sport_labels = []
     sport_kcal = []
@@ -1388,6 +1416,7 @@ def admin_add_athlete(
     department: str = Form(...),
     weight: float = Form(...),
     strava_name: str = Form(...),
+    event_id: Optional[int] = Form(None),
     db: Session = Depends(get_db)
 ):
     admin = get_admin_session(request, db)
@@ -1412,9 +1441,15 @@ def admin_add_athlete(
     db.add(athlete)
     db.commit()
     db.refresh(athlete)
+    
+    if event_id:
+        reg = CompetitionRegistration(athlete_id=athlete.id, event_id=event_id)
+        db.add(reg)
+        db.commit()
+        
     link_unlinked_activities(db, athlete)
     
-    return RedirectResponse("/admin?success=Them thanh vien moi thanh cong", status_code=303)
+    return RedirectResponse(f"/admin?success=Them thanh vien moi thanh cong&event_id={event_id or ''}#tab-athletes", status_code=303)
 
 @app.post("/admin/athlete/edit/{athlete_id}")
 def admin_edit_athlete(
@@ -1950,6 +1985,7 @@ def get_activities_api(
     page: int = 1,
     limit: int = 50,
     search: str = "",
+    event_id: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
     """API lấy danh sách hoạt động có phân trang và tìm kiếm (chỉ dành cho Admin)."""
@@ -1957,7 +1993,17 @@ def get_activities_api(
     if not admin_session:
         return JSONResponse(status_code=401, content={"error": "Chưa đăng nhập admin"})
         
+    ev_id = None
+    if event_id and event_id.strip():
+        try:
+            ev_id = int(event_id)
+        except ValueError:
+            pass
+
     query = db.query(Activity)
+    if ev_id:
+        query = query.filter(Activity.event_id == ev_id)
+        
     if search:
         search_filter = f"%{search.strip()}%"
         query = query.filter(
