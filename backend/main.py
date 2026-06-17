@@ -967,11 +967,21 @@ def admin_dashboard(
     configs = get_config_dict(db)
     
     selected_event_id = None
-    if event_id and event_id.strip():
-        try:
-            selected_event_id = int(event_id)
-        except ValueError:
-            pass
+    if event_id is not None:
+        if event_id.strip():
+            try:
+                selected_event_id = int(event_id)
+            except ValueError:
+                pass
+    else:
+        # Tự động chọn giải đấu đang hoạt động làm mặc định giống trang chủ
+        active_competitions = db.query(CompetitionEvent).filter(CompetitionEvent.is_active == True).order_by(CompetitionEvent.id).all()
+        if active_competitions:
+            new_active = [c for c in active_competitions if c.id != 1]
+            if new_active:
+                selected_event_id = sorted(new_active, key=lambda x: x.id, reverse=True)[0].id
+            else:
+                selected_event_id = active_competitions[0].id
 
     if selected_event_id:
         athletes = db.query(Athlete).join(
