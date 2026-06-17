@@ -537,6 +537,12 @@ def register_page(
         else:
             selected_event_id = active_competitions[0].id
         
+    # Lấy danh sách tên Strava từ các hoạt động chưa liên kết với bất kỳ VĐV nào để làm gợi ý đăng ký
+    unlinked_names = db.query(Activity.athlete_name_raw)\
+        .filter(Activity.athlete_id == None)\
+        .group_by(Activity.athlete_name_raw).all()
+    unlinked_athletes = [name[0] for name in unlinked_names if name[0]]
+
     return templates.TemplateResponse(
         request=request,
         name="register.html",
@@ -545,6 +551,7 @@ def register_page(
             "departments": departments,
             "active_competitions": active_competitions,
             "selected_event_id": selected_event_id,
+            "unlinked_athletes": unlinked_athletes,
             "success": None,
             "error": None,
             "already_exists": False
@@ -571,6 +578,12 @@ def register_athlete(
     active_competitions = db.query(CompetitionEvent).filter(CompetitionEvent.is_active == True).order_by(CompetitionEvent.id).all()
     full_name = full_name.strip()
     strava_name = strava_name.strip()
+    
+    # Lấy danh sách tên Strava chưa liên kết để hiển thị gợi ý khi xảy ra lỗi/cập nhật
+    unlinked_names = db.query(Activity.athlete_name_raw)\
+        .filter(Activity.athlete_id == None)\
+        .group_by(Activity.athlete_name_raw).all()
+    unlinked_athletes = [name[0] for name in unlinked_names if name[0]]
 
     # Kiểm tra xem tên Strava đã được đăng ký chưa
     exists = db.query(Athlete).filter(Athlete.strava_name == strava_name).first()
@@ -622,6 +635,7 @@ def register_athlete(
                         "departments": departments,
                         "active_competitions": active_competitions,
                         "selected_event_id": event_id,
+                        "unlinked_athletes": unlinked_athletes,
                         "success": f"Đã cập nhật thông tin và đăng ký giải chạy thành công cho VĐV {exists.full_name}!",
                         "error": None,
                         "already_exists": False
@@ -637,6 +651,7 @@ def register_athlete(
                         "departments": departments,
                         "active_competitions": active_competitions,
                         "selected_event_id": event_id,
+                        "unlinked_athletes": unlinked_athletes,
                         "success": None,
                         "error": f"Lỗi hệ thống khi cập nhật: {str(e)}",
                         "already_exists": False
@@ -652,6 +667,7 @@ def register_athlete(
                     "departments": departments,
                     "active_competitions": active_competitions,
                     "selected_event_id": event_id,
+                    "unlinked_athletes": unlinked_athletes,
                     "success": None,
                     "error": f"Tên hiển thị Strava '{strava_name}' đã được đăng ký trong hệ thống.",
                     "already_exists": True,
@@ -697,6 +713,7 @@ def register_athlete(
                 "departments": departments,
                 "active_competitions": active_competitions,
                 "selected_event_id": event_id,
+                "unlinked_athletes": unlinked_athletes,
                 "success": f"Vận động viên {full_name} đã đăng ký tham gia giải chạy thành công!",
                 "error": None,
                 "already_exists": False
@@ -712,6 +729,7 @@ def register_athlete(
                 "departments": departments,
                 "active_competitions": active_competitions,
                 "selected_event_id": event_id,
+                "unlinked_athletes": unlinked_athletes,
                 "success": None,
                 "error": f"Lỗi hệ thống: {str(e)}",
                 "already_exists": False

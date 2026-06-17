@@ -601,7 +601,7 @@
         if (chartsInitialized) return;
 
         // Trích xuất dữ liệu
-        const top10Athletes = rankedAthletes.slice(0, 10).reverse(); // Đảo ngược để VĐV hạng 1 nằm trên cùng trong Horizontal Chart
+        const top10Athletes = rankedAthletes.slice(0, 10); // Lấy top 10 VĐV (VĐV hạng 1 nằm ở đầu danh sách sẽ được Chart.js vẽ ở trên cùng)
         const athleteNames = top10Athletes.map(a => `${a.rank}. ${a.full_name} (${a.department})`);
         const athleteKcal = top10Athletes.map(a => a.total_kcal);
 

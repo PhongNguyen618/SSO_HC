@@ -161,9 +161,14 @@
 
             <div class="form-group">
                 <label for="strava_name">Tên hiển thị trên Strava</label>
-                <input type="text" id="strava_name" name="strava_name" class="form-control" placeholder="Ví dụ: Tùng N. hoặc Tùng Nguyễn" value="{% if form_data %}{{ form_data.strava_name }}{% endif %}" {% if already_exists %}readonly style="background: rgba(255,255,255,0.02); color: var(--text-muted); cursor: not-allowed;"{% endif %} required>
+                <input type="text" id="strava_name" name="strava_name" list="strava-list" class="form-control" placeholder="Ví dụ: Tùng N. hoặc Tùng Nguyễn" value="{% if form_data %}{{ form_data.strava_name }}{% endif %}" {% if already_exists %}readonly style="background: rgba(255,255,255,0.02); color: var(--text-muted); cursor: not-allowed;"{% endif %} required autocomplete="off">
+                <datalist id="strava-list">
+                    {% for name in unlinked_athletes %}
+                    <option value="{{ name }}"></option>
+                    {% endfor %}
+                </datalist>
                 <small style="color: var(--text-muted); font-size: 0.8rem; display: block; margin-top: 0.4rem;">
-                    <i class="fa-solid fa-circle-info"></i> Rất quan trọng: Nhập chính xác Tên và chữ cái đầu của Họ hiển thị trong nhóm Strava (Ví dụ: "Nguyen M." hoặc "tan L."). Tên này được dùng để khớp kết quả tự động.
+                    <i class="fa-solid fa-circle-info"></i> Rất quan trọng: Bạn có thể chọn tên của mình từ danh sách gợi ý (được lấy tự động từ group Strava) để tránh gõ sai.
                 </small>
             </div>
 
