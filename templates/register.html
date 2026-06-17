@@ -50,15 +50,11 @@
     {% endif %}
 
     <div class="glass-card">
-        <h2 class="card-title">
-            <i class="fa-solid fa-user-plus"></i> Đăng Ký Tham Gia Giải Chạy
+        {% if success %}
+        <h2 class="card-title" style="color: var(--color-green); text-align: center; margin-bottom: 1.5rem;">
+            <i class="fa-solid fa-circle-check"></i> Đăng Ký Thành Công!
         </h2>
         
-        <p style="color: var(--text-muted); margin-bottom: 2rem; font-size: 0.95rem;">
-            Vui lòng điền đầy đủ các thông tin cá nhân dưới đây. Thông tin của bạn sẽ được sử dụng để tính lượng calo tiêu thụ (KCAL) chính xác dựa trên cân nặng và cập nhật bảng thành tích tự động từ nhóm Strava.
-        </p>
-
-        {% if success %}
         <div class="alert alert-success" style="margin-bottom: 1.5rem;">
             <i class="fa-solid fa-circle-check"></i> {{ success }}
         </div>
@@ -80,7 +76,23 @@
             </span>
         </div>
         {% endif %}
-        {% endif %}
+
+        <div style="margin-top: 2rem; display: flex; gap: 1rem;">
+            <a href="/" class="btn btn-primary" style="flex: 1; text-align: center; padding: 0.7rem; font-size: 0.95rem; line-height: 1.6;">
+                <i class="fa-solid fa-house"></i> Quay Về Trang Chủ
+            </a>
+            <a href="/register" class="btn btn-secondary" style="flex: 1; text-align: center; padding: 0.7rem; font-size: 0.95rem; line-height: 1.6;">
+                <i class="fa-solid fa-user-plus"></i> Đăng Ký Thêm Người Khác
+            </a>
+        </div>
+        {% else %}
+        <h2 class="card-title">
+            <i class="fa-solid fa-user-plus"></i> Đăng Ký Tham Gia Giải Chạy
+        </h2>
+        
+        <p style="color: var(--text-muted); margin-bottom: 2rem; font-size: 0.95rem;">
+            Vui lòng điền đầy đủ các thông tin cá nhân dưới đây. Thông tin của bạn sẽ được sử dụng để tính lượng calo tiêu thụ (KCAL) chính xác dựa trên cân nặng và cập nhật bảng thành tích tự động từ nhóm Strava.
+        </p>
 
         {% if error and not already_exists %}
         <div class="alert alert-error">
@@ -161,11 +173,12 @@
                     <i class="fa-solid fa-paper-plane"></i> Đăng Ký Ngay
                 </button>
                 {% endif %}
-                <a href="/" class="btn btn-secondary" style="{% if not already_exists %}flex: 1;{% else %}width: 100%;{% endif %} text-align: center;">
+                <a href="/" class="btn btn-secondary" style="{% if not already_exists %}flex: 1;{% else %}width: 100%;{% endif %} text-align: center; line-height: 1.6;">
                     <i class="fa-solid fa-arrow-left"></i> Quay Về Trang Chủ
                 </a>
             </div>
         </form>
+        {% endif %}
     </div>
 </div>
 {% endblock %}
