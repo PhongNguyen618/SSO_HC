@@ -2456,12 +2456,13 @@ def api_deduplicate_activities(request: Request, db: Session = Depends(get_db)):
         import hashlib
         
         for act in activities:
-            dist_km_round = round(float(act.distance_km or 0), 2)
+            dist_raw = act.distance_km_raw if act.distance_km_raw is not None else act.distance_km
+            dist_km_round = round(float(dist_raw or 0), 2)
             mov_time_round = round(float(act.moving_time_min or 0), 1)
             ela_time_round = round(float(act.elapsed_time_min or 0), 1)
             elev_round = float(act.elevation_gain_m or 0)
             
-            unique_str = f"{act.athlete_name_raw}_{act.name}_{act.sport_type}_{dist_km_round}_{mov_time_round}_{ela_time_round}_{elev_round}"
+            unique_str = f"{act.athlete_name_raw}_{act.activity_date}_{act.name}_{act.sport_type}_{dist_km_round}_{mov_time_round}_{ela_time_round}_{elev_round}_{act.event_id}"
             
             if unique_str in seen_activities:
                 to_delete.append(act.id)

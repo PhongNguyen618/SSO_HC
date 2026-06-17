@@ -119,8 +119,8 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
         if distance_km > 0:
             pace_min_km = round(moving_time_min / distance_km, 2)
 
-        # Tạo mã định danh duy nhất bao gồm event_id để chống trùng lặp giữa các giải
-        unique_str = f"{athlete_name_raw}_{name}_{act_type}_{distance_km}_{moving_time_min}_{elapsed_time_min}_{elevation_gain_m}_{event_id}"
+        # Tạo mã định danh duy nhất bao gồm event_id và ngày đồng bộ để chống trùng lặp giữa các ngày/các giải
+        unique_str = f"{athlete_name_raw}_{today_str}_{name}_{act_type}_{distance_km}_{moving_time_min}_{elapsed_time_min}_{elevation_gain_m}_{event_id}"
         act_id = hashlib.sha256(unique_str.encode("utf-8")).hexdigest()
         
         # Kiểm tra xem hoạt động đã có trong DB chưa
@@ -406,7 +406,7 @@ async def import_excel_files(files: list[UploadFile], db: Session, event_id: int
                 ela_time_round = round(ela_time, 1)
                 elev_round = float(elev)
                 
-                composite_key = f"{name_raw}_{act_name}_{act_type}_{dist_km_round}_{mov_time_round}_{ela_time_round}_{elev_round}_{event_id}"
+                composite_key = f"{name_raw}_{activity_date}_{act_name}_{act_type}_{dist_km_round}_{mov_time_round}_{ela_time_round}_{elev_round}_{event_id}"
                 activity_id = hashlib.sha256(composite_key.encode('utf-8')).hexdigest()
                 
                 if activity_id in seen_ids:
