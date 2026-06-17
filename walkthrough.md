@@ -62,3 +62,20 @@ Dự án là web app Strava SSO_HC dùng FastAPI, SQLAlchemy và SQLite. Giao di
 2. Kết nối OAuth Strava tại trang Admin để lấy token.
 3. Có thể import dữ liệu lịch sử và export báo cáo Excel từ Admin.
 4. Khi thay đổi `rules_version`, Welcome Banner sẽ hiển thị lại cho người dùng.
+
+## Giai đoạn 4: Cấu hình giải đấu KM/KCAL & Bộ môn riêng biệt (Đã hoàn thành)
+
+*   **Database Schema:**
+    *   Bổ sung hai thuộc tính `ranking_metric` (kcal/distance) và `ranking_sports` (dạng danh sách cách nhau bởi dấu phẩy, ví dụ `Run,Walk`) vào bảng `competition_events`.
+    *   Tự động di trú bổ sung cột và nâng cấp cấu trúc dữ liệu cho cơ sở dữ liệu hiện có trong hàm `init_db()`.
+*   **Logic Backend & APIs:**
+    *   Các bảng xếp hạng (Cá nhân, Phòng ban, Bộ môn) tự động lọc theo bộ môn cho phép của giải đấu.
+    *   Thành tích được tính toán và sắp xếp động theo tiêu chí Quãng đường (KM) hoặc Năng lượng (KCAL) của giải đấu được chọn.
+    *   Các endpoint Xuất Excel báo cáo, Trang quy chế, và Hồ sơ cá nhân VĐV tự động cập nhật cách tính toán và nhãn hiển thị.
+    *   Tích hợp áp dụng hệ số nhân (multiplier) vào quãng đường `distance_km` (lưu quãng đường nhân hệ số ở `distance_km` và quãng đường gốc ở `distance_km_raw`) tương thích hoàn toàn với cơ chế của calo tiêu thụ, đảm bảo tính công bằng khi nhân đôi/nhân ba thành tích vào những ngày chạy đặc biệt.
+*   **Giao diện Frontend (Templates):**
+    *   Động hóa hoàn toàn nhãn hiển thị (KM, KCAL, KM/Người, KCAL/Người) tại Trang chủ (leaderboards, charts), Trang cá nhân (kpi cards, awards progress, charts), Trang quy chế và trang Admin.
+    *   Gắn sự kiện JavaScript động trong trang Admin để tự động thay đổi nhãn cấu hình mốc quy đổi tuyến tính khi Admin thay đổi tiêu chí xếp hạng của giải đấu.
+*   **Kết quả kiểm thử:**
+    *   Đã chạy thành công kịch bản kiểm thử tự động `test_routes_validation.py` xác thực các routes hoạt động ổn định với các giá trị đầu vào của `event_id`.
+    *   Đã viết và chạy thành công kịch bản kiểm thử tự động `test_km_ranking.py` mô phỏng giải chạy KM và lọc bộ môn. Kết quả xác nhận các hoạt động được nhân đôi quãng đường vào ngày Chủ nhật chính xác (lưu đúng raw và multiplied), loại bỏ bộ môn không hợp lệ ra khỏi BXH và tính toán tổng thành tích BXH cá nhân hoàn hảo (20.0 KM như thiết kế).

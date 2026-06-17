@@ -931,7 +931,7 @@
                 <div id="linearRewardConfig" style="{% if not selected_event or selected_event.reward_type != 'linear' %}display: none;{% endif %} margin-bottom: 1.5rem;">
                     <div style="display: flex; gap: 1rem; align-items: center; max-width: 600px; margin-bottom: 1rem;">
                         <div class="form-group" style="flex: 1; margin: 0;">
-                            <label style="font-weight: 600; font-size: 0.9rem; color: var(--text-muted); margin-bottom: 0.5rem; display: block;">Mỗi mốc KCAL quy đổi</label>
+                            <label style="font-weight: 600; font-size: 0.9rem; color: var(--text-muted); margin-bottom: 0.5rem; display: block;">{% if selected_event and selected_event.ranking_metric == 'distance' %}Mỗi mốc KM quy đổi{% else %}Mỗi mốc KCAL quy đổi{% endif %}</label>
                             <input type="number" name="reward_linear_kcal" id="input_reward_linear_kcal" class="form-control" min="1" value="{{ selected_event.reward_linear_kcal | int if selected_event and selected_event.reward_linear_kcal else 100 }}">
                         </div>
                         <div class="form-group" style="flex: 1.5; margin: 0;">
@@ -940,14 +940,14 @@
                         </div>
                     </div>
                     <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.5rem; margin-bottom: 0;">
-                        <i class="fa-solid fa-circle-info"></i> Giải đấu này đang sử dụng kiểu tính thưởng: <strong>Quy đổi tuyến tính</strong>. Số tiền thưởng tăng tuyến tính theo thành tích KCAL và không dùng mốc cố định.
+                         <i class="fa-solid fa-circle-info"></i> Giải đấu này đang sử dụng kiểu tính thưởng: <strong>Quy đổi tuyến tính</strong>. Số tiền thưởng tăng tuyến tính theo thành tích {% if selected_event and selected_event.ranking_metric == 'distance' %}KM{% else %}KCAL{% endif %} và không dùng mốc cố định.
                     </p>
                 </div>
 
                 <div id="rewardsRulesList" style="{% if selected_event and selected_event.reward_type == 'linear' %}display: none;{% endif %}">
                     <div style="display: grid; grid-template-columns: 1.5fr 1.5fr 1.5fr 0.5fr; gap: 0.5rem; font-weight:600; color:var(--text-muted); font-size:0.8rem; margin-bottom: 0.8rem;">
                         <span>Giới tính áp dụng</span>
-                        <span>Mốc năng lượng đạt giải (KCAL)</span>
+                        <span>{% if selected_event and selected_event.ranking_metric == 'distance' %}Mốc quãng đường đạt giải (KM){% else %}Mốc năng lượng đạt giải (KCAL){% endif %}</span>
                         <span>Trị giá giải thưởng (VND)</span>
                         <span>Xóa</span>
                     </div>
@@ -1209,6 +1209,24 @@
                     </div>
                 </div>
                 <div class="form-row">
+                    <div class="form-group" style="flex: 1;">
+                        <label>Tiêu chí xếp hạng</label>
+                        <select name="ranking_metric" class="form-control" onchange="updateMetricLabels(this, 'create')">
+                            <option value="kcal" selected>Năng lượng (KCAL)</option>
+                            <option value="distance">Quãng đường (KM)</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex: 2;">
+                        <label>Bộ môn tính điểm</label>
+                        <div style="display: flex; gap: 1rem; margin-top: 0.5rem; flex-wrap: wrap;">
+                            <label style="cursor: pointer; display: flex; align-items: center; gap: 0.3rem;"><input type="checkbox" name="ranking_sports_run" value="Run" checked> Chạy bộ (Run)</label>
+                            <label style="cursor: pointer; display: flex; align-items: center; gap: 0.3rem;"><input type="checkbox" name="ranking_sports_walk" value="Walk" checked> Đi bộ (Walk)</label>
+                            <label style="cursor: pointer; display: flex; align-items: center; gap: 0.3rem;"><input type="checkbox" name="ranking_sports_ride" value="Ride" checked> Đạp xe (Ride)</label>
+                            <label style="cursor: pointer; display: flex; align-items: center; gap: 0.3rem;"><input type="checkbox" name="ranking_sports_swim" value="Swim" checked> Bơi lội (Swim)</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-row">
                     <div class="form-group" style="flex: 1.5;">
                         <label>Kiểu tính giải thưởng</label>
                         <select name="reward_type" class="form-control" onchange="toggleRewardTypeFields(this, 'create')">
@@ -1351,6 +1369,25 @@
                                             </select>
                                         </div>
                                     </div>
+                                    {% set allowed_sports = (comp.ranking_sports or "Run,Walk,Ride,Swim").split(',') %}
+                                    <div class="form-row">
+                                        <div class="form-group" style="flex: 1;">
+                                            <label>Tiêu chí xếp hạng</label>
+                                            <select name="ranking_metric" class="form-control" onchange="updateMetricLabels(this, 'edit-{{ comp.id }}')">
+                                                <option value="kcal" {% if not comp.ranking_metric or comp.ranking_metric == 'kcal' %}selected{% endif %}>Năng lượng (KCAL)</option>
+                                                <option value="distance" {% if comp.ranking_metric == 'distance' %}selected{% endif %}>Quãng đường (KM)</option>
+                                            </select>
+                                        </div>
+                                        <div class="form-group" style="flex: 2;">
+                                            <label>Bộ môn tính điểm</label>
+                                            <div style="display: flex; gap: 1rem; margin-top: 0.5rem; flex-wrap: wrap;">
+                                                <label style="cursor: pointer; display: flex; align-items: center; gap: 0.3rem;"><input type="checkbox" name="ranking_sports_run" value="Run" {% if 'Run' in allowed_sports %}checked{% endif %}> Chạy bộ (Run)</label>
+                                                <label style="cursor: pointer; display: flex; align-items: center; gap: 0.3rem;"><input type="checkbox" name="ranking_sports_walk" value="Walk" {% if 'Walk' in allowed_sports %}checked{% endif %}> Đi bộ (Walk)</label>
+                                                <label style="cursor: pointer; display: flex; align-items: center; gap: 0.3rem;"><input type="checkbox" name="ranking_sports_ride" value="Ride" {% if 'Ride' in allowed_sports %}checked{% endif %}> Đạp xe (Ride)</label>
+                                                <label style="cursor: pointer; display: flex; align-items: center; gap: 0.3rem;"><input type="checkbox" name="ranking_sports_swim" value="Swim" {% if 'Swim' in allowed_sports %}checked{% endif %}> Bơi lội (Swim)</label>
+                                            </div>
+                                        </div>
+                                    </div>
                                     <div class="form-row">
                                         <div class="form-group" style="flex: 1.5;">
                                             <label>Kiểu tính giải thưởng</label>
@@ -1367,7 +1404,7 @@
                                             </select>
                                         </div>
                                         <div class="form-group reward-linear-fields-edit-{{ comp.id }}" style="{% if comp.reward_type != 'linear' %}display: none;{% endif %} flex: 1;">
-                                            <label>Mỗi mốc KCAL quy đổi</label>
+                                            <label>{% if comp.ranking_metric == 'distance' %}Mỗi mốc KM quy đổi{% else %}Mỗi mốc KCAL quy đổi{% endif %}</label>
                                             <input type="number" name="reward_linear_kcal" class="form-control" value="{{ comp.reward_linear_kcal or 100 }}" min="1">
                                         </div>
                                         <div class="form-group reward-linear-fields-edit-{{ comp.id }}" style="{% if comp.reward_type != 'linear' %}display: none;{% endif %} flex: 1.5;">
@@ -1645,6 +1682,22 @@
         fields.forEach(el => {
             el.style.display = value === 'linear' ? 'block' : 'none';
         });
+    }
+
+    function updateMetricLabels(selectEl, prefix) {
+        const metric = selectEl.value;
+        const labelText = metric === 'distance' ? 'Mỗi mốc KM quy đổi' : 'Mỗi mốc KCAL quy đổi';
+        
+        let labelEl;
+        if (prefix === 'create') {
+            labelEl = document.querySelector('.reward-linear-fields-create label');
+        } else {
+            labelEl = document.querySelector('.reward-linear-fields-' + prefix + ' label');
+        }
+        
+        if (labelEl) {
+            labelEl.textContent = labelText;
+        }
     }
     
     async function syncCompetition(compId, compTitle) {

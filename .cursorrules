@@ -20,6 +20,10 @@ File này chứa các quy tắc thiết kế, phát triển và mẫu câu lện
     *   Tất cả log in ra console của Python phải viết bằng tiếng Anh không dấu. Chữ tiếng Việt có dấu chỉ được viết trong các file HTML hoặc chuỗi ký tự hiển thị ra giao diện người dùng.
 5.  **Không Hardcode cấu hình:**
     *   Mọi thông số như Client ID, Client Secret, Club ID, hệ số METs, mốc giải thưởng, và ngưỡng chống gian lận phải được truy vấn động từ database SQLite qua SQLAlchemy Models.
+6.  **Viết code gọn gàng, modular (Dễ bảo trì):**
+    *   **Tuyệt đối không** viết các đoạn code quá dài hoặc các khối logic cồng kềnh tập trung trong một hàm hay một tệp tin đơn lẻ.
+    *   Tách các nghiệp vụ phức tạp thành các hàm nhỏ (helper/utility) độc lập để dễ dàng đọc, tái sử dụng và kiểm thử.
+    *   Giữ cho mã nguồn HTML và JS gọn gàng, tận dụng tối đa sức mạnh của công cụ Jinja2 để render nhãn/đơn vị động thay vì viết các đoạn JavaScript tương tác DOM quá dài không cần thiết.
 
 ---
 
@@ -56,6 +60,7 @@ Khi hoàn thành, hãy kiểm tra lại:
 3. Không có `print(...)` Python chứa tiếng Việt có dấu.
 4. Giao diện vẫn đồng bộ phong cách Glassmorphism.
 5. Các thay đổi phù hợp với FastAPI + Jinja2 + SQLite hiện tại.
+6. Code viết ngắn gọn, modular, dễ bảo trì (tránh viết các hàm hay logic cồng kềnh, quá dài).
 ```
 
 ### Mẫu 1: Thêm bộ môn thể thao mới vào hệ thống METs

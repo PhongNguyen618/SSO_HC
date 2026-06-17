@@ -168,7 +168,8 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
             name=name,
             type=act_type,
             sport_type=sport_type,
-            distance_km=distance_km,
+            distance_km=round(distance_km * activity_multiplier, 2),
+            distance_km_raw=distance_km,
             moving_time_min=moving_time_min,
             elapsed_time_min=elapsed_time_min,
             pace_min_km=pace_min_km,
@@ -276,12 +277,13 @@ def link_unlinked_activities(db: Session, athlete: Athlete):
         act.athlete_id = athlete.id
         
         # Tính lại KCAL và METs dựa trên cân nặng của VĐV vừa đăng ký
+        dist_raw = act.distance_km_raw if act.distance_km_raw is not None else act.distance_km
         speed_kmh = 0.0
         if act.moving_time_min > 0:
-            speed_kmh = act.distance_km / (act.moving_time_min / 60.0)
+            speed_kmh = dist_raw / (act.moving_time_min / 60.0)
             
         actual_time_min = act.elapsed_time_min if act.moving_time_min < 1.0 else act.moving_time_min
-        mets_val = get_mets_value(act.sport_type, speed_kmh, db, act.distance_km, act.elevation_gain_m, event_id=act.event_id)
+        mets_val = get_mets_value(act.sport_type, speed_kmh, db, dist_raw, act.elevation_gain_m, event_id=act.event_id)
         mult = get_multiplier_for_date(act.activity_date, act.event_id, db)
         
         act.mets_value = mets_val
@@ -289,6 +291,8 @@ def link_unlinked_activities(db: Session, athlete: Athlete):
         act.kcal_burned_raw = kcal_raw
         act.kcal_burned = round(kcal_raw * mult)
         act.multiplier = mult
+        act.distance_km_raw = dist_raw
+        act.distance_km = round(dist_raw * mult, 2)
         
     db.commit()
     print(f"Sync Engine: Linked {len(unlinked)} old activities for athlete {athlete.full_name}.")
@@ -437,7 +441,8 @@ async def import_excel_files(files: list[UploadFile], db: Session, event_id: int
                     name=act_name,
                     type=act_type,
                     sport_type=sport_type,
-                    distance_km=dist_km,
+                    distance_km=round(dist_km * mult, 2),
+                    distance_km_raw=dist_km,
                     moving_time_min=mov_time,
                     elapsed_time_min=ela_time,
                     pace_min_km=pace,

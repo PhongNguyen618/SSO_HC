@@ -278,14 +278,14 @@
     {% if award_info.next_threshold > 0 %}
     <p style="color: #ffc107; font-size: 0.9rem; margin-top: -0.5rem; margin-bottom: 1rem; font-weight: 500; display: flex; align-items: center; gap: 0.4rem; justify-content: center;">
         <i class="fa-solid fa-fire-flame-simple" style="animation: pulse 1.5s infinite;"></i>
-        Cố lên! Bạn chỉ còn cách mốc giải thưởng tiếp theo <strong>{{ "{:,}".format(award_info.next_threshold - total_kcal).replace(",", ".") }} KCAL</strong>!
+        Cố lên! Bạn chỉ còn cách mốc giải thưởng tiếp theo <strong>{{ "{:,}".format((award_info.next_threshold - metric_value) | round(2)).replace(",", ".") }} {{ metric_unit }}</strong>!
     </p>
     {% endif %}
 
     <div style="display: flex; justify-content: space-between; font-size: 0.9rem; color: var(--text-muted);">
-        <span>0 KCAL</span>
+        <span>0 {{ metric_unit }}</span>
         {% if award_info.next_threshold > 0 %}
-        <span>Mốc tiếp theo: <strong>{{ "{:,}".format(award_info.next_threshold).replace(",", ".") }} KCAL</strong> (Cần thêm {{ "{:,}".format(award_info.next_threshold - total_kcal).replace(",", ".") }} KCAL)</span>
+        <span>Mốc tiếp theo: <strong>{{ "{:,}".format(award_info.next_threshold).replace(",", ".") }} {{ metric_unit }}</strong> (Cần thêm {{ "{:,}".format((award_info.next_threshold - metric_value) | round(2)).replace(",", ".") }} {{ metric_unit }})</span>
         {% else %}
         <span>Bạn đã xuất sắc vượt mốc giải thưởng cao nhất!</span>
         {% endif %}
@@ -374,7 +374,7 @@
 <div class="chart-grid">
     <!-- Line Chart (KCAL Trend) -->
     <div class="chart-card">
-        <h4 style="margin-bottom: 1rem; font-family: 'Outfit', sans-serif;"><i class="fa-solid fa-chart-line" style="color: var(--color-primary);"></i> Biểu đồ tiêu thụ năng lượng theo ngày (KCAL)</h4>
+        <h4 style="margin-bottom: 1rem; font-family: 'Outfit', sans-serif;"><i class="fa-solid fa-chart-line" style="color: var(--color-primary);"></i> Biểu đồ {% if metric_unit == 'KM' %}quãng đường theo ngày (KM){% else %}tiêu thụ năng lượng theo ngày (KCAL){% endif %}</h4>
         <canvas id="kcalChart" style="max-height: 250px; width: 100%;"></canvas>
     </div>
     <!-- Doughnut Chart (Sport Types) -->
@@ -479,7 +479,7 @@
         data: {
             labels: kcalDates,
             datasets: [{
-                label: 'Năng lượng tiêu thụ (KCAL)',
+                label: '{{ "Quãng đường (KM)" if metric_unit == "KM" else "Năng lượng tiêu thụ (KCAL)" }}',
                 data: kcalValues,
                 borderColor: '#8FCDF0',
                 backgroundColor: 'rgba(143, 205, 240, 0.15)',

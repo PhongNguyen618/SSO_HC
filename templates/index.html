@@ -283,7 +283,7 @@
                         {% if col_configs.show_col_time %}
                         <th style="text-align: right;">Thời gian</th>
                         {% endif %}
-                        <th style="text-align: right;">Năng lượng</th>
+                        <th style="text-align: right;">{% if selected_event and selected_event.ranking_metric == 'distance' %}Thành tích (KM){% else %}Năng lượng (KCAL){% endif %}</th>
                         {% if col_configs.show_col_award %}
                         <th style="text-align: center;">Giải thưởng</th>
                         {% endif %}
@@ -318,7 +318,13 @@
                         {% if col_configs.show_col_time %}
                         <td style="text-align: right; color: var(--text-muted);">{{ ath.total_time }} giờ</td>
                         {% endif %}
-                        <td style="text-align: right; color: var(--color-orange); font-weight: 700;">{{ "{:,}".format(ath.total_kcal).replace(",", ".") }} KCAL</td>
+                        <td style="text-align: right; color: var(--color-orange); font-weight: 700;">
+                            {% if selected_event and selected_event.ranking_metric == 'distance' %}
+                            {{ ath.total_dist }} KM
+                            {% else %}
+                            {{ "{:,}".format(ath.total_kcal).replace(",", ".") }} KCAL
+                            {% endif %}
+                        </td>
                         {% if col_configs.show_col_award %}
                         <td style="text-align: center;">
                             {% if ath.has_award %}
@@ -347,7 +353,7 @@
     <div id="departments" class="tab-pane">
         <h3 style="margin-bottom: 0.5rem; color: var(--color-primary);">Hiệu Suất Theo Phòng Ban</h3>
         <p style="color: var(--text-muted); margin-bottom: 1.5rem; font-size: 0.9rem;">
-            Xếp hạng được tính bằng: <strong>Trung bình KCAL = Tổng KCAL của phòng / Sĩ số phòng</strong>. Sĩ số phòng ban được cấu hình cố định trong cơ sở dữ liệu.
+            Xếp hạng được tính bằng: <strong>{% if selected_event and selected_event.ranking_metric == 'distance' %}Trung bình KM = Tổng KM của phòng / Sĩ số phòng{% else %}Trung bình KCAL = Tổng KCAL của phòng / Sĩ số phòng{% endif %}</strong>. Sĩ số phòng ban được cấu hình cố định trong cơ sở dữ liệu.
         </p>
         <div class="table-responsive">
             <table class="custom-table">
@@ -356,8 +362,13 @@
                         <th style="width: 80px; text-align: center;">Hạng</th>
                         <th>Tên Phòng ban</th>
                         <th style="text-align: center;">Thành viên</th>
+                        {% if selected_event and selected_event.ranking_metric == 'distance' %}
+                        <th style="text-align: right;">Tổng KM</th>
+                        <th style="text-align: right;">KM Trung Bình / Người</th>
+                        {% else %}
                         <th style="text-align: right;">Tổng KCAL</th>
                         <th style="text-align: right;">KCAL Trung Bình / Người</th>
+                        {% endif %}
                     </tr>
                 </thead>
                 <tbody>
@@ -370,10 +381,17 @@
                         </td>
                         <td style="font-weight: 600;">{{ dept.department }}</td>
                         <td style="text-align: center; color: var(--text-muted);">{{ dept.members }} VĐV</td>
+                        {% if selected_event and selected_event.ranking_metric == 'distance' %}
+                        <td style="text-align: right;">{{ dept.total_distance }} KM</td>
+                        <td style="text-align: right; color: var(--color-primary); font-weight: 700; font-size: 1.1rem;">
+                            {{ dept.avg_distance }} KM
+                        </td>
+                        {% else %}
                         <td style="text-align: right;">{{ "{:,}".format(dept.total_kcal).replace(",", ".") }} KCAL</td>
                         <td style="text-align: right; color: var(--color-primary); font-weight: 700; font-size: 1.1rem;">
                             {{ "{:,}".format(dept.avg_kcal).replace(",", ".") }} KCAL
                         </td>
+                        {% endif %}
                     </tr>
                     {% else %}
                     <tr>
@@ -476,7 +494,7 @@
         <div class="chart-grid">
             <div class="chart-card" style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); border-radius: 12px; padding: 1.5rem;">
                 <h4 style="margin-bottom: 1rem; font-family: 'Be Vietnam Pro', sans-serif; display: flex; align-items: center; gap: 0.5rem; color: var(--color-primary);">
-                    <i class="fa-solid fa-fire"></i> Đua Thành Tích: Top 10 Cá Nhân Dẫn Đầu (KCAL)
+                    <i class="fa-solid fa-fire"></i> Đua Thành Tích: Top 10 Cá Nhân Dẫn Đầu {% if selected_event and selected_event.ranking_metric == 'distance' %}(KM){% else %}(KCAL){% endif %}
                 </h4>
                 <div class="chart-container-index">
                     <canvas id="topAthletesChart"></canvas>
@@ -484,7 +502,7 @@
             </div>
             <div class="chart-card" style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); border-radius: 12px; padding: 1.5rem;">
                 <h4 style="margin-bottom: 1rem; font-family: 'Be Vietnam Pro', sans-serif; display: flex; align-items: center; gap: 0.5rem; color: var(--color-secondary);">
-                    <i class="fa-solid fa-building-user"></i> Hiệu Suất Tích Cực Phòng Ban (KCAL/Người)
+                    <i class="fa-solid fa-building-user"></i> Hiệu Suất Tích Cực Phòng Ban {% if selected_event and selected_event.ranking_metric == 'distance' %}(KM/Người){% else %}(KCAL/Người){% endif %}
                 </h4>
                 <div class="chart-container-index">
                     <canvas id="deptPerformanceChart"></canvas>
@@ -600,13 +618,15 @@
     function initCharts() {
         if (chartsInitialized) return;
 
+        const isDistance = {% if selected_event and selected_event.ranking_metric == 'distance' %}true{% else %}false{% endif %};
+
         // Trích xuất dữ liệu
-        const top10Athletes = rankedAthletes.slice(0, 10); // Lấy top 10 VĐV (VĐV hạng 1 nằm ở đầu danh sách sẽ được Chart.js vẽ ở trên cùng)
+        const top10Athletes = rankedAthletes.slice(0, 10); // Lấy top 10 VĐV
         const athleteNames = top10Athletes.map(a => `${a.rank}. ${a.full_name} (${a.department})`);
-        const athleteKcal = top10Athletes.map(a => a.total_kcal);
+        const athleteValues = top10Athletes.map(a => isDistance ? a.total_dist : a.total_kcal);
 
         const deptNames = deptStats.map(d => d.department);
-        const deptKcal = deptStats.map(d => d.avg_kcal);
+        const deptValues = deptStats.map(d => isDistance ? d.avg_distance : d.avg_kcal);
 
         // 1. Biểu đồ Top 10 cá nhân đua thành tích
         const ctx1 = document.getElementById('topAthletesChart').getContext('2d');
@@ -619,8 +639,8 @@
             data: {
                 labels: athleteNames,
                 datasets: [{
-                    label: 'Năng lượng tích lũy (KCAL)',
-                    data: athleteKcal,
+                    label: isDistance ? 'Quãng đường tích lũy (KM)' : 'Năng lượng tích lũy (KCAL)',
+                    data: athleteValues,
                     backgroundColor: grad1,
                     borderRadius: 6,
                     borderSkipped: false
@@ -635,7 +655,7 @@
                     tooltip: {
                         callbacks: {
                             label: function(context) {
-                                return `Năng lượng: ${context.parsed.x.toLocaleString('vi-VN')} KCAL`;
+                                return isDistance ? `Quãng đường: ${context.parsed.x.toLocaleString('vi-VN')} KM` : `Năng lượng: ${context.parsed.x.toLocaleString('vi-VN')} KCAL`;
                             }
                         }
                     }
@@ -668,8 +688,8 @@
             data: {
                 labels: deptNames,
                 datasets: [{
-                    label: 'Trung bình KCAL / người',
-                    data: deptKcal,
+                    label: isDistance ? 'Trung bình KM / người' : 'Trung bình KCAL / người',
+                    data: deptValues,
                     backgroundColor: grad2,
                     borderRadius: 6,
                     borderSkipped: false
@@ -684,7 +704,7 @@
                     tooltip: {
                         callbacks: {
                             label: function(context) {
-                                return `Hiệu suất: ${context.parsed.x.toLocaleString('vi-VN')} KCAL/người`;
+                                return isDistance ? `Hiệu suất: ${context.parsed.x.toLocaleString('vi-VN')} KM/người` : `Hiệu suất: ${context.parsed.x.toLocaleString('vi-VN')} KCAL/người`;
                             }
                         }
                     }

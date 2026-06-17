@@ -286,6 +286,9 @@ def index(
     base_filters = [Activity.activity_date >= start_date, Activity.activity_date <= end_date]
     if event_id:
         base_filters.append(Activity.event_id == event_id)
+        if selected_event:
+            allowed_sports = [s.strip() for s in (selected_event.ranking_sports or "Run,Walk,Ride,Swim").split(",") if s.strip()]
+            base_filters.append(Activity.sport_type.in_(allowed_sports))
 
     # 1. Thống kê tổng quan (Kpi Cards)
     total_kcal = db.query(func.sum(Activity.kcal_burned))\
@@ -316,14 +319,20 @@ def index(
             (Athlete.id == CompetitionRegistration.athlete_id) & (CompetitionRegistration.event_id == event_id)
         )
         
-    athlete_stats = query_stats.filter(Athlete.is_active == True, *base_filters)\
-     .group_by(Athlete.id)\
-     .order_by(func.sum(Activity.kcal_burned).desc()).all()
+    athlete_stats_query = query_stats.filter(Athlete.is_active == True, *base_filters)\
+     .group_by(Athlete.id)
+     
+    is_distance = selected_event and getattr(selected_event, "ranking_metric", "kcal") == "distance"
+    if is_distance:
+        athlete_stats = athlete_stats_query.order_by(func.sum(Activity.distance_km).desc()).all()
+    else:
+        athlete_stats = athlete_stats_query.order_by(func.sum(Activity.kcal_burned).desc()).all()
      
     # Tính giải thưởng tương ứng cho từng VĐV trên BXH
     ranked_athletes = []
     for rank, item in enumerate(athlete_stats, 1):
-        award_info = get_award_info(item.gender, item.total_kcal or 0, db, event_id=event_id)
+        metric_value = item.total_dist if is_distance else item.total_kcal
+        award_info = get_award_info(item.gender, metric_value or 0, db, event_id=event_id)
         ranked_athletes.append({
             "rank": rank,
             "id": item.id,
@@ -342,7 +351,8 @@ def index(
     
     dept_query = db.query(
         Athlete.department,
-        func.sum(Activity.kcal_burned).label("total_kcal")
+        func.sum(Activity.kcal_burned).label("total_kcal"),
+        func.sum(Activity.distance_km).label("total_dist")
     ).join(Activity, Athlete.id == Activity.athlete_id)
     
     if event_id:
@@ -360,14 +370,24 @@ def index(
         dept_name = item.department
         members = dept_members.get(dept_name, 1)
         total_k = item.total_kcal or 0
+        total_d = item.total_dist or 0
         avg_k = total_k / members
+        avg_d = total_d / members
+        
         dept_stats.append({
             "department": dept_name,
             "total_kcal": int(total_k),
+            "total_distance": round(total_d, 1),
             "members": members,
-            "avg_kcal": round(avg_k, 0)
+            "avg_kcal": round(avg_k, 0),
+            "avg_distance": round(avg_d, 2)
         })
-    dept_stats = sorted(dept_stats, key=lambda x: x["avg_kcal"], reverse=True)
+        
+    if is_distance:
+        dept_stats = sorted(dept_stats, key=lambda x: x["avg_distance"], reverse=True)
+    else:
+        dept_stats = sorted(dept_stats, key=lambda x: x["avg_kcal"], reverse=True)
+        
     for idx, d in enumerate(dept_stats, 1):
         d["rank"] = idx
 
@@ -387,9 +407,14 @@ def index(
                 (Athlete.id == CompetitionRegistration.athlete_id) & (CompetitionRegistration.event_id == event_id)
             )
             
-        stats = stats_query.filter(Athlete.is_active == True, Athlete.gender == gender, *base_filters)\
-         .group_by(Athlete.id, Activity.sport_type)\
-         .order_by(Activity.sport_type, func.sum(Activity.kcal_burned).desc()).all()
+        if is_distance:
+            stats = stats_query.filter(Athlete.is_active == True, Athlete.gender == gender, *base_filters)\
+             .group_by(Athlete.id, Activity.sport_type)\
+             .order_by(Activity.sport_type, func.sum(Activity.distance_km).desc()).all()
+        else:
+            stats = stats_query.filter(Athlete.is_active == True, Athlete.gender == gender, *base_filters)\
+             .group_by(Athlete.id, Activity.sport_type)\
+             .order_by(Activity.sport_type, func.sum(Activity.kcal_burned).desc()).all()
          
         grouped = {}
         for item in stats:
@@ -501,11 +526,18 @@ def rules_page(
             
     selected_event_id = selected_event.id if selected_event else None
     
+    allowed_sports = None
+    if selected_event:
+        allowed_sports = [s.strip() for s in (selected_event.ranking_sports or "Run,Walk,Ride,Swim").split(",") if s.strip()]
+
     mets = []
     if selected_event_id:
         mets = db.query(MetsRule).filter(MetsRule.event_id == selected_event_id).order_by(MetsRule.sport_type, MetsRule.min_speed).all()
     if not mets:
         mets = db.query(MetsRule).filter(MetsRule.event_id == None).order_by(MetsRule.sport_type, MetsRule.min_speed).all()
+        
+    if allowed_sports:
+        mets = [m for m in mets if m.sport_type in allowed_sports]
         
     rewards = []
     if selected_event_id:
@@ -619,19 +651,22 @@ def register_athlete(
                 # Cập nhật và tính toán lại lượng calo (KCAL) của các hoạt động cũ dựa theo cân nặng mới
                 acts = db.query(Activity).filter(Activity.athlete_id == exists.id).all()
                 for act in acts:
+                    dist_raw = act.distance_km_raw if act.distance_km_raw is not None else act.distance_km
                     speed_kmh = 0.0
                     if act.moving_time_min > 0:
-                        speed_kmh = act.distance_km / (act.moving_time_min / 60.0)
+                        speed_kmh = dist_raw / (act.moving_time_min / 60.0)
                     actual_time_min = act.elapsed_time_min if act.moving_time_min < 1.0 else act.moving_time_min
                     
                     from backend.calculations import get_mets_value, calculate_kcal
-                    mets_val = get_mets_value(act.sport_type, speed_kmh, db, act.distance_km, act.elevation_gain_m, event_id=act.event_id)
+                    mets_val = get_mets_value(act.sport_type, speed_kmh, db, dist_raw, act.elevation_gain_m, event_id=act.event_id)
                     act.mets_value = mets_val
                     mult = get_multiplier_for_date(act.activity_date, act.event_id, db)
                     kcal_raw = calculate_kcal(mets_val, weight, actual_time_min, act.elevation_gain_m, act.sport_type)
                     act.kcal_burned_raw = kcal_raw
                     act.kcal_burned = round(kcal_raw * mult)
                     act.multiplier = mult
+                    act.distance_km_raw = dist_raw
+                    act.distance_km = round(dist_raw * mult, 2)
                 db.commit()
                 
                 # ĐĂNG KÝ GIẢI ĐẤU NẾU CHƯA CÓ
@@ -813,6 +848,9 @@ def profile_page(
     activities_query = db.query(Activity).filter(Activity.athlete_id == athlete.id)
     if selected_event_id:
         activities_query = activities_query.filter(Activity.event_id == selected_event_id)
+        if selected_event:
+            allowed_sports = [s.strip() for s in (selected_event.ranking_sports or "Run,Walk,Ride,Swim").split(",") if s.strip()]
+            activities_query = activities_query.filter(Activity.sport_type.in_(allowed_sports))
         
     activities = activities_query.order_by(Activity.activity_date.desc()).all()
     valid_activities = activities
@@ -839,19 +877,24 @@ def profile_page(
             max_streak = max(max_streak, current_streak)
 
     # 3. Trực quan hóa tiến độ giải thưởng
-    award_info = get_award_info(athlete.gender, total_kcal, db, event_id=selected_event_id)
+    is_distance = selected_event and getattr(selected_event, "ranking_metric", "kcal") == "distance"
+    metric_value = total_dist if is_distance else total_kcal
+    metric_unit = "KM" if is_distance else "KCAL"
+    
+    award_info = get_award_info(athlete.gender, metric_value, db, event_id=selected_event_id)
     
     progress_percent = 100
     if award_info["next_threshold"] > 0:
-        progress_percent = min(int((total_kcal / award_info["next_threshold"]) * 100), 100)
+        progress_percent = min(int((metric_value / award_info["next_threshold"]) * 100), 100)
 
     # 4. Tạo dữ liệu cho biểu đồ
-    # Biểu đồ xu hướng KCAL theo ngày
+    # Biểu đồ xu hướng (KCAL hoặc KM) theo ngày
     daily_stats = {}
     for a in reversed(valid_activities):
-        daily_stats[a.activity_date] = daily_stats.get(a.activity_date, 0) + a.kcal_burned
+        val = a.distance_km if is_distance else a.kcal_burned
+        daily_stats[a.activity_date] = daily_stats.get(a.activity_date, 0) + val
     
-    # Biểu đồ tròn tỷ lệ môn thể thao
+    # Biểu đồ tròn tỷ lệ môn thể thao (quãng đường)
     sport_stats = {}
     for a in valid_activities:
         sport_stats[a.sport_type] = sport_stats.get(a.sport_type, 0) + round(a.distance_km, 1)
@@ -897,7 +940,9 @@ def profile_page(
             "registered_events": registered_events,
             "unregistered_events": unregistered_events,
             "selected_event": selected_event,
-            "selected_event_id": selected_event_id
+            "selected_event_id": selected_event_id,
+            "metric_value": metric_value,
+            "metric_unit": metric_unit
         }
     )
 
@@ -1081,16 +1126,34 @@ def admin_dashboard(
     # --- LOGIC THỐNG KÊ PHÂN TÍCH CHO ADMIN ---
     # --- LOGIC THỐNG KÊ PHÂN TÍCH CHO ADMIN ---
     # 1. Chỉ số KPIs tổng hợp
+    selected_event = None
+    allowed_sports = None
+    if selected_event_id:
+        selected_event = db.query(CompetitionEvent).filter(CompetitionEvent.id == selected_event_id).first()
+        if selected_event:
+            allowed_sports = [s.strip() for s in (selected_event.ranking_sports or "Run,Walk,Ride,Swim").split(",") if s.strip()]
+
     if selected_event_id:
         total_active_athletes = db.query(Athlete).join(
             CompetitionRegistration,
             Athlete.id == CompetitionRegistration.athlete_id
         ).filter(CompetitionRegistration.event_id == selected_event_id, Athlete.is_active == True).count()
         
-        total_valid_activities = db.query(Activity).filter(Activity.event_id == selected_event_id).count()
-        total_kcal_burned = db.query(func.sum(Activity.kcal_burned)).filter(Activity.event_id == selected_event_id).scalar() or 0.0
-        total_distance = db.query(func.sum(Activity.distance_km)).filter(Activity.event_id == selected_event_id).scalar() or 0.0
-        total_moving_time_min = db.query(func.sum(Activity.moving_time_min)).filter(Activity.event_id == selected_event_id).scalar() or 0.0
+        act_query = db.query(Activity).filter(Activity.event_id == selected_event_id)
+        kcal_query = db.query(func.sum(Activity.kcal_burned)).filter(Activity.event_id == selected_event_id)
+        dist_query = db.query(func.sum(Activity.distance_km)).filter(Activity.event_id == selected_event_id)
+        time_query = db.query(func.sum(Activity.moving_time_min)).filter(Activity.event_id == selected_event_id)
+        
+        if allowed_sports:
+            act_query = act_query.filter(Activity.sport_type.in_(allowed_sports))
+            kcal_query = kcal_query.filter(Activity.sport_type.in_(allowed_sports))
+            dist_query = dist_query.filter(Activity.sport_type.in_(allowed_sports))
+            time_query = time_query.filter(Activity.sport_type.in_(allowed_sports))
+            
+        total_valid_activities = act_query.count()
+        total_kcal_burned = kcal_query.scalar() or 0.0
+        total_distance = dist_query.scalar() or 0.0
+        total_moving_time_min = time_query.scalar() or 0.0
     else:
         total_active_athletes = db.query(Athlete).filter(Athlete.is_active == True).count()
         total_valid_activities = db.query(Activity).count()
@@ -1100,7 +1163,7 @@ def admin_dashboard(
         
     total_hours = total_moving_time_min / 60.0
 
-    # 2. Thống kê Calo theo tuần (12 tuần gần nhất) và tháng (6 tháng gần nhất)
+    # 2. Thống kê Calo/Km theo tuần (12 tuần gần nhất) và tháng (6 tháng gần nhất)
     import datetime
     max_date_str_db = db.query(func.max(Activity.activity_date)).scalar()
     if max_date_str_db:
@@ -1112,8 +1175,12 @@ def admin_dashboard(
         max_date = datetime.date.today()
     max_date_str = max_date.strftime("%Y-%m-%d")
 
-    # A. Tính Calo theo tuần (12 tuần gần nhất)
-    weekly_data = {}  # Monday_date_str -> total_kcal
+    metric = "kcal"
+    if selected_event and getattr(selected_event, "ranking_metric", "kcal") == "distance":
+        metric = "distance"
+
+    # A. Tính theo tuần (12 tuần gần nhất)
+    weekly_data = {}  # Monday_date_str -> total_val
     max_date_monday = max_date - datetime.timedelta(days=max_date.weekday())
     for i in range(12):
         w_monday = max_date_monday - datetime.timedelta(weeks=i)
@@ -1122,20 +1189,23 @@ def admin_dashboard(
     start_week_date = max_date_monday - datetime.timedelta(weeks=11)
     start_week_date_str = start_week_date.strftime("%Y-%m-%d")
     
-    week_query = db.query(Activity.activity_date, Activity.kcal_burned)\
+    week_query = db.query(Activity.activity_date, Activity.kcal_burned, Activity.distance_km)\
         .filter(Activity.activity_date >= start_week_date_str)\
         .filter(Activity.activity_date <= max_date_str)
     if selected_event_id:
         week_query = week_query.filter(Activity.event_id == selected_event_id)
+        if allowed_sports:
+            week_query = week_query.filter(Activity.sport_type.in_(allowed_sports))
     week_activities = week_query.all()
 
-    for act_date_str, kcal in week_activities:
+    for act_date_str, kcal, dist in week_activities:
         try:
+            val = dist if metric == "distance" else kcal
             act_date = datetime.datetime.strptime(act_date_str, "%Y-%m-%d").date()
             act_monday = act_date - datetime.timedelta(days=act_date.weekday())
             act_monday_str = act_monday.strftime("%Y-%m-%d")
             if act_monday_str in weekly_data:
-                weekly_data[act_monday_str] += kcal
+                weekly_data[act_monday_str] += val
         except Exception:
             continue
 
@@ -1146,8 +1216,8 @@ def admin_dashboard(
         weekly_labels.append(d.strftime("Tuần %d/%m"))
     weekly_kcal = [round(weekly_data[w], 1) for w in sorted_weeks]
 
-    # B. Tính Calo theo tháng (6 tháng gần nhất)
-    monthly_data = {}  # YYYY-MM -> total_kcal
+    # B. Tính theo tháng (6 tháng gần nhất)
+    monthly_data = {}  # YYYY-MM -> total_val
     curr_year = max_date.year
     curr_month = max_date.month
     for i in range(6):
@@ -1162,18 +1232,21 @@ def admin_dashboard(
     start_month_str = sorted_months_keys[0]
     start_month_date_str = f"{start_month_str}-01"
 
-    month_query = db.query(Activity.activity_date, Activity.kcal_burned)\
+    month_query = db.query(Activity.activity_date, Activity.kcal_burned, Activity.distance_km)\
         .filter(Activity.activity_date >= start_month_date_str)\
         .filter(Activity.activity_date <= max_date_str)
     if selected_event_id:
         month_query = month_query.filter(Activity.event_id == selected_event_id)
+        if allowed_sports:
+            month_query = month_query.filter(Activity.sport_type.in_(allowed_sports))
     month_activities = month_query.all()
 
-    for act_date_str, kcal in month_activities:
+    for act_date_str, kcal, dist in month_activities:
         try:
+            val = dist if metric == "distance" else kcal
             ym = act_date_str[:7]
             if ym in monthly_data:
-                monthly_data[ym] += kcal
+                monthly_data[ym] += val
         except Exception:
             continue
 
@@ -1192,6 +1265,8 @@ def admin_dashboard(
     )
     if selected_event_id:
         sport_query = sport_query.filter(Activity.event_id == selected_event_id)
+        if allowed_sports:
+            sport_query = sport_query.filter(Activity.sport_type.in_(allowed_sports))
     sport_stats = sport_query.group_by(Activity.sport_type).all()
 
     sport_labels = []
@@ -1205,6 +1280,7 @@ def admin_dashboard(
         sport_dist.append(round(stat.dist or 0, 1))
 
     stats_data = {
+        "metric": metric,
         "kpis": {
             "total_athletes": total_active_athletes,
             "total_activities": total_valid_activities,
@@ -1591,19 +1667,22 @@ def admin_edit_athlete(
             # Quét lại toàn bộ hoạt động hiện tại của VĐV để cập nhật lại KCAL theo cân nặng mới
             acts = db.query(Activity).filter(Activity.athlete_id == athlete.id).all()
             for act in acts:
+                dist_raw = act.distance_km_raw if act.distance_km_raw is not None else act.distance_km
                 speed_kmh = 0.0
                 if act.moving_time_min > 0:
-                    speed_kmh = act.distance_km / (act.moving_time_min / 60.0)
+                    speed_kmh = dist_raw / (act.moving_time_min / 60.0)
                 actual_time_min = act.elapsed_time_min if act.moving_time_min < 1.0 else act.moving_time_min
                 
                 from backend.calculations import get_mets_value, calculate_kcal
-                mets_val = get_mets_value(act.sport_type, speed_kmh, db, act.distance_km, act.elevation_gain_m, event_id=act.event_id)
+                mets_val = get_mets_value(act.sport_type, speed_kmh, db, dist_raw, act.elevation_gain_m, event_id=act.event_id)
                 act.mets_value = mets_val
                 mult = get_multiplier_for_date(act.activity_date, act.event_id, db)
                 kcal_raw = calculate_kcal(mets_val, weight, actual_time_min, act.elevation_gain_m, act.sport_type)
                 act.kcal_burned_raw = kcal_raw
                 act.kcal_burned = round(kcal_raw * mult)
                 act.multiplier = mult
+                act.distance_km_raw = dist_raw
+                act.distance_km = round(dist_raw * mult, 2)
             db.commit()
             
         return RedirectResponse(f"/admin?success=Cap nhat thanh vien thanh cong&event_id={event_id or ''}#tab-athletes", status_code=303)
@@ -1971,12 +2050,13 @@ def recalculate_multipliers(request: Request, event_id: int = Form(...), db: Ses
             athlete = db.query(Athlete).filter(Athlete.id == act.athlete_id).first() if act.athlete_id else None
             weight = athlete.weight if athlete else 60.0
             
+            dist_raw = act.distance_km_raw if act.distance_km_raw is not None else act.distance_km
             speed_kmh = 0.0
             if act.moving_time_min and act.moving_time_min > 0:
-                speed_kmh = act.distance_km / (act.moving_time_min / 60.0)
+                speed_kmh = dist_raw / (act.moving_time_min / 60.0)
             actual_time_min = act.elapsed_time_min if (act.moving_time_min or 0) < 1.0 else act.moving_time_min
             
-            mets_val = get_mets_value(act.sport_type, speed_kmh, db, act.distance_km, act.elevation_gain_m, event_id=event_id)
+            mets_val = get_mets_value(act.sport_type, speed_kmh, db, dist_raw, act.elevation_gain_m, event_id=event_id)
             kcal_raw = calculate_kcal(mets_val, weight, actual_time_min, act.elevation_gain_m or 0, act.sport_type)
             mult = get_multiplier_for_date(act.activity_date, event_id, db)
             
@@ -1984,6 +2064,8 @@ def recalculate_multipliers(request: Request, event_id: int = Form(...), db: Ses
             act.kcal_burned_raw = kcal_raw
             act.kcal_burned = round(kcal_raw * mult)
             act.multiplier = mult
+            act.distance_km_raw = dist_raw
+            act.distance_km = round(dist_raw * mult, 2)
             updated += 1
         
         db.commit()
@@ -2335,12 +2417,16 @@ def edit_activity(
             activity.kcal_burned = kcal_burned
             activity.kcal_burned_raw = kcal_burned
             activity.multiplier = 1.0
+            activity.distance_km = distance_km
+            activity.distance_km_raw = distance_km
         else:
             mult = get_multiplier_for_date(activity_date.strip(), activity.event_id, db)
             kcal_raw = calculate_kcal(mets_val, weight, actual_time_min, elevation_gain_m, sport_type.strip())
             activity.kcal_burned_raw = kcal_raw
             activity.kcal_burned = round(kcal_raw * mult)
             activity.multiplier = mult
+            activity.distance_km = round(distance_km * mult, 2)
+            activity.distance_km_raw = distance_km
             
         # Tính lại pace
         if distance_km > 0:
@@ -2472,9 +2558,15 @@ def export_excel(
             if not end_date:
                 end_date = end_dt.strftime("%Y-%m-%d")
 
+    # Xây dựng bộ lọc cơ bản cho giải đấu + khoảng thời gian
     base_filters = [Activity.activity_date >= start_date, Activity.activity_date <= end_date]
     if event_id:
         base_filters.append(Activity.event_id == event_id)
+        if selected_event:
+            allowed_sports = [s.strip() for s in (selected_event.ranking_sports or "Run,Walk,Ride,Swim").split(",") if s.strip()]
+            base_filters.append(Activity.sport_type.in_(allowed_sports))
+
+    is_distance = selected_event and getattr(selected_event, "ranking_metric", "kcal") == "distance"
 
     # 1. Lấy dữ liệu BXH Cá nhân (chỉ các VĐV đã đăng ký giải đấu này)
     query_stats = db.query(
@@ -2493,13 +2585,18 @@ def export_excel(
             (Athlete.id == CompetitionRegistration.athlete_id) & (CompetitionRegistration.event_id == event_id)
         )
         
-    athlete_stats = query_stats.filter(Athlete.is_active == True, *base_filters)\
-     .group_by(Athlete.id)\
-     .order_by(func.sum(Activity.kcal_burned).desc()).all()
+    athlete_stats_query = query_stats.filter(Athlete.is_active == True, *base_filters)\
+     .group_by(Athlete.id)
+     
+    if is_distance:
+        athlete_stats = athlete_stats_query.order_by(func.sum(Activity.distance_km).desc()).all()
+    else:
+        athlete_stats = athlete_stats_query.order_by(func.sum(Activity.kcal_burned).desc()).all()
 
     ranked_athletes = []
     for rank, item in enumerate(athlete_stats, 1):
-        award_info = get_award_info(item.gender, item.total_kcal or 0, db, event_id=event_id)
+        metric_value = item.total_dist if is_distance else item.total_kcal
+        award_info = get_award_info(item.gender, metric_value or 0, db, event_id=event_id)
         ranked_athletes.append({
             "Hạng": rank,
             "Họ và Tên": item.full_name,
@@ -2519,7 +2616,8 @@ def export_excel(
     
     dept_query = db.query(
         Athlete.department,
-        func.sum(Activity.kcal_burned).label("total_kcal")
+        func.sum(Activity.kcal_burned).label("total_kcal"),
+        func.sum(Activity.distance_km).label("total_dist")
     ).join(Activity, Athlete.id == Activity.athlete_id)
     
     if event_id:
@@ -2536,22 +2634,40 @@ def export_excel(
         dept_name = item.department
         members = dept_members.get(dept_name, 1)
         total_k = item.total_kcal or 0
+        total_d = item.total_dist or 0
         avg_k = total_k / members
-        dept_stats.append({
-            "Tên Phòng ban": dept_name,
-            "Sĩ số": members,
-            "Tổng KCAL": int(total_k),
-            "KCAL Trung bình / Người": round(avg_k, 0)
-        })
-    dept_stats = sorted(dept_stats, key=lambda x: x["KCAL Trung bình / Người"], reverse=True)
+        avg_d = total_d / members
+        
+        if is_distance:
+            dept_stats.append({
+                "Tên Phòng ban": dept_name,
+                "Sĩ số": members,
+                "Tổng KM": round(total_d, 1),
+                "KM Trung bình / Người": round(avg_d, 2)
+            })
+        else:
+            dept_stats.append({
+                "Tên Phòng ban": dept_name,
+                "Sĩ số": members,
+                "Tổng KCAL": int(total_k),
+                "KCAL Trung bình / Người": round(avg_k, 0)
+            })
+            
+    if is_distance:
+        dept_stats = sorted(dept_stats, key=lambda x: x["KM Trung bình / Người"], reverse=True)
+        columns_to_keep = ["Hạng", "Tên Phòng ban", "Sĩ số", "Tổng KM", "KM Trung bình / Người"]
+    else:
+        dept_stats = sorted(dept_stats, key=lambda x: x["KCAL Trung bình / Người"], reverse=True)
+        columns_to_keep = ["Hạng", "Tên Phòng ban", "Sĩ số", "Tổng KCAL", "KCAL Trung bình / Người"]
+
     for idx, d in enumerate(dept_stats, 1):
         d["Hạng"] = idx
         
     df_dept = pd.DataFrame(dept_stats)
     if not df_dept.empty:
-        df_dept = df_dept[["Hạng", "Tên Phòng ban", "Sĩ số", "Tổng KCAL", "KCAL Trung bình / Người"]]
+        df_dept = df_dept[columns_to_keep]
     else:
-        df_dept = pd.DataFrame(columns=["Hạng", "Tên Phòng ban", "Sĩ số", "Tổng KCAL", "KCAL Trung bình / Người"])
+        df_dept = pd.DataFrame(columns=columns_to_keep)
 
     # 3. Lấy dữ liệu BXH Theo bộ môn (Nam / Nữ)
     def get_sport_data(gender: str):
@@ -2569,9 +2685,14 @@ def export_excel(
                 (Athlete.id == CompetitionRegistration.athlete_id) & (CompetitionRegistration.event_id == event_id)
             )
             
-        stats = stats_query.filter(Athlete.is_active == True, Athlete.gender == gender, *base_filters)\
-         .group_by(Athlete.id, Activity.sport_type)\
-         .order_by(Activity.sport_type, func.sum(Activity.kcal_burned).desc()).all()
+        if is_distance:
+            stats = stats_query.filter(Athlete.is_active == True, Athlete.gender == gender, *base_filters)\
+             .group_by(Athlete.id, Activity.sport_type)\
+             .order_by(Activity.sport_type, func.sum(Activity.distance_km).desc()).all()
+        else:
+            stats = stats_query.filter(Athlete.is_active == True, Athlete.gender == gender, *base_filters)\
+             .group_by(Athlete.id, Activity.sport_type)\
+             .order_by(Activity.sport_type, func.sum(Activity.kcal_burned).desc()).all()
         return stats
 
     sport_male = get_sport_data("Nam")
@@ -2807,6 +2928,11 @@ async def admin_add_competition(
     reward_linear_amount: float = Form(5000.0),
     show_rewards_in_rules: bool = Form(True),
     department_members: str = Form(""),
+    ranking_metric: str = Form("kcal"),
+    ranking_sports_run: Optional[str] = Form(None),
+    ranking_sports_walk: Optional[str] = Form(None),
+    ranking_sports_ride: Optional[str] = Form(None),
+    ranking_sports_swim: Optional[str] = Form(None),
     banner_file: UploadFile = File(None),
     db: Session = Depends(get_db)
 ):
@@ -2841,6 +2967,15 @@ async def admin_add_competition(
                     f.write(content)
                 banner_path = f"/static/uploads/{filename}"
         
+        sports_list = []
+        if ranking_sports_run: sports_list.append("Run")
+        if ranking_sports_walk: sports_list.append("Walk")
+        if ranking_sports_ride: sports_list.append("Ride")
+        if ranking_sports_swim: sports_list.append("Swim")
+        if not sports_list:
+            sports_list = ["Run", "Walk", "Ride", "Swim"]
+        ranking_sports_str = ",".join(sports_list)
+
         new_comp = CompetitionEvent(
             title=title.strip(),
             strava_club_id=extract_strava_club_id(strava_club_id),
@@ -2856,7 +2991,9 @@ async def admin_add_competition(
             reward_linear_kcal=reward_linear_kcal,
             reward_linear_amount=reward_linear_amount,
             show_rewards_in_rules=show_rewards_in_rules,
-            department_members=dept_json if dept_json else None
+            department_members=dept_json if dept_json else None,
+            ranking_metric=ranking_metric.strip(),
+            ranking_sports=ranking_sports_str
         )
         db.add(new_comp)
         db.commit()
@@ -2884,6 +3021,11 @@ async def admin_edit_competition(
     reward_linear_amount: float = Form(5000.0),
     show_rewards_in_rules: bool = Form(True),
     department_members: str = Form(""),
+    ranking_metric: str = Form("kcal"),
+    ranking_sports_run: Optional[str] = Form(None),
+    ranking_sports_walk: Optional[str] = Form(None),
+    ranking_sports_ride: Optional[str] = Form(None),
+    ranking_sports_swim: Optional[str] = Form(None),
     banner_file: UploadFile = File(None),
     db: Session = Depends(get_db)
 ):
@@ -2908,6 +3050,15 @@ async def admin_edit_competition(
                 return RedirectResponse(f"/admin?error=Lỗi cấu hình sĩ số phòng ban JSON: {str(e)}#tab-competitions", status_code=303)
 
         import time as time_mod
+        sports_list = []
+        if ranking_sports_run: sports_list.append("Run")
+        if ranking_sports_walk: sports_list.append("Walk")
+        if ranking_sports_ride: sports_list.append("Ride")
+        if ranking_sports_swim: sports_list.append("Swim")
+        if not sports_list:
+            sports_list = ["Run", "Walk", "Ride", "Swim"]
+        ranking_sports_str = ",".join(sports_list)
+
         comp.title = title.strip()
         comp.strava_club_id = extract_strava_club_id(strava_club_id)
         comp.start_date = start_date.strip()
@@ -2922,6 +3073,8 @@ async def admin_edit_competition(
         comp.reward_linear_amount = reward_linear_amount
         comp.show_rewards_in_rules = show_rewards_in_rules
         comp.department_members = dept_json if dept_json else None
+        comp.ranking_metric = ranking_metric.strip()
+        comp.ranking_sports = ranking_sports_str
         
         # Cập nhật banner nếu có upload mới
         if banner_file and banner_file.filename:

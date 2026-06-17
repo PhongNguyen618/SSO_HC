@@ -89,6 +89,8 @@ class CompetitionEvent(Base):
     reward_linear_amount = Column(Float, default=5000.0, nullable=True)
     show_rewards_in_rules = Column(Boolean, default=True, nullable=True)
     department_members = Column(String, nullable=True) # Cấu hình sĩ số phòng ban dạng JSON string
+    ranking_metric = Column(String, default="kcal", nullable=True) # "kcal" hoặc "distance"
+    ranking_sports = Column(String, default="Run,Walk,Ride,Swim", nullable=True) # "Run,Walk,Ride,Swim"
 
     activities = relationship("Activity", back_populates="event", cascade="all, delete-orphan")
 
@@ -243,6 +245,16 @@ def init_db(excel_filepath: str = "TDTT_SSO.xlsx"):
         print("Database Migration: Adding department_members column to competition_events...")
         with engine.connect() as conn:
             conn.execute(text("ALTER TABLE competition_events ADD COLUMN department_members TEXT"))
+            conn.commit()
+    if 'ranking_metric' not in comp_columns:
+        print("Database Migration: Adding ranking_metric column to competition_events...")
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE competition_events ADD COLUMN ranking_metric VARCHAR DEFAULT 'kcal'"))
+            conn.commit()
+    if 'ranking_sports' not in comp_columns:
+        print("Database Migration: Adding ranking_sports column to competition_events...")
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE competition_events ADD COLUMN ranking_sports VARCHAR DEFAULT 'Run,Walk,Ride,Swim'"))
             conn.commit()
 
     db = SessionLocal()
