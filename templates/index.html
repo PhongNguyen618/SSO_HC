@@ -4,6 +4,46 @@
 
 {% block head %}
 <style>
+    .sort-btn-group {
+        display: flex;
+        background: rgba(255, 255, 255, 0.05);
+        padding: 0.2rem;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        gap: 0.2rem;
+    }
+    .sort-btn {
+        background: transparent;
+        border: none;
+        color: #9ca3af;
+        padding: 0.5rem 1rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+        cursor: pointer;
+        border-radius: 8px;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+    .sort-btn:hover {
+        color: #fff;
+        background: rgba(255, 255, 255, 0.03);
+    }
+    .sort-btn.active {
+        background: var(--color-primary, #00adb5);
+        color: #fff !important;
+        box-shadow: 0 4px 12px rgba(0, 173, 181, 0.25);
+    }
+    .leaderboard-header-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
     .chart-container-index {
         position: relative;
         height: 380px;
@@ -256,6 +296,27 @@
         </button>
     </div>
 
+    <!-- Leaderboard Sort Controls -->
+    <div class="leaderboard-header-row" style="padding: 1.2rem 1.5rem 0.2rem 1.5rem;" id="sort-controls-container">
+        <div style="font-size: 0.9rem; color: var(--text-muted);">
+            <i class="fa-solid fa-circle-info"></i> Click để thay đổi tiêu chí xếp hạng
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.5rem; margin-left: auto;">
+            <span style="font-size: 0.85rem; color: #9ca3af;"><i class="fa-solid fa-sort"></i> Sắp xếp theo:</span>
+            <div class="sort-btn-group">
+                <button class="sort-btn {% if selected_metric == 'kcal' %}active{% endif %}" onclick="changeLeaderboardSort('kcal')" id="btn-sort-kcal">
+                    <i class="fa-solid fa-fire"></i> KCAL
+                </button>
+                <button class="sort-btn {% if selected_metric == 'distance' %}active{% endif %}" onclick="changeLeaderboardSort('distance')" id="btn-sort-distance">
+                    <i class="fa-solid fa-road"></i> KM
+                </button>
+                <button class="sort-btn" onclick="changeLeaderboardSort('time')" id="btn-sort-time">
+                    <i class="fa-solid fa-clock"></i> Giờ
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- TAB 1: OVERALL LEADERBOARD -->
     <div id="overall" class="tab-pane active">
         <h3 style="margin-bottom: 1.5rem; color: var(--color-primary);">Bảng Thành Tích Cá Nhân</h3>
@@ -278,23 +339,25 @@
                         <th>Phòng ban</th>
                         {% endif %}
                         {% if col_configs.show_col_dist %}
-                        <th style="text-align: right;">Quãng đường</th>
+                        <th style="text-align: right;" id="col-overall-header-dist">Quãng đường</th>
                         {% endif %}
                         {% if col_configs.show_col_time %}
-                        <th style="text-align: right;">Thời gian</th>
+                        <th style="text-align: right;" id="col-overall-header-time">Thời gian</th>
                         {% endif %}
-                        <th style="text-align: right;">{% if selected_event and selected_event.ranking_metric == 'distance' %}Thành tích (KM){% else %}Năng lượng (KCAL){% endif %}</th>
+                        <th style="text-align: right;" id="col-overall-header-kcal">Năng lượng (KCAL)</th>
                         {% if col_configs.show_col_award %}
                         <th style="text-align: center;">Giải thưởng</th>
                         {% endif %}
                     </tr>
                 </thead>
-                <tbody>
+                <tbody id="overall-tbody">
                     {% for ath in ranked_athletes %}
-                    <tr>
+                    <tr class="athlete-row" data-kcal="{{ ath.total_kcal }}" data-dist="{{ ath.total_dist }}" data-time="{{ ath.total_time }}" data-award="{{ ath.award }}" data-gender="{{ ath.gender }}" data-dept="{{ ath.department }}" data-has-award="{{ ath.has_award | lower }}" data-athlete-id="{{ ath.id }}">
                         <td style="text-align: center;">
-                            <span class="rank-badge {% if ath.rank == 1 %}rank-1{% elif ath.rank == 2 %}rank-2{% elif ath.rank == 3 %}rank-3{% else %}rank-other{% endif %}">
-                                {{ ath.rank }}
+                            <span class="rank-badge-container">
+                                <span class="rank-badge {% if ath.rank == 1 %}rank-1{% elif ath.rank == 2 %}rank-2{% elif ath.rank == 3 %}rank-3{% else %}rank-other{% endif %}">
+                                    {{ ath.rank }}
+                                </span>
                             </span>
                         </td>
                         <td>
@@ -313,20 +376,16 @@
                         <td style="color: var(--text-muted);">{{ ath.department }}</td>
                         {% endif %}
                         {% if col_configs.show_col_dist %}
-                        <td style="text-align: right; font-weight: 600;">{{ ath.total_dist }} km</td>
+                        <td style="text-align: right; font-weight: 600;" class="col-overall-dist">{{ ath.total_dist }} km</td>
                         {% endif %}
                         {% if col_configs.show_col_time %}
-                        <td style="text-align: right; color: var(--text-muted);">{{ ath.total_time }} giờ</td>
+                        <td style="text-align: right; color: var(--text-muted);" class="col-overall-time">{{ ath.total_time }} giờ</td>
                         {% endif %}
-                        <td style="text-align: right; color: var(--color-orange); font-weight: 700;">
-                            {% if selected_event and selected_event.ranking_metric == 'distance' %}
-                            {{ ath.total_dist }} KM
-                            {% else %}
+                        <td style="text-align: right; color: var(--color-orange); font-weight: 700;" class="col-overall-kcal">
                             {{ "{:,}".format(ath.total_kcal).replace(",", ".") }} KCAL
-                            {% endif %}
                         </td>
                         {% if col_configs.show_col_award %}
-                        <td style="text-align: center;">
+                        <td style="text-align: center;" class="col-overall-award">
                             {% if ath.has_award %}
                             <span class="award-tag yes" title="Đã đạt mốc thưởng">
                                 <i class="fa-solid fa-gift"></i> {{ ath.award | currency }}
@@ -362,36 +421,36 @@
                         <th style="width: 80px; text-align: center;">Hạng</th>
                         <th>Tên Phòng ban</th>
                         <th style="text-align: center;">Thành viên</th>
-                        {% if selected_event and selected_event.ranking_metric == 'distance' %}
-                        <th style="text-align: right;">Tổng KM</th>
-                        <th style="text-align: right;">KM Trung Bình / Người</th>
-                        {% else %}
-                        <th style="text-align: right;">Tổng KCAL</th>
-                        <th style="text-align: right;">KCAL Trung Bình / Người</th>
-                        {% endif %}
+                        <th style="text-align: right;" id="col-dept-header-total">{% if selected_event and selected_event.ranking_metric == 'distance' %}Tổng KM{% else %}Tổng KCAL{% endif %}</th>
+                        <th style="text-align: right;" id="col-dept-header-avg">{% if selected_event and selected_event.ranking_metric == 'distance' %}KM Trung Bình / Người{% else %}KCAL Trung Bình / Người{% endif %}</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody id="dept-tbody">
                     {% for dept in dept_stats %}
-                    <tr>
+                    <tr class="dept-row" data-kcal-total="{{ dept.total_kcal }}" data-kcal-avg="{{ dept.avg_kcal }}" data-dist-total="{{ dept.total_distance }}" data-dist-avg="{{ dept.avg_distance }}" data-time-total="{{ dept.total_time }}" data-time-avg="{{ dept.avg_time }}" data-members="{{ dept.members }}">
                         <td style="text-align: center;">
-                            <span class="rank-badge {% if dept.rank == 1 %}rank-1{% elif dept.rank == 2 %}rank-2{% elif dept.rank == 3 %}rank-3{% else %}rank-other{% endif %}">
-                                {{ dept.rank }}
+                            <span class="rank-badge-container">
+                                <span class="rank-badge {% if dept.rank == 1 %}rank-1{% elif dept.rank == 2 %}rank-2{% elif dept.rank == 3 %}rank-3{% else %}rank-other{% endif %}">
+                                    {{ dept.rank }}
+                                </span>
                             </span>
                         </td>
                         <td style="font-weight: 600;">{{ dept.department }}</td>
                         <td style="text-align: center; color: var(--text-muted);">{{ dept.members }} VĐV</td>
-                        {% if selected_event and selected_event.ranking_metric == 'distance' %}
-                        <td style="text-align: right;">{{ dept.total_distance }} KM</td>
-                        <td style="text-align: right; color: var(--color-primary); font-weight: 700; font-size: 1.1rem;">
+                        <td style="text-align: right;" class="col-dept-total">
+                            {% if selected_event and selected_event.ranking_metric == 'distance' %}
+                            {{ dept.total_distance }} KM
+                            {% else %}
+                            {{ "{:,}".format(dept.total_kcal).replace(",", ".") }} KCAL
+                            {% endif %}
+                        </td>
+                        <td style="text-align: right; color: var(--color-primary); font-weight: 700; font-size: 1.1rem;" class="col-dept-avg">
+                            {% if selected_event and selected_event.ranking_metric == 'distance' %}
                             {{ dept.avg_distance }} KM
-                        </td>
-                        {% else %}
-                        <td style="text-align: right;">{{ "{:,}".format(dept.total_kcal).replace(",", ".") }} KCAL</td>
-                        <td style="text-align: right; color: var(--color-primary); font-weight: 700; font-size: 1.1rem;">
+                            {% else %}
                             {{ "{:,}".format(dept.avg_kcal).replace(",", ".") }} KCAL
+                            {% endif %}
                         </td>
-                        {% endif %}
                     </tr>
                     {% else %}
                     <tr>
@@ -427,16 +486,24 @@
                                     <th style="width: 50px;">Hạng</th>
                                     <th>Họ và Tên</th>
                                     <th style="text-align: right;">Quãng đường</th>
+                                    <th style="text-align: right;">Thời gian</th>
                                     <th style="text-align: right;">KCAL</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody class="sport-tbody">
                                 {% for ath in athletes[:5] %}
-                                <tr>
-                                    <td>{{ ath.rank }}</td>
+                                <tr class="sport-row" data-kcal="{{ ath.total_kcal }}" data-dist="{{ ath.total_dist }}" data-time="{{ ath.total_time }}" data-athlete-id="{{ ath.id }}">
+                                    <td class="sport-rank-col" style="text-align: center;">
+                                        <span class="rank-badge-container">
+                                            <span class="rank-badge {% if ath.rank == 1 %}rank-1{% elif ath.rank == 2 %}rank-2{% elif ath.rank == 3 %}rank-3{% else %}rank-other{% endif %}" style="width: 24px; height: 24px; font-size: 0.75rem; line-height: 24px; margin: 0 auto;">
+                                                {{ ath.rank }}
+                                            </span>
+                                        </span>
+                                    </td>
                                     <td><a href="/profile/{{ ath.id }}" style="color: var(--text-main); font-weight: 600; text-decoration: none;">{{ ath.full_name }}</a></td>
-                                    <td style="text-align: right;">{{ ath.total_dist }} km</td>
-                                    <td style="text-align: right; color: var(--color-orange); font-weight: 600;">{{ "{:,}".format(ath.total_kcal).replace(",", ".") }}</td>
+                                    <td style="text-align: right;" class="col-sport-dist">{{ ath.total_dist }} km</td>
+                                    <td style="text-align: right; color: var(--text-muted);" class="col-sport-time">{{ ath.total_time }} giờ</td>
+                                    <td style="text-align: right; color: var(--color-orange); font-weight: 600;" class="col-sport-kcal">{{ "{:,}".format(ath.total_kcal).replace(",", ".") }}</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -465,16 +532,24 @@
                                     <th style="width: 50px;">Hạng</th>
                                     <th>Họ và Tên</th>
                                     <th style="text-align: right;">Quãng đường</th>
+                                    <th style="text-align: right;">Thời gian</th>
                                     <th style="text-align: right;">KCAL</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody class="sport-tbody">
                                 {% for ath in athletes[:5] %}
-                                <tr>
-                                    <td>{{ ath.rank }}</td>
+                                <tr class="sport-row" data-kcal="{{ ath.total_kcal }}" data-dist="{{ ath.total_dist }}" data-time="{{ ath.total_time }}" data-athlete-id="{{ ath.id }}">
+                                    <td class="sport-rank-col" style="text-align: center;">
+                                        <span class="rank-badge-container">
+                                            <span class="rank-badge {% if ath.rank == 1 %}rank-1{% elif ath.rank == 2 %}rank-2{% elif ath.rank == 3 %}rank-3{% else %}rank-other{% endif %}" style="width: 24px; height: 24px; font-size: 0.75rem; line-height: 24px; margin: 0 auto;">
+                                                {{ ath.rank }}
+                                            </span>
+                                        </span>
+                                    </td>
                                     <td><a href="/profile/{{ ath.id }}" style="color: var(--text-main); font-weight: 600; text-decoration: none;">{{ ath.full_name }}</a></td>
-                                    <td style="text-align: right;">{{ ath.total_dist }} km</td>
-                                    <td style="text-align: right; color: var(--color-orange); font-weight: 600;">{{ "{:,}".format(ath.total_kcal).replace(",", ".") }}</td>
+                                    <td style="text-align: right;" class="col-sport-dist">{{ ath.total_dist }} km</td>
+                                    <td style="text-align: right; color: var(--text-muted);" class="col-sport-time">{{ ath.total_time }} giờ</td>
+                                    <td style="text-align: right; color: var(--color-orange); font-weight: 600;" class="col-sport-kcal">{{ "{:,}".format(ath.total_kcal).replace(",", ".") }}</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -602,8 +677,12 @@
         evt.currentTarget.classList.add('active');
 
         // Vẽ biểu đồ khi tab hiển thị
+        const sortContainer = document.getElementById('sort-controls-container');
         if (tabId === 'charts') {
+            if (sortContainer) sortContainer.style.display = 'none';
             setTimeout(initCharts, 50);
+        } else {
+            if (sortContainer) sortContainer.style.display = 'flex';
         }
     }
 
@@ -755,6 +834,257 @@
         document.getElementById('endDateInput').value = formatLocalDate(endDate);
         document.getElementById('dateFilterForm').submit();
     }
+
+    // --- DYNAMIC LEADERBOARD SORTING LOGIC ---
+    function formatNumber(num) {
+        return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    }
+
+    window.changeLeaderboardSort = function(metric) {
+        // 1. Cập nhật nút active
+        document.querySelectorAll('.sort-btn').forEach(btn => btn.classList.remove('active'));
+        const activeBtn = document.getElementById('btn-sort-' + metric);
+        if (activeBtn) activeBtn.classList.add('active');
+
+        // 2. Sắp xếp Bảng cá nhân (overall)
+        sortOverallLeaderboard(metric);
+
+        // 3. Sắp xếp Bảng phòng ban (departments)
+        sortDeptLeaderboard(metric);
+
+        // 4. Sắp xếp Bảng bộ môn (sports)
+        sortSportsLeaderboard(metric);
+    }
+
+    function sortOverallLeaderboard(metric) {
+        const tbody = document.getElementById('overall-tbody');
+        if (!tbody) return;
+        const rows = Array.from(tbody.querySelectorAll('.athlete-row'));
+        if (rows.length === 0) return;
+
+        rows.sort((a, b) => {
+            let valA, valB;
+            if (metric === 'kcal') {
+                valA = parseInt(a.getAttribute('data-kcal') || 0);
+                valB = parseInt(b.getAttribute('data-kcal') || 0);
+            } else if (metric === 'distance') {
+                valA = parseFloat(a.getAttribute('data-dist') || 0);
+                valB = parseFloat(b.getAttribute('data-dist') || 0);
+            } else { // time
+                valA = parseFloat(a.getAttribute('data-time') || 0);
+                valB = parseFloat(b.getAttribute('data-time') || 0);
+            }
+            return valB - valA;
+        });
+
+        // Highlights headers
+        const headerDist = document.getElementById('col-overall-header-dist');
+        const headerTime = document.getElementById('col-overall-header-time');
+        const headerKcal = document.getElementById('col-overall-header-kcal');
+        if (headerDist) { headerDist.style.color = ''; headerDist.style.fontWeight = ''; }
+        if (headerTime) { headerTime.style.color = ''; headerTime.style.fontWeight = ''; }
+        if (headerKcal) { headerKcal.style.color = ''; headerKcal.style.fontWeight = ''; }
+
+        if (metric === 'distance' && headerDist) {
+            headerDist.style.color = 'var(--color-primary)';
+            headerDist.style.fontWeight = '700';
+        } else if (metric === 'time' && headerTime) {
+            headerTime.style.color = 'var(--color-primary)';
+            headerTime.style.fontWeight = '700';
+        } else if (metric === 'kcal' && headerKcal) {
+            headerKcal.style.color = 'var(--color-primary)';
+            headerKcal.style.fontWeight = '700';
+        }
+
+        tbody.innerHTML = '';
+        rows.forEach((row, index) => {
+            const rank = index + 1;
+            const badgeContainer = row.querySelector('.rank-badge-container');
+            if (badgeContainer) {
+                let badgeClass = 'rank-other';
+                if (rank === 1) badgeClass = 'rank-1';
+                else if (rank === 2) badgeClass = 'rank-2';
+                else if (rank === 3) badgeClass = 'rank-3';
+                badgeContainer.innerHTML = `<span class="rank-badge ${badgeClass}">${rank}</span>`;
+            }
+
+            // Highlights data cells
+            const distCell = row.querySelector('.col-overall-dist');
+            const timeCell = row.querySelector('.col-overall-time');
+            const kcalCell = row.querySelector('.col-overall-kcal');
+
+            if (distCell) {
+                distCell.style.color = '';
+                distCell.style.fontWeight = '';
+            }
+            if (timeCell) {
+                timeCell.style.color = 'var(--text-muted)';
+                timeCell.style.fontWeight = '';
+            }
+            if (kcalCell) {
+                kcalCell.style.color = 'var(--color-orange)';
+                kcalCell.style.fontWeight = '700';
+            }
+
+            if (metric === 'distance' && distCell) {
+                distCell.style.color = 'var(--color-primary)';
+                distCell.style.fontWeight = '700';
+            } else if (metric === 'time' && timeCell) {
+                timeCell.style.color = 'var(--color-primary)';
+                timeCell.style.fontWeight = '700';
+            } else if (metric === 'kcal' && kcalCell) {
+                kcalCell.style.color = 'var(--color-primary)';
+                kcalCell.style.fontWeight = '700';
+            }
+
+            tbody.appendChild(row);
+        });
+    }
+
+    function sortDeptLeaderboard(metric) {
+        const tbody = document.getElementById('dept-tbody');
+        if (!tbody) return;
+        const rows = Array.from(tbody.querySelectorAll('.dept-row'));
+        if (rows.length === 0) return;
+
+        rows.sort((a, b) => {
+            let valA, valB;
+            if (metric === 'kcal') {
+                valA = parseFloat(a.getAttribute('data-kcal-avg') || 0);
+                valB = parseFloat(b.getAttribute('data-kcal-avg') || 0);
+            } else if (metric === 'distance') {
+                valA = parseFloat(a.getAttribute('data-dist-avg') || 0);
+                valB = parseFloat(b.getAttribute('data-dist-avg') || 0);
+            } else { // time
+                valA = parseFloat(a.getAttribute('data-time-avg') || 0);
+                valB = parseFloat(b.getAttribute('data-time-avg') || 0);
+            }
+            return valB - valA;
+        });
+
+        const headerTotal = document.getElementById('col-dept-header-total');
+        const headerAvg = document.getElementById('col-dept-header-avg');
+        if (headerTotal && headerAvg) {
+            if (metric === 'kcal') {
+                headerTotal.textContent = 'Tổng KCAL';
+                headerAvg.textContent = 'KCAL Trung Bình / Người';
+            } else if (metric === 'distance') {
+                headerTotal.textContent = 'Tổng KM';
+                headerAvg.textContent = 'KM Trung Bình / Người';
+            } else {
+                headerTotal.textContent = 'Tổng Thời Gian';
+                headerAvg.textContent = 'Giờ Trung Bình / Người';
+            }
+        }
+
+        tbody.innerHTML = '';
+        rows.forEach((row, index) => {
+            const rank = index + 1;
+            const badgeContainer = row.querySelector('.rank-badge-container');
+            if (badgeContainer) {
+                let badgeClass = 'rank-other';
+                if (rank === 1) badgeClass = 'rank-1';
+                else if (rank === 2) badgeClass = 'rank-2';
+                else if (rank === 3) badgeClass = 'rank-3';
+                badgeContainer.innerHTML = `<span class="rank-badge ${badgeClass}">${rank}</span>`;
+            }
+
+            const totalCell = row.querySelector('.col-dept-total');
+            const avgCell = row.querySelector('.col-dept-avg');
+            if (totalCell && avgCell) {
+                if (metric === 'kcal') {
+                    const totalVal = parseInt(row.getAttribute('data-kcal-total') || 0);
+                    const avgVal = parseInt(row.getAttribute('data-kcal-avg') || 0);
+                    totalCell.textContent = formatNumber(totalVal) + ' KCAL';
+                    avgCell.textContent = formatNumber(avgVal) + ' KCAL';
+                } else if (metric === 'distance') {
+                    const totalVal = parseFloat(row.getAttribute('data-dist-total') || 0);
+                    const avgVal = parseFloat(row.getAttribute('data-dist-avg') || 0);
+                    totalCell.textContent = totalVal + ' KM';
+                    avgCell.textContent = avgVal + ' KM';
+                } else {
+                    const totalVal = parseFloat(row.getAttribute('data-time-total') || 0);
+                    const avgVal = parseFloat(row.getAttribute('data-time-avg') || 0);
+                    totalCell.textContent = totalVal + ' giờ';
+                    avgCell.textContent = avgVal + ' giờ';
+                }
+            }
+
+            tbody.appendChild(row);
+        });
+    }
+
+    function sortSportsLeaderboard(metric) {
+        document.querySelectorAll('.sport-tbody').forEach(tbody => {
+            const rows = Array.from(tbody.querySelectorAll('.sport-row'));
+            if (rows.length === 0) return;
+
+            rows.sort((a, b) => {
+                let valA, valB;
+                if (metric === 'kcal') {
+                    valA = parseInt(a.getAttribute('data-kcal') || 0);
+                    valB = parseInt(b.getAttribute('data-kcal') || 0);
+                } else if (metric === 'distance') {
+                    valA = parseFloat(a.getAttribute('data-dist') || 0);
+                    valB = parseFloat(b.getAttribute('data-dist') || 0);
+                } else { // time
+                    valA = parseFloat(a.getAttribute('data-time') || 0);
+                    valB = parseFloat(b.getAttribute('data-time') || 0);
+                }
+                return valB - valA;
+            });
+
+            tbody.innerHTML = '';
+            rows.forEach((row, index) => {
+                const rank = index + 1;
+                const rankCol = row.querySelector('.sport-rank-col');
+                if (rankCol) {
+                    let badgeClass = 'rank-other';
+                    if (rank === 1) badgeClass = 'rank-1';
+                    else if (rank === 2) badgeClass = 'rank-2';
+                    else if (rank === 3) badgeClass = 'rank-3';
+                    rankCol.innerHTML = `
+                        <span class="rank-badge-container">
+                            <span class="rank-badge ${badgeClass}" style="width: 24px; height: 24px; font-size: 0.75rem; line-height: 24px; margin: 0 auto;">
+                                ${rank}
+                            </span>
+                        </span>
+                    `;
+                }
+
+                const distCell = row.querySelector('.col-sport-dist');
+                const timeCell = row.querySelector('.col-sport-time');
+                const kcalCell = row.querySelector('.col-sport-kcal');
+                
+                if (distCell && timeCell && kcalCell) {
+                    distCell.style.color = '';
+                    distCell.style.fontWeight = '';
+                    timeCell.style.color = 'var(--text-muted)';
+                    timeCell.style.fontWeight = '';
+                    kcalCell.style.color = 'var(--color-orange)';
+                    kcalCell.style.fontWeight = '600';
+
+                    if (metric === 'distance') {
+                        distCell.style.color = 'var(--color-primary)';
+                        distCell.style.fontWeight = '700';
+                    } else if (metric === 'time') {
+                        timeCell.style.color = 'var(--color-primary)';
+                        timeCell.style.fontWeight = '700';
+                    } else { // kcal
+                        kcalCell.style.color = 'var(--color-primary)';
+                        kcalCell.style.fontWeight = '700';
+                    }
+                }
+
+                tbody.appendChild(row);
+            });
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const initialMetric = "{{ selected_metric }}";
+        changeLeaderboardSort(initialMetric || 'kcal');
+    });
 
     // --- ARCHIVED EVENT DETAIL MODAL LOGIC ---
 

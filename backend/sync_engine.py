@@ -96,6 +96,16 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
     new_count = 0
     today_str = datetime.now().strftime("%Y-%m-%d")
 
+    # Cache danh sách vận động viên để đối khớp tốc độ cao (hỗ trợ nhiều tên cách nhau bằng dấu phẩy)
+    athletes = db.query(Athlete).all()
+    athlete_map = {}
+    for a in athletes:
+        if a.strava_name:
+            for part in a.strava_name.split(","):
+                cleaned = part.strip().lower()
+                if cleaned:
+                    athlete_map[cleaned] = a
+
     for act in all_activities:
         athlete_data = act.get("athlete", {})
         firstname = athlete_data.get("firstname", "")
@@ -129,7 +139,7 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
             continue
             
         # Khớp vận động viên đã đăng ký
-        athlete = db.query(Athlete).filter(Athlete.strava_name == athlete_name_raw).first()
+        athlete = athlete_map.get(athlete_name_raw.lower())
         athlete_id = athlete.id if athlete else None
         
         # Tính toán METs & KCAL
@@ -261,13 +271,20 @@ def sync_club_activities(event_id: int = None) -> dict:
 
 def link_unlinked_activities(db: Session, athlete: Athlete):
     """
-    Khi một VĐV đăng ký mới, tự động liên kết các hoạt động chưa được liên kết
-    nhưng có tên trùng khớp với `strava_name` của VĐV đó (không phân biệt hoa thường).
+    Khi một VĐV đăng ký mới hoặc đổi tên, tự động liên kết các hoạt động chưa được liên kết
+    nhưng có tên trùng khớp với một trong các tên hiển thị Strava của VĐV đó (ngăn cách bởi dấu phẩy, không phân biệt hoa thường).
     """
     from sqlalchemy import func
+    if not athlete.strava_name:
+        return
+        
+    names = [n.strip().lower() for n in athlete.strava_name.split(",") if n.strip()]
+    if not names:
+        return
+        
     unlinked = db.query(Activity).filter(
         Activity.athlete_id == None,
-        func.lower(Activity.athlete_name_raw) == func.lower(athlete.strava_name)
+        func.lower(Activity.athlete_name_raw).in_(names)
     ).all()
     
     if not unlinked:
@@ -311,9 +328,15 @@ async def import_excel_files(files: list[UploadFile], db: Session, event_id: int
     skipped_count = 0
     errors = []
     
-    # Cache danh sách vận động viên để tối ưu hóa truy vấn tốc độ cao
+    # Cache danh sách vận động viên để tối ưu hóa truy vấn tốc độ cao (hỗ trợ nhiều tên cách nhau bằng dấu phẩy)
     athletes = db.query(Athlete).all()
-    athlete_map = {a.strava_name.strip().lower(): a for a in athletes}
+    athlete_map = {}
+    for a in athletes:
+        if a.strava_name:
+            for part in a.strava_name.split(","):
+                cleaned = part.strip().lower()
+                if cleaned:
+                    athlete_map[cleaned] = a
     seen_ids = set()
     
     # Nếu không truyền event_id, lấy giải đấu đang hoạt động đầu tiên

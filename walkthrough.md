@@ -76,6 +76,21 @@ Dự án là web app Strava SSO_HC dùng FastAPI, SQLAlchemy và SQLite. Giao di
 *   **Giao diện Frontend (Templates):**
     *   Động hóa hoàn toàn nhãn hiển thị (KM, KCAL, KM/Người, KCAL/Người) tại Trang chủ (leaderboards, charts), Trang cá nhân (kpi cards, awards progress, charts), Trang quy chế và trang Admin.
     *   Gắn sự kiện JavaScript động trong trang Admin để tự động thay đổi nhãn cấu hình mốc quy đổi tuyến tính khi Admin thay đổi tiêu chí xếp hạng của giải đấu.
+    *   **Sửa lỗi thống kê ẩn (Thống kê Tuần, Tháng, Cơ cấu bộ môn):**
+  - Khắc phục lỗi lọc SQL trong các query thống kê ở API Admin dashboard. Trước đó, các query này lọc trực tiếp `Activity.sport_type.in_(allowed_sports)` mà không kiểm tra xem `"All"` có nằm trong đó không, dẫn đến việc khi chọn "All", các biểu đồ thống kê bị trống trơn. Đã cập nhật thành công điều kiện kiểm tra `if allowed_sports and "All" not in allowed_sports:`.
+
+### 0.5. Tính năng Sắp xếp bảng xếp hạng động (KCAL / KM / Thời gian)
+- **Thiết kế UI Button Group cực kỳ hiện đại:** Bổ sung cụm nút chọn tiêu chí sắp xếp (KCAL / KM / Giờ) ngay dưới header tab của Bảng xếp hạng. Nút được thiết kế dưới dạng Button Group với hiệu ứng hover và active phát sáng xanh ngọc (Primary Color) rất cao cấp.
+- **Tự động đồng bộ Onload:** Khi trang được load lần đầu, JS sẽ tự động kích hoạt chế độ sort theo tiêu chí mặc định của giải đấu hiện tại (được xác định qua trường `selected_metric` truyền từ Backend).
+- **Client-side DOM sorting siêu nhanh (0ms delay):**
+  - **Bảng cá nhân (Overall - Sửa lỗi double cột):** Loại bỏ hoàn toàn cột "Thành tích" động (vốn bị trùng lắp gây double cột KM/Giờ khi thay đổi tiêu chí). Thay vào đó, bảng cá nhân hiển thị cố định cả 3 chỉ số độc lập: **Quãng đường (KM)**, **Thời gian (Giờ)**, và **Năng lượng (KCAL)**. Khi bấm sort tiêu chí nào, VĐV được xếp hạng lại theo tiêu chí đó, đồng thời cột dữ liệu và tiêu đề cột tương ứng được tô màu xanh ngọc nổi bật (Highlight), đem lại giao diện sạch sẽ, tường minh.
+  - **Bảng phòng ban (Departments):** Sắp xếp lại thứ tự phòng ban theo hiệu suất trung bình của tiêu chí tương ứng. Tự động cập nhật nhãn cột tiêu đề và giá trị hiển thị ở 2 cột Tổng tích lũy và Trung bình/Người tương ứng.
+  - **Bảng bộ môn (Sports):** Bổ sung cột **Thời gian (Giờ)** vào cả bảng Nam và Nữ để hiển thị đầy đủ cả 3 chỉ số (KM, Giờ, KCAL). Khi click chọn sort theo tiêu chí nào, VĐV trong từng bộ môn sẽ được sort theo tiêu chí đó, đồng thời cột thành tích đang được dùng để sort sẽ được tô màu xanh ngọc nổi bật để người dùng dễ theo dõi.
+- **Cập nhật Backend:**
+  - Bổ sung trường `total_time` vào `dept_query` để tính toán thời gian tổng cộng và thời gian trung bình/người cho BXH phòng ban.
+  - Bổ sung trường `total_time` vào truy vấn xếp hạng của từng bộ môn (`get_sport_ranking`).
+
+### 1. Xử lý an toàn tham số `event_id` trong các API GET để tránh lỗi 422
 *   **Kết quả kiểm thử:**
     *   Đã chạy thành công kịch bản kiểm thử tự động `test_routes_validation.py` xác thực các routes hoạt động ổn định với các giá trị đầu vào của `event_id`.
     *   Đã viết và chạy thành công kịch bản kiểm thử tự động `test_km_ranking.py` mô phỏng giải chạy KM và lọc bộ môn. Kết quả xác nhận các hoạt động được nhân đôi quãng đường vào ngày Chủ nhật chính xác (lưu đúng raw và multiplied), loại bỏ bộ môn không hợp lệ ra khỏi BXH và tính toán tổng thành tích BXH cá nhân hoàn hảo (20.0 KM như thiết kế).

@@ -52,7 +52,7 @@ def get_mets_value(sport_type: str, speed_kmh: float, db: Session, distance_km: 
         
         # Độ dốc G (Grade): Độ cao (m) / Quãng đường (m). Giới hạn dốc tối đa 30% tránh nhiễu GPS
         G = 0.0
-        if distance_km > 0.0:
+        if distance_km > 0.0 and elevation_gain_m is not None:
             G = min(elevation_gain_m / (distance_km * 1000.0), 0.3)
             
         if sport_type == 'Run':

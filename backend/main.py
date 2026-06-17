@@ -353,7 +353,8 @@ def index(
     dept_query = db.query(
         Athlete.department,
         func.sum(Activity.kcal_burned).label("total_kcal"),
-        func.sum(Activity.distance_km).label("total_dist")
+        func.sum(Activity.distance_km).label("total_dist"),
+        func.sum(Activity.moving_time_min).label("total_time")
     ).join(Activity, Athlete.id == Activity.athlete_id)
     
     if event_id:
@@ -372,16 +373,20 @@ def index(
         members = dept_members.get(dept_name, 1)
         total_k = item.total_kcal or 0
         total_d = item.total_dist or 0
+        total_t = item.total_time or 0
         avg_k = total_k / members
         avg_d = total_d / members
+        avg_t = (total_t / 60.0) / members
         
         dept_stats.append({
             "department": dept_name,
             "total_kcal": int(total_k),
             "total_distance": round(total_d, 1),
+            "total_time": round(total_t / 60.0, 1),
             "members": members,
             "avg_kcal": round(avg_k, 0),
-            "avg_distance": round(avg_d, 2)
+            "avg_distance": round(avg_d, 2),
+            "avg_time": round(avg_t, 2)
         })
         
     if is_distance:
@@ -399,7 +404,8 @@ def index(
             Athlete.full_name,
             Activity.sport_type,
             func.sum(Activity.kcal_burned).label("total_kcal"),
-            func.sum(Activity.distance_km).label("total_dist")
+            func.sum(Activity.distance_km).label("total_dist"),
+            func.sum(Activity.moving_time_min).label("total_time")
         ).join(Activity, Athlete.id == Activity.athlete_id)
         
         if event_id:
@@ -426,7 +432,8 @@ def index(
                 "id": item.id,
                 "full_name": item.full_name,
                 "total_kcal": int(item.total_kcal or 0),
-                "total_dist": round(item.total_dist or 0, 1)
+                "total_dist": round(item.total_dist or 0, 1),
+                "total_time": round((item.total_time or 0) / 60.0, 1)
             })
             
         # Thêm thứ hạng vào danh sách
@@ -475,7 +482,8 @@ def index(
             "col_configs": col_configs,
             "active_competitions": active_competitions,
             "selected_event": selected_event,
-            "selected_event_id": event_id
+            "selected_event_id": event_id,
+            "selected_metric": "distance" if is_distance else "kcal"
         }
     )
 
@@ -595,7 +603,16 @@ def register_page(
     unlinked_names = db.query(Activity.athlete_name_raw)\
         .filter(Activity.athlete_id == None)\
         .group_by(Activity.athlete_name_raw).all()
-    unlinked_athletes = [name[0] for name in unlinked_names if name[0]]
+    # Loại bỏ các tên thô đã trùng với bất kỳ tên Strava nào (kể cả tên phụ) của các VĐV đã đăng ký
+    registered_names = set()
+    athletes = db.query(Athlete).all()
+    for a in athletes:
+        if a.strava_name:
+            for part in a.strava_name.split(","):
+                cleaned = part.strip().lower()
+                if cleaned:
+                    registered_names.add(cleaned)
+    unlinked_athletes = [name[0] for name in unlinked_names if name[0] and name[0].strip().lower() not in registered_names]
 
     return templates.TemplateResponse(
         request=request,
@@ -637,10 +654,26 @@ def register_athlete(
     unlinked_names = db.query(Activity.athlete_name_raw)\
         .filter(Activity.athlete_id == None)\
         .group_by(Activity.athlete_name_raw).all()
-    unlinked_athletes = [name[0] for name in unlinked_names if name[0]]
+    # Loại bỏ các tên thô đã trùng với bất kỳ tên Strava nào (kể cả tên phụ) của các VĐV đã đăng ký
+    registered_names = set()
+    athletes = db.query(Athlete).all()
+    for a in athletes:
+        if a.strava_name:
+            for part in a.strava_name.split(","):
+                cleaned = part.strip().lower()
+                if cleaned:
+                    registered_names.add(cleaned)
+    unlinked_athletes = [name[0] for name in unlinked_names if name[0] and name[0].strip().lower() not in registered_names]
 
-    # Kiểm tra xem tên Strava đã được đăng ký chưa
-    exists = db.query(Athlete).filter(Athlete.strava_name == strava_name).first()
+    # Kiểm tra xem tên Strava đã được đăng ký chưa (hỗ trợ nhiều tên cách nhau bằng dấu phẩy)
+    new_names = [n.strip().lower() for n in strava_name.split(",") if n.strip()]
+    exists = None
+    for a in athletes:
+        if a.strava_name:
+            existing_names = [n.strip().lower() for n in a.strava_name.split(",") if n.strip()]
+            if set(new_names) & set(existing_names):
+                exists = a
+                break
     if exists:
         if is_update == "true":
             try:
@@ -1103,7 +1136,16 @@ def admin_dashboard(
     unlinked_names = db.query(Activity.athlete_name_raw)\
         .filter(Activity.athlete_id == None)\
         .group_by(Activity.athlete_name_raw).all()
-    unlinked_athletes = [name[0] for name in unlinked_names if name[0]]
+    # Loại bỏ các tên thô đã trùng với bất kỳ tên Strava nào (kể cả tên phụ) của các VĐV đã đăng ký
+    registered_names = set()
+    athletes = db.query(Athlete).all()
+    for a in athletes:
+        if a.strava_name:
+            for part in a.strava_name.split(","):
+                cleaned = part.strip().lower()
+                if cleaned:
+                    registered_names.add(cleaned)
+    unlinked_athletes = [name[0] for name in unlinked_names if name[0] and name[0].strip().lower() not in registered_names]
 
     # Tạo đường link authorize với Strava
     client_id = configs.get("strava_client_id")
@@ -1597,7 +1639,16 @@ def admin_add_athlete(
     full_name = full_name.strip()
     strava_name = strava_name.strip()
     
-    exists = db.query(Athlete).filter(Athlete.strava_name == strava_name).first()
+    # Kiểm tra xem tên Strava đã được đăng ký chưa (hỗ trợ nhiều tên cách nhau bằng dấu phẩy)
+    new_names = [n.strip().lower() for n in strava_name.split(",") if n.strip()]
+    exists = None
+    athletes = db.query(Athlete).all()
+    for a in athletes:
+        if a.strava_name:
+            existing_names = [n.strip().lower() for n in a.strava_name.split(",") if n.strip()]
+            if set(new_names) & set(existing_names):
+                exists = a
+                break
     if exists:
         return RedirectResponse(f"/admin?error=Ten Strava {strava_name} da ton tai", status_code=303)
         
@@ -1646,8 +1697,16 @@ def admin_edit_athlete(
     full_name = full_name.strip()
     strava_name = strava_name.strip()
     
-    # Kiểm tra trùng strava_name với người khác
-    exists = db.query(Athlete).filter(Athlete.strava_name == strava_name, Athlete.id != athlete_id).first()
+    # Kiểm tra trùng strava_name với người khác (hỗ trợ nhiều tên cách nhau bằng dấu phẩy)
+    new_names = [n.strip().lower() for n in strava_name.split(",") if n.strip()]
+    exists = None
+    athletes = db.query(Athlete).filter(Athlete.id != athlete_id).all()
+    for a in athletes:
+        if a.strava_name:
+            existing_names = [n.strip().lower() for n in a.strava_name.split(",") if n.strip()]
+            if set(new_names) & set(existing_names):
+                exists = a
+                break
     if exists:
         return RedirectResponse(f"/admin?error=Ten Strava {strava_name} da bi trung&event_id={event_id or ''}#tab-athletes", status_code=303)
         
