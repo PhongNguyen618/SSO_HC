@@ -219,7 +219,7 @@
         {% if active_competitions and active_competitions|length > 1 %}
         <div style="display: flex; align-items: center; gap: 0.4rem;">
             <label for="eventSelect" style="color: var(--text-muted); font-size: 0.85rem;">Giải đấu</label>
-            <select id="eventSelect" name="event_id" class="form-control" onchange="this.form.submit()" style="padding: 0.4rem 0.8rem; font-size: 0.9rem; min-width: 180px; background: rgba(10, 8, 20, 0.8); cursor: pointer;">
+            <select id="eventSelect" name="event_id" class="form-control" onchange="window.location.href='/?event_id=' + this.value" style="padding: 0.4rem 0.8rem; font-size: 0.9rem; min-width: 180px; background: rgba(10, 8, 20, 0.8); cursor: pointer;">
                 {% for comp in active_competitions %}
                 <option value="{{ comp.id }}" {% if selected_event_id == comp.id %}selected{% endif %}>{{ comp.title }}</option>
                 {% endfor %}
