@@ -2059,6 +2059,107 @@ def admin_migrate_registrations(
         db.rollback()
         return JSONResponse(status_code=500, content={"error": f"Lỗi xử lý: {str(e)}"})
 
+@app.post("/admin/api/merge-duplicate-athletes")
+def admin_merge_duplicate_athletes(
+    request: Request,
+    new_event_id: int = Form(...),
+    apply: str = Form("false"),
+    db: Session = Depends(get_db)
+):
+    admin_session = get_admin_session(request, db)
+    if not admin_session:
+        return JSONResponse(status_code=401, content={"error": "Chưa đăng nhập admin"})
+        
+    is_apply = (apply.lower() == "true")
+    
+    try:
+        # Lấy tất cả VĐV đã đăng ký giải mới (new_event_id)
+        regs_new_event = db.query(CompetitionRegistration).filter(
+            CompetitionRegistration.event_id == new_event_id
+        ).all()
+        
+        details = []
+        merged_count = 0
+        
+        for reg in regs_new_event:
+            athlete_new = db.query(Athlete).filter(Athlete.id == reg.athlete_id).first()
+            if not athlete_new:
+                continue
+            
+            # Chuẩn hóa tên để đối chiếu
+            name_normalized = athlete_new.full_name.strip().lower()
+            
+            # Tìm VĐV khác ở giải cũ (ID = 1) có cùng Họ Tên nhưng khác ID
+            other_athlete = db.query(Athlete).join(
+                CompetitionRegistration,
+                Athlete.id == CompetitionRegistration.athlete_id
+            ).filter(
+                Athlete.id != athlete_new.id,
+                func.lower(func.trim(Athlete.full_name)) == name_normalized,
+                CompetitionRegistration.event_id == 1
+            ).first()
+            
+            if other_athlete:
+                details.append({
+                    "full_name": athlete_new.full_name,
+                    "new_athlete_id": athlete_new.id,
+                    "new_strava_name": athlete_new.strava_name,
+                    "old_athlete_id": other_athlete.id,
+                    "old_strava_name": other_athlete.strava_name
+                })
+                
+                if is_apply:
+                    # THỰC HIỆN HỢP NHẤT (Merge)
+                    # 1. Đăng ký tài khoản cũ (other_athlete) vào giải mới (new_event_id) nếu chưa có
+                    exists_reg = db.query(CompetitionRegistration).filter(
+                        CompetitionRegistration.athlete_id == other_athlete.id,
+                        CompetitionRegistration.event_id == new_event_id
+                    ).first()
+                    
+                    if not exists_reg:
+                        new_reg = CompetitionRegistration(
+                            athlete_id=other_athlete.id,
+                            event_id=new_event_id
+                        )
+                        db.add(new_reg)
+                    
+                    # 2. Chuyển toàn bộ hoạt động (Activities) từ tài khoản mới (athlete_new) sang tài khoản cũ (other_athlete)
+                    db.query(Activity).filter(
+                        Activity.athlete_id == athlete_new.id
+                    ).update({Activity.athlete_id: other_athlete.id})
+                    
+                    # 3. Xóa tài khoản mới (athlete_new) khỏi bảng athletes
+                    # Cascade delete sẽ tự động xóa bản ghi đăng ký của tài khoản mới này ở bảng competition_registrations
+                    db.delete(athlete_new)
+                    
+                    merged_count += 1
+        
+        if is_apply and merged_count > 0:
+            db.commit()
+            
+            # Chạy lại liên kết hoạt động cho các tài khoản cũ vừa được hợp nhất
+            for d in details:
+                ath = db.query(Athlete).filter(Athlete.id == d["old_athlete_id"]).first()
+                if ath:
+                    link_unlinked_activities(db, ath)
+                    
+        message = ""
+        if is_apply:
+            message = f"Hợp nhất thành công {merged_count} VĐV trùng họ tên. Tên Strava đã được đồng bộ về tên cũ chính xác."
+        else:
+            message = f"Tìm thấy {len(details)} VĐV trùng họ tên ở giải mới và giải cũ nhưng khác tên Strava. Chưa thực hiện thay đổi nào."
+            
+        return JSONResponse(content={
+            "dry_run": not is_apply,
+            "message": message,
+            "details": details
+        })
+        
+    except Exception as e:
+        db.rollback()
+        return JSONResponse(status_code=500, content={"error": f"Lỗi xử lý: {str(e)}"})
+
+
 @app.post("/admin/activity/delete/{activity_id}")
 def delete_activity(activity_id: str, request: Request, db: Session = Depends(get_db)):
     """API xóa hoạt động, chỉ dành cho Admin."""

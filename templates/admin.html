@@ -1449,6 +1449,43 @@
                 <pre id="migrate-result-output" style="font-family: monospace; font-size: 0.82rem; white-space: pre-wrap; margin: 0; color: #fff; line-height: 1.4;"></pre>
             </div>
         </div>
+
+        <!-- Công cụ hợp nhất tài khoản trùng Họ Tên -->
+        <div class="glass-card" style="margin-top: 1.5rem; background: rgba(255,255,255,0.01); border: 1px solid rgba(143, 205, 240, 0.25);">
+            <h3 class="admin-section-title" style="color: #8FCDF0;"><i class="fa-solid fa-user-group"></i> Đồng bộ & Hợp nhất tài khoản trùng Họ Tên</h3>
+            <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1.2rem; line-height: 1.5;">
+                Công cụ này giúp sửa lỗi khi VĐV đăng ký giải đấu mới gõ sai/khác tên hiển thị Strava so với giải cũ. 
+                Hệ thống sẽ tự động tìm các VĐV ở <strong>giải đấu mới (ID do bạn chọn)</strong> có cùng Họ và Tên với VĐV ở <strong>giải cũ (ID = 1)</strong>:
+                <br>• Đồng bộ (lấy) tên Strava đúng từ giải cũ gán sang giải mới.
+                <br>• Hợp nhất tài khoản mới tạo bị lỗi vào tài khoản cũ chính xác, chuyển toàn bộ hoạt động đã đồng bộ sang tài khoản cũ và xóa tài khoản trùng lặp.
+            </p>
+            <form id="merge-athletes-form" onsubmit="runMergeAthletes(event)" style="display: flex; flex-direction: column; gap: 1rem;">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Giải chạy mới cần xử lý (New Event)</label>
+                        <select id="merge_new_event_id" name="new_event_id" class="form-control" required>
+                            {% for comp in all_competitions %}
+                                {% if comp.id != 1 %}
+                                <option value="{{ comp.id }}">{{ comp.title }} (ID: {{ comp.id }})</option>
+                                {% endif %}
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 1rem; align-items: center;">
+                    <button type="submit" class="btn btn-secondary">
+                        <i class="fa-solid fa-eye"></i> Quét & Chạy Thử
+                    </button>
+                    <button type="button" onclick="confirmAndMerge()" class="btn" style="background: #8FCDF0; color: #0a0814; font-weight: bold;">
+                        <i class="fa-solid fa-user-plus"></i> Hợp Nhất & Đồng Bộ Thật
+                    </button>
+                </div>
+            </form>
+            <div id="merge-result-container" class="glass-card" style="display: none; margin-top: 1rem; background: rgba(0,0,0,0.2); padding: 1rem; border-radius: 8px;">
+                <h4 style="font-family: 'Outfit'; font-size: 0.95rem; margin-bottom: 0.5rem; color: var(--color-primary);">Kết quả thực thi:</h4>
+                <pre id="merge-result-output" style="font-family: monospace; font-size: 0.82rem; white-space: pre-wrap; margin: 0; color: #fff; line-height: 1.4;"></pre>
+            </div>
+        </div>
     </div>
 
     <!-- TAB: SỰ KIỆN LỊCH SỬ -->
@@ -1673,6 +1710,59 @@
         const msg = `CẢNH BÁO!\nBạn có chắc chắn muốn di chuyển THẬT các đăng ký ở GIẢI CŨ trong ${hours} giờ qua sang "${targetTitle}"?\n\nThao tác này sẽ làm thay đổi cơ sở dữ liệu!`;
         if (confirm(msg)) {
             runMigrateRegistrations(null, true);
+        }
+    }
+
+    async function runMergeAthletes(e, apply = false) {
+        if (e) e.preventDefault();
+        
+        const newEventId = document.getElementById('merge_new_event_id').value;
+        const resultContainer = document.getElementById('merge-result-container');
+        const resultOutput = document.getElementById('merge-result-output');
+        
+        resultContainer.style.display = 'block';
+        resultOutput.innerText = 'Đang thực thi quét trùng lặp... Vui lòng đợi...';
+        
+        try {
+            const formData = new FormData();
+            formData.append('new_event_id', newEventId);
+            formData.append('apply', apply ? 'true' : 'false');
+            
+            const res = await fetch('/admin/api/merge-duplicate-athletes', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+            
+            if (res.ok) {
+                let text = `[Trạng thái: ${data.dry_run ? "Chạy thử (Dry Run)" : "Thực tế (Apply)"}]\n`;
+                text += `Thông điệp: ${data.message}\n\n`;
+                if (data.details && data.details.length > 0) {
+                    text += `Danh sách VĐV phát hiện (${data.details.length}):\n`;
+                    data.details.forEach(d => {
+                        text += ` - Họ Tên: ${d.full_name}\n`;
+                        text += `   + Tài khoản trùng gõ sai: ID ${d.new_athlete_id} | Strava = '${d.new_strava_name}'\n`;
+                        text += `   + Tài khoản gốc từ giải cũ: ID ${d.old_athlete_id} | Strava = '${d.old_strava_name}'\n`;
+                    });
+                } else {
+                    text += `Không tìm thấy VĐV nào trùng Họ Tên nhưng khác tên Strava ở giải mới này.`;
+                }
+                resultOutput.innerText = text;
+            } else {
+                resultOutput.innerText = '❌ Lỗi: ' + (data.error || 'Có lỗi xảy ra');
+            }
+        } catch (err) {
+            resultOutput.innerText = '❌ Lỗi kết nối: ' + err.message;
+        }
+    }
+    
+    function confirmAndMerge() {
+        const targetSelect = document.getElementById('merge_new_event_id');
+        const targetTitle = targetSelect.options[targetSelect.selectedIndex].text;
+        
+        const msg = `CẢNH BÁO HỢP NHẤT TÀI KHOẢN!\nBạn có chắc chắn muốn HỢP NHẤT và ĐỒNG BỘ THẬT tên Strava của các VĐV trùng Họ Tên ở giải "${targetTitle}"?\n\n• Tài khoản trùng gõ sai ở giải mới sẽ bị XÓA.\n• Hoạt động và đăng ký của giải mới sẽ được chuyển sang tài khoản gốc.\n• Tên Strava của VĐV ở giải mới sẽ tự động dùng lại tên cũ chuẩn.\n\nThao tác này KHÔNG THỂ HOÀN TÁC! Bạn có chắc chắn muốn thực hiện?`;
+        if (confirm(msg)) {
+            runMergeAthletes(null, true);
         }
     }
 
