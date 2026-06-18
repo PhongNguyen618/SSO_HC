@@ -1330,8 +1330,8 @@ def admin_dashboard(
         .group_by(Activity.athlete_name_raw).all()
     # Loại bỏ các tên thô đã trùng với bất kỳ tên Strava nào (kể cả tên phụ) của các VĐV đã đăng ký
     registered_names = set()
-    athletes = db.query(Athlete).all()
-    for a in athletes:
+    all_registered_athletes = db.query(Athlete).all()
+    for a in all_registered_athletes:
         if a.strava_name:
             for part in a.strava_name.split(","):
                 cleaned = part.strip().lower()
