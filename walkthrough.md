@@ -41,9 +41,28 @@ Dự án là web app Strava SSO_HC dùng FastAPI, SQLAlchemy và SQLite. Giao di
 ### 1. Kiểm thử tự động (Unit Test)
 - **Kiểm thử dọn dẹp hoạt động:** [test_deduplicate_tolerance.py](file:///C:/Users/PC/.gemini/antigravity/brain/bd264055-d159-48f2-b24a-882bf20c1d44/scratch/test_deduplicate_tolerance.py) - **PASSED (OK)**.
 - **Kiểm thử API quy chế:** [test_api_rules.py](file:///C:/Users/PC/.gemini/antigravity/brain/bd264055-d159-48f2-b24a-882bf20c1d44/scratch/test_api_rules.py) - **PASSED (OK)**. API trả về đúng dữ liệu cấu hình theo giải đấu và trả về 401 khi chưa đăng nhập admin.
+- **Kiểm thử Đăng ký & Trùng họ tên:** [test_post_register.py](file:///C:/Users/PC/.gemini/antigravity/brain/bd264055-d159-48f2-b24a-882bf20c1d44/scratch/test_post_register.py) - **PASSED (OK)**. Xác minh cơ chế phát hiện trùng họ tên chuẩn hóa và cho phép cập nhật thông tin.
 
 ### 2. Commit lên Git
-- Đã commit toàn bộ các thay đổi mới lên Git.
+- Đã commit và push toàn bộ các thay đổi mới lên Git.
+
+---
+
+## Các tính năng bổ sung quản lý Vận động viên (Mới)
+
+### 1. Hiển thị Ngày đăng ký của thành viên
+- **Files sửa đổi:** [main.py](file:///c:/Users/PC/Desktop/SSO_HC/backend/main.py) & [admin.html](file:///c:/Users/PC/Desktop/SSO_HC/templates/admin.html)
+- **Chi tiết:** 
+  - Thống kê thời gian đăng ký (cột `registered_at` trong bảng `CompetitionRegistration`) của từng thành viên đăng ký giải chạy.
+  - Quy đổi múi giờ sang giờ Việt Nam (GMT+7) và định dạng chuỗi hiển thị `dd/mm/yyyy hh:mm` (ví dụ: `18/06/2026 15:15`) ở cột mới **"Ngày đăng ký"** trong tab **Thành viên** trên trang Admin.
+  - Hỗ trợ hiển thị ngày đăng ký gần nhất khi chọn chế độ lọc hiển thị "Tất cả giải đấu".
+
+### 2. Tự động phát hiện & sửa đổi tài khoản khi người chơi viết nhầm thông tin
+- **File sửa đổi:** [main.py](file:///c:/Users/PC/Desktop/SSO_HC/backend/main.py)
+- **Chi tiết:** 
+  - Viết hàm helper `clean_name(name)` để chuẩn hóa chuỗi (chuyển chữ thường, bỏ khoảng trắng, bỏ dấu tiếng Việt).
+  - Khi người chơi đăng ký mới, hệ thống sẽ chuẩn hóa Họ tên họ nhập vào và so sánh với danh sách VĐV đã có. Nếu phát hiện trùng lặp Họ tên chuẩn hóa (ví dụ: `Nguyen Van A` trùng khớp với `Nguyễn Văn A`), hệ thống sẽ nhận diện đây là cùng một người và ngăn chặn việc tạo tài khoản trùng thứ hai.
+  - Chuyển hướng người chơi sang luồng cập nhật thông tin. Tại đây, cho phép họ cập nhật cả Họ tên đúng, Phòng ban, Cân nặng và cả tên Strava mới (nếu trước đó họ ghi nhầm tên Strava của mình) giúp họ tự sửa lỗi ghi nhận hoạt động cực kỳ nhanh chóng.
 
 ---
 
