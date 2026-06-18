@@ -2572,41 +2572,109 @@ def edit_activity(
 
 @app.post("/admin/activity/deduplicate")
 def api_deduplicate_activities(request: Request, db: Session = Depends(get_db)):
-    """API dọn dẹp dữ liệu trùng lặp trong DB, chỉ dành cho Admin."""
+    """API dọn dẹp dữ liệu trùng lặp trong DB, hỗ trợ sai số (dung sai) nhỏ và lệch ngày."""
     admin_session = get_admin_session(request, db)
     if not admin_session:
         return JSONResponse(status_code=401, content={"error": "Chưa đăng nhập admin"})
         
     try:
         activities = db.query(Activity).all()
-        seen_activities = {}
+        
+        from collections import defaultdict
+        from datetime import datetime
+        import hashlib
+        
+        # Nhóm các hoạt động theo VĐV
+        by_athlete = defaultdict(list)
+        for act in activities:
+            ath_key = act.athlete_id if act.athlete_id is not None else act.athlete_name_raw
+            by_athlete[ath_key].append(act)
+            
         to_delete = []
         updated_count = 0
         
-        import hashlib
-        
-        for act in activities:
-            dist_raw = act.distance_km_raw if act.distance_km_raw is not None else act.distance_km
-            dist_km_round = round(float(dist_raw or 0), 2)
-            mov_time_round = round(float(act.moving_time_min or 0), 1)
-            ela_time_round = round(float(act.elapsed_time_min or 0), 1)
-            elev_round = float(act.elevation_gain_m or 0)
-            
-            unique_str = f"{act.athlete_name_raw}_{act.activity_date}_{act.name}_{act.sport_type}_{dist_km_round}_{mov_time_round}_{ela_time_round}_{elev_round}_{act.event_id}"
-            
-            if unique_str in seen_activities:
-                to_delete.append(act.id)
-            else:
-                seen_activities[unique_str] = act.id
+        for ath_key, act_list in by_athlete.items():
+            if len(act_list) < 2:
+                continue
                 
-                # Đồng bộ ID của hoạt động
+            # Sắp xếp các hoạt động để giữ lại bản ghi có thông tin tốt nhất
+            # 1. Ưu tiên có athlete_id (đã liên kết với VĐV)
+            # 2. Ưu tiên tên chi tiết (không phải "Activity" hoặc "Hoạt động Strava")
+            # 3. Ưu tiên ngày nhỏ hơn (ngày diễn ra thực tế)
+            def sort_key(x):
+                has_athlete = 1 if x.athlete_id is not None else 0
+                is_generic_name = 1 if x.name in ["Activity", "Hoạt động Strava"] else 0
+                date_val = x.activity_date or "9999-12-31"
+                return (-has_athlete, is_generic_name, date_val, x.id)
+                
+            act_list.sort(key=sort_key)
+            
+            # Đánh dấu các phần tử đã bị gộp để không so sánh trùng lặp nữa
+            merged_indices = set()
+            
+            for i in range(len(act_list)):
+                if i in merged_indices:
+                    continue
+                    
+                act1 = act_list[i]
+                
+                # So sánh chéo với các hoạt động phía sau
+                for j in range(i + 1, len(act_list)):
+                    if j in merged_indices:
+                        continue
+                        
+                    act2 = act_list[j]
+                    
+                    # 1. Phải cùng giải đấu (event_id)
+                    if act1.event_id != act2.event_id:
+                        continue
+                        
+                    # 2. Phải cùng loại hình thể thao (sport_type)
+                    if act1.sport_type != act2.sport_type:
+                        continue
+                        
+                    # 3. Chênh lệch ngày không quá 1 ngày
+                    date_diff_days = 999
+                    if act1.activity_date and act2.activity_date:
+                        try:
+                            d1 = datetime.strptime(act1.activity_date, "%Y-%m-%d")
+                            d2 = datetime.strptime(act2.activity_date, "%Y-%m-%d")
+                            date_diff_days = abs((d1 - d2).days)
+                        except Exception:
+                            pass
+                            
+                    if date_diff_days > 1:
+                        continue
+                        
+                    # 4. Kiểm tra độ lệch cự ly (distance_km_raw)
+                    dist1 = act1.distance_km_raw if act1.distance_km_raw is not None else act1.distance_km
+                    dist2 = act2.distance_km_raw if act2.distance_km_raw is not None else act2.distance_km
+                    dist_diff = abs((dist1 or 0) - (dist2 or 0))
+                    
+                    # 5. Kiểm tra độ lệch thời gian di chuyển (moving_time_min)
+                    time_diff = abs((act1.moving_time_min or 0) - (act2.moving_time_min or 0))
+                    
+                    # Ngưỡng gộp: cự ly lệch <= 0.05 km và thời gian lệch <= 1.0 phút
+                    if dist_diff <= 0.05 and time_diff <= 1.0:
+                        to_delete.append(act2.id)
+                        merged_indices.add(j)
+                        
+                # Đồng bộ hóa ID cho hoạt động được giữ lại theo chuẩn SHA256 để chống trùng lặp sau này
+                # (Sử dụng ngày hoạt động thực tế thay vì ngày đồng bộ)
+                dist_km_round = round(float((act1.distance_km_raw if act1.distance_km_raw is not None else act1.distance_km) or 0), 2)
+                mov_time_round = round(float(act1.moving_time_min or 0), 1)
+                ela_time_round = round(float(act1.elapsed_time_min or 0), 1)
+                elev_round = float(act1.elevation_gain_m or 0)
+                
+                unique_str = f"{ath_key}_{act1.activity_date}_{act1.sport_type}_{dist_km_round}_{mov_time_round}_{ela_time_round}_{elev_round}_{act1.event_id}"
                 new_id = hashlib.sha256(unique_str.encode("utf-8")).hexdigest()
-                if act.id != new_id:
+                
+                if act1.id != new_id:
                     try:
                         exists = db.query(Activity).filter(Activity.id == new_id).first()
                         if not exists:
                             db.execute(
-                                Activity.__table__.update().where(Activity.id == act.id).values(id=new_id)
+                                Activity.__table__.update().where(Activity.id == act1.id).values(id=new_id)
                             )
                             updated_count += 1
                     except Exception:
@@ -2614,7 +2682,6 @@ def api_deduplicate_activities(request: Request, db: Session = Depends(get_db)):
                         
         deleted_count = 0
         if to_delete:
-            # Chuyển đổi mảng to_delete thành danh sách và xóa hàng loạt
             deleted_count = db.query(Activity).filter(Activity.id.in_(to_delete)).delete(synchronize_session=False)
             
         db.commit()

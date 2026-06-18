@@ -129,8 +129,15 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
         if distance_km > 0:
             pace_min_km = round(moving_time_min / distance_km, 2)
 
-        # Tạo mã định danh duy nhất bao gồm event_id và ngày đồng bộ để chống trùng lặp giữa các ngày/các giải
-        unique_str = f"{athlete_name_raw}_{today_str}_{name}_{act_type}_{distance_km}_{moving_time_min}_{elapsed_time_min}_{elevation_gain_m}_{event_id}"
+        # Lấy ngày hoạt động thực tế từ Strava API
+        start_date_local = act.get("start_date_local") or act.get("start_date")
+        if start_date_local:
+            act_date_str = start_date_local[:10]  # Định dạng YYYY-MM-DD
+        else:
+            act_date_str = today_str
+
+        # Tạo mã định danh duy nhất bao gồm event_id và ngày hoạt động thực tế để chống trùng lặp
+        unique_str = f"{athlete_name_raw}_{act_date_str}_{name}_{act_type}_{distance_km}_{moving_time_min}_{elapsed_time_min}_{elevation_gain_m}_{event_id}"
         act_id = hashlib.sha256(unique_str.encode("utf-8")).hexdigest()
         
         # Kiểm tra xem hoạt động đã có trong DB chưa
@@ -154,7 +161,7 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
             actual_time_min = elapsed_time_min if moving_time_min < 1.0 else moving_time_min
             
             mets_value = get_mets_value(sport_type, speed_kmh, db, distance_km, elevation_gain_m, event_id=event_id)
-            mult = get_multiplier_for_date(today_str, event_id, db)
+            mult = get_multiplier_for_date(act_date_str, event_id, db)
             kcal_burned = calculate_kcal(mets_value, athlete.weight, actual_time_min, elevation_gain_m, sport_type, multiplier=mult)
 
         # Kiểm tra gian lận
@@ -166,8 +173,8 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
             configs=configs
         )
 
-        # Tính multiplier cho ngày hoạt động
-        activity_multiplier = get_multiplier_for_date(today_str, event_id, db) if athlete else 1.0
+        # Tính multiplier cho ngày hoạt động thực tế
+        activity_multiplier = get_multiplier_for_date(act_date_str, event_id, db) if athlete else 1.0
         kcal_burned_raw = round(kcal_burned / activity_multiplier) if activity_multiplier > 0 else kcal_burned
         
         new_activity = Activity(
@@ -184,7 +191,7 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
             elapsed_time_min=elapsed_time_min,
             pace_min_km=pace_min_km,
             elevation_gain_m=elevation_gain_m,
-            activity_date=today_str, # Không có timestamp trong API, gán ngày đồng bộ
+            activity_date=act_date_str, # Sử dụng ngày diễn ra hoạt động thực tế
             kcal_burned=kcal_burned,
             kcal_burned_raw=kcal_burned_raw,
             mets_value=mets_value,
