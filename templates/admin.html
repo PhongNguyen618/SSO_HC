@@ -329,6 +329,10 @@
                                         <span style="font-size: 0.75rem; color: var(--text-muted); display: block; word-break: break-all; font-family: monospace;">{{ configs.rules_banner_image }}</span>
                                     </div>
                                 </div>
+                                {% else %}
+                                <div style="margin-top: 1.2rem; border: 1px dashed rgba(255,255,255,0.15); border-radius: 10px; padding: 1rem; text-align: center; background: rgba(0, 0, 0, 0.1);">
+                                    <span style="font-size: 0.85rem; color: var(--text-muted);"><i class="fa-solid fa-circle-info"></i> Giải đấu này chưa cấu hình ảnh Banner. Bạn có thể chọn file phía trên để tải lên ảnh mới.</span>
+                                </div>
                                 {% endif %}
                             </div>
                         </div>
@@ -347,6 +351,10 @@
                                         <span style="font-size: 0.85rem; color: var(--color-primary); font-weight: 600; display: block; margin-bottom: 2px;"><i class="fa-solid fa-circle-check"></i> Ảnh QR hiện tại đang hoạt động</span>
                                         <span style="font-size: 0.75rem; color: var(--text-muted); display: block; word-break: break-all; font-family: monospace;">{{ configs.rules_group_qr }}</span>
                                     </div>
+                                </div>
+                                {% else %}
+                                <div style="margin-top: 1.2rem; border: 1px dashed rgba(255,255,255,0.15); border-radius: 10px; padding: 1rem; text-align: center; background: rgba(0, 0, 0, 0.1); max-width: 400px;">
+                                    <span style="font-size: 0.85rem; color: var(--text-muted);"><i class="fa-solid fa-circle-info"></i> Chưa cấu hình ảnh mã QR nhóm. Bạn có thể chọn file phía trên để tải lên ảnh mới.</span>
                                 </div>
                                 {% endif %}
                             </div>
@@ -2817,7 +2825,11 @@
                             </div>
                         `;
                     } else {
-                        bannerPreviewContainer.innerHTML = '';
+                        bannerPreviewContainer.innerHTML = `
+                            <div style="margin-top: 1.2rem; border: 1px dashed rgba(255,255,255,0.15); border-radius: 10px; padding: 1rem; text-align: center; background: rgba(0, 0, 0, 0.1);">
+                                <span style="font-size: 0.85rem; color: var(--text-muted);"><i class="fa-solid fa-circle-info"></i> Giải đấu này chưa cấu hình ảnh Banner. Bạn có thể chọn file phía trên để tải lên ảnh mới.</span>
+                            </div>
+                        `;
                     }
                 }
                 
@@ -2835,7 +2847,11 @@
                             </div>
                         `;
                     } else {
-                        qrPreviewContainer.innerHTML = '';
+                        qrPreviewContainer.innerHTML = `
+                            <div style="margin-top: 1.2rem; border: 1px dashed rgba(255,255,255,0.15); border-radius: 10px; padding: 1rem; text-align: center; background: rgba(0, 0, 0, 0.1); max-width: 400px;">
+                                <span style="font-size: 0.85rem; color: var(--text-muted);"><i class="fa-solid fa-circle-info"></i> Chưa cấu hình ảnh mã QR nhóm. Bạn có thể chọn file phía trên để tải lên ảnh mới.</span>
+                            </div>
+                        `;
                     }
                 }
             })
