@@ -250,6 +250,18 @@
                     <!-- Competition Rules & Welcome Banner Config -->
                     <div class="glass-card" style="margin-bottom:0; background: rgba(255,255,255,0.01);">
                         <h3 class="admin-section-title">Cấu hình Quy Chế & Welcome Banner</h3>
+                        <div class="form-group" style="border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 1.2rem; margin-bottom: 1.2rem;">
+                            <label for="apply_to_event_id" style="color: var(--color-primary); font-weight: 600;">Áp dụng quy chế này cho giải đấu:</label>
+                            <select id="apply_to_event_id" name="apply_to_event_id" class="form-control" style="border: 1px solid rgba(143, 205, 240, 0.3); background: rgba(0,0,0,0.2);">
+                                <option value="active">Giải đấu đang hoạt động (Tự động tìm kiếm)</option>
+                                {% for comp in all_competitions %}
+                                    <option value="{{ comp.id }}">{{ comp.title }} (ID: {{ comp.id }}){% if comp.is_active %} [Đang hoạt động]{% endif %}</option>
+                                {% endfor %}
+                            </select>
+                            <small style="color: var(--text-muted); font-size: 0.8rem; display: block; margin-top: 0.4rem;">
+                                <i class="fa-solid fa-circle-info"></i> Hệ thống mặc định tự động đồng bộ quy chế sang giải đấu mới đang hoạt động. Nếu muốn cập nhật quy chế riêng biệt cho một giải đấu khác (kể cả giải cũ hoặc giải đã đóng), hãy chọn giải đấu cụ thể ở đây.
+                            </small>
+                        </div>
                         <div class="form-group">
                             <label for="rules_title">Tiêu đề cuộc thi / giải chạy</label>
                             <input type="text" id="rules_title" name="rules_title" class="form-control" value="{{ configs.rules_title }}" required>

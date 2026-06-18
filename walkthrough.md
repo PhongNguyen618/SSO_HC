@@ -117,3 +117,10 @@ Dự án là web app Strava SSO_HC dùng FastAPI, SQLAlchemy và SQLite. Giao di
 - **Tối ưu hóa tránh trùng tên file:** Bổ sung số ngẫu nhiên (`random.randint(100, 999)`) vào tên file vật lý (`event_banner_` và `event_gal_`) để tránh collision khi ghi đĩa trong các request diễn ra cực nhanh.
 - **Frontend UI (`templates/admin.html`):** Bổ sung nút **Sửa** cạnh nút Xóa ở tab Sự kiện lịch sử, và tích hợp dòng form ẩn `tr` trượt xuống khi bấm Sửa tương tự giao diện Giải đấu.
 - **Kiểm thử tự động (`scratch/test_edit_archived_event.py`):** Chạy và xác minh thành công 100% logic cập nhật văn bản, thay banner cũ, nối tiếp album, và ghi đè album cũ kèm dọn dẹp ổ đĩa vật lý.
+
+### 4. Bổ sung Dropdown chọn giải đấu khi Cấu hình Quy Chế
+- **Backend API (`backend/main.py`):** Cập nhật route POST `/admin/config` (`update_configs`) nhận tham số `apply_to_event_id: str = Form("active")`.
+  - Nếu chọn một giải cụ thể, hệ thống sẽ truy vấn giải đấu đó theo ID và thực hiện đồng bộ quy chế riêng cho nó.
+  - Nếu để mặc định `"active"`, hệ thống tự động fallback tìm giải đấu đang hoạt động mới nhất (`active_event`) để đồng bộ.
+- **Frontend UI (`templates/admin.html`):** Bổ sung dropdown chọn giải đấu (`apply_to_event_id`) ngay trên đầu phần *Cấu hình Quy Chế & Welcome Banner* ở tab *Cấu hình API & Rules*, lặp qua danh sách `all_competitions` để Admin có thể lựa chọn linh hoạt.
+- **Kiểm thử tự động (`scratch/test_rules_target_event.py`):** Tạo 2 giải đấu mẫu, cấu hình quy chế riêng cho giải đấu B và xác minh thành công: các giá trị quy chế mới được áp dụng chuẩn xác cho giải đấu B, còn giải đấu A hoàn toàn không bị ảnh hưởng hay ghi đè nhầm lẫn.

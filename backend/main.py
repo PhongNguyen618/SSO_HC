@@ -1466,6 +1466,7 @@ async def update_configs(
     group_qr_file: UploadFile = File(None),
     rules_banner_mode: str = Form("version"),
     rules_banner_reset_days: str = Form("1"),
+    apply_to_event_id: str = Form("active"),
     # Quy tắc chống gian lận
     rule_run_pace_min: str = Form(...),
     rule_run_pace_max: str = Form(...),
@@ -1484,11 +1485,21 @@ async def update_configs(
         return RedirectResponse("/admin?error=Chua dang nhap", status_code=303)
 
     try:
-        # Tìm giải đấu đang hoạt động mới (ID != 1) để đồng bộ cấu hình quy chế & banner
-        active_event = db.query(CompetitionEvent).filter(
-            CompetitionEvent.is_active == True,
-            CompetitionEvent.id != 1
-        ).order_by(CompetitionEvent.id.desc()).first()
+        # Xác định giải đấu để đồng bộ cấu hình quy chế & banner
+        target_event = None
+        if apply_to_event_id and apply_to_event_id.strip() != "active":
+            try:
+                target_event_id = int(apply_to_event_id.strip())
+                target_event = db.query(CompetitionEvent).filter(CompetitionEvent.id == target_event_id).first()
+            except ValueError:
+                pass
+                
+        if not target_event:
+            # Fallback tìm giải đấu đang hoạt động mới (ID != 1) để đồng bộ cấu hình quy chế & banner
+            target_event = db.query(CompetitionEvent).filter(
+                CompetitionEvent.is_active == True,
+                CompetitionEvent.id != 1
+            ).order_by(CompetitionEvent.id.desc()).first()
 
         club_id_extracted = extract_strava_club_id(strava_club_id)
         
@@ -1496,8 +1507,8 @@ async def update_configs(
         update_config(db, "strava_client_secret", strava_client_secret)
         update_config(db, "strava_club_id", club_id_extracted)
         
-        if active_event:
-            active_event.strava_club_id = club_id_extracted
+        if target_event:
+            target_event.strava_club_id = club_id_extracted
         
         # Nếu thay đổi tần suất đồng bộ, cần cập nhật lại Scheduler
         old_interval = db.query(Config).filter(Config.key == "sync_interval_hours").first()
@@ -1514,11 +1525,11 @@ async def update_configs(
         update_config(db, "rules_banner_mode", rules_banner_mode.strip())
         update_config(db, "rules_banner_reset_days", rules_banner_reset_days.strip())
         
-        if active_event:
-            active_event.title = rules_title.strip()
-            active_event.rules_description = rules_description.strip()
-            active_event.rules_banner_text = rules_banner_text.strip()
-            active_event.rules_general_text = rules_general_text.strip()
+        if target_event:
+            target_event.title = rules_title.strip()
+            target_event.rules_description = rules_description.strip()
+            target_event.rules_banner_text = rules_banner_text.strip()
+            target_event.rules_general_text = rules_general_text.strip()
         
         # Xử lý upload ảnh banner tùy chỉnh
         if banner_file and banner_file.filename:
@@ -1546,8 +1557,8 @@ async def update_configs(
                 
                 # Lưu đường dẫn vào database
                 update_config(db, "rules_banner_image", f"/static/uploads/{filename}")
-                if active_event:
-                    active_event.banner_image = f"/static/uploads/{filename}"
+                if target_event:
+                    target_event.banner_image = f"/static/uploads/{filename}"
         
         # Xử lý upload ảnh QR group tùy chỉnh
         if group_qr_file and group_qr_file.filename:
