@@ -455,6 +455,54 @@
             </tbody>
         </table>
     </div>
+    
+    <!-- Phân trang hoạt động -->
+    {% if total_pages and total_pages > 1 %}
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem; flex-wrap: wrap; gap: 1rem; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 1.2rem;">
+        <div style="font-size: 0.85rem; color: var(--text-muted);">
+            Hiển thị trang <strong>{{ current_page }}</strong> / <strong>{{ total_pages }}</strong> (Tổng số <strong>{{ total_activities_count }}</strong> hoạt động)
+        </div>
+        <div style="display: flex; gap: 0.3rem;">
+            <!-- Nút Trang Đầu -->
+            {% if current_page > 1 %}
+            <a href="/profile/{{ athlete.id }}?event_id={{ selected_event_id or '' }}&page=1" class="btn btn-secondary btn-sm" style="padding: 0.35rem 0.7rem; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 0.2rem; background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); color: var(--text-color);">
+                <i class="fa-solid fa-angles-left"></i>
+            </a>
+            <!-- Nút Trước -->
+            <a href="/profile/{{ athlete.id }}?event_id={{ selected_event_id or '' }}&page={{ current_page - 1 }}" class="btn btn-secondary btn-sm" style="padding: 0.35rem 0.7rem; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 0.2rem; background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); color: var(--text-color);">
+                <i class="fa-solid fa-angle-left"></i> Trước
+            </a>
+            {% endif %}
+            
+            <!-- Hiển thị các số trang xung quanh -->
+            {% set range_start = current_page - 2 if current_page - 2 > 0 else 1 %}
+            {% set range_end = current_page + 2 if current_page + 2 <= total_pages else total_pages %}
+            
+            {% for p in range(range_start, range_end + 1) %}
+            <a href="/profile/{{ athlete.id }}?event_id={{ selected_event_id or '' }}&page={{ p }}" class="btn btn-sm" style="padding: 0.35rem 0.7rem; font-size: 0.8rem; border-radius: 6px; text-decoration: none;
+                {% if p == current_page %}
+                    background: var(--color-primary); color: #0a0814; font-weight: 700; border: 1px solid var(--color-primary);
+                {% else %}
+                    background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); color: var(--text-color);
+                {% endif %}
+            ">
+                {{ p }}
+            </a>
+            {% endfor %}
+            
+            {% if current_page < total_pages %}
+            <!-- Nút Tiếp -->
+            <a href="/profile/{{ athlete.id }}?event_id={{ selected_event_id or '' }}&page={{ current_page + 1 }}" class="btn btn-secondary btn-sm" style="padding: 0.35rem 0.7rem; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 0.2rem; background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); color: var(--text-color);">
+                Sau <i class="fa-solid fa-angle-right"></i>
+            </a>
+            <!-- Nút Trang Cuối -->
+            <a href="/profile/{{ athlete.id }}?event_id={{ selected_event_id or '' }}&page={{ total_pages }}" class="btn btn-secondary btn-sm" style="padding: 0.35rem 0.7rem; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 0.2rem; background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); color: var(--text-color);">
+                <i class="fa-solid fa-angles-right"></i>
+            </a>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
 </div>
 {% endblock %}
 

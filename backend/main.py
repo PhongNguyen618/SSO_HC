@@ -1051,6 +1051,7 @@ def profile_page(
     request: Request,
     athlete_id: int,
     event_id: Optional[str] = None,
+    page: int = 1,
     db: Session = Depends(get_db)
 ):
     """Trang thống kê chi tiết cá nhân vận động viên."""
@@ -1107,8 +1108,18 @@ def profile_page(
             if "All" not in allowed_sports:
                 activities_query = activities_query.filter(Activity.sport_type.in_(allowed_sports))
         
-    activities = activities_query.order_by(Activity.activity_date.desc()).all()
-    valid_activities = activities
+    all_activities = activities_query.order_by(Activity.activity_date.desc()).all()
+    valid_activities = all_activities
+    
+    # Phân trang nhật ký hoạt động hiển thị (15 hoạt động trên trang)
+    per_page = 15
+    total_activities_count = len(all_activities)
+    total_pages = (total_activities_count + per_page - 1) // per_page
+    
+    page = max(1, page)
+    start_idx = (page - 1) * per_page
+    end_idx = start_idx + per_page
+    paginated_activities = all_activities[start_idx:end_idx]
     
     # 2. Tính toán các KPI
     total_kcal = sum(a.kcal_burned for a in valid_activities)
@@ -1179,7 +1190,10 @@ def profile_page(
         name="profile.html",
         context={
             "athlete": athlete,
-            "activities": activities,
+            "activities": paginated_activities,
+            "current_page": page,
+            "total_pages": total_pages,
+            "total_activities_count": total_activities_count,
             "total_kcal": total_kcal,
             "total_dist": round(total_dist, 1),
             "total_time": round(total_time / 60.0, 1), # Sang giờ
