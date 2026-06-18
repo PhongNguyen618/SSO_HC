@@ -140,8 +140,8 @@
         }
 
         function acceptRules() {
-            localStorage.setItem('rules_accepted_' + '{{ configs.rules_version }}', 'true');
-            localStorage.setItem('rules_closed_time_' + '{{ configs.rules_version }}', Date.now().toString());
+            localStorage.setItem('rules_accepted_' + '{{ configs.rules_hash }}', 'true');
+            localStorage.setItem('rules_closed_time_' + '{{ configs.rules_hash }}', Date.now().toString());
             closeRulesModal();
         }
 
@@ -159,15 +159,15 @@
                 if (bannerMode === 'always') {
                     setTimeout(showRulesModal, 1200);
                 } else if (bannerMode === 'days') {
-                    const isAccepted = localStorage.getItem('rules_accepted_' + '{{ configs.rules_version }}');
+                    const isAccepted = localStorage.getItem('rules_accepted_' + '{{ configs.rules_hash }}');
                     if (isAccepted === 'true') {
-                        const closedTimeStr = localStorage.getItem('rules_closed_time_' + '{{ configs.rules_version }}');
+                        const closedTimeStr = localStorage.getItem('rules_closed_time_' + '{{ configs.rules_hash }}');
                         if (closedTimeStr) {
                             const closedTime = parseInt(closedTimeStr);
                             const elapsedDays = (Date.now() - closedTime) / (1000 * 60 * 60 * 24);
                             if (elapsedDays >= resetDays) {
                                 // Đã hết thời gian chờ, hiện lại banner
-                                localStorage.removeItem('rules_accepted_' + '{{ configs.rules_version }}');
+                                localStorage.removeItem('rules_accepted_' + '{{ configs.rules_hash }}');
                                 setTimeout(showRulesModal, 1200);
                             }
                         } else {
@@ -178,7 +178,7 @@
                     }
                 } else {
                     // Mặc định: version (chỉ hiện 1 lần theo phiên bản)
-                    const isAccepted = localStorage.getItem('rules_accepted_' + '{{ configs.rules_version }}');
+                    const isAccepted = localStorage.getItem('rules_accepted_' + '{{ configs.rules_hash }}');
                     if (!isAccepted) {
                         setTimeout(showRulesModal, 1200);
                     }

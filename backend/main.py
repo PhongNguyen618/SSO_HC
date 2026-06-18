@@ -140,6 +140,14 @@ def get_global_configs():
             if active_event.strava_club_id:
                 configs["strava_club_id"] = active_event.strava_club_id
             configs["active_event_id"] = active_event.id
+            
+        # Tạo mã hash duy nhất cho nội dung quy chế/banner để tự động kích hoạt lại popup ở client-side khi có thay đổi
+        import hashlib
+        r_ver = configs.get("rules_version", "1.0")
+        r_txt = configs.get("rules_banner_text", "")
+        r_img = configs.get("rules_banner_image", "")
+        raw_str = f"{r_ver}_{r_txt}_{r_img}"
+        configs["rules_hash"] = hashlib.md5(raw_str.encode("utf-8")).hexdigest()[:8]
                 
         return configs
     except Exception:
@@ -534,6 +542,13 @@ def rules_page(
             configs["strava_club_id"] = selected_event.strava_club_id
             
     selected_event_id = selected_event.id if selected_event else None
+    
+    # Tạo mã hash quy chế sau khi đã ghi đè từ giải đấu
+    import hashlib
+    r_ver = configs.get("rules_version", "1.0")
+    r_txt = configs.get("rules_banner_text", "")
+    r_img = configs.get("rules_banner_image", "")
+    configs["rules_hash"] = hashlib.md5(f"{r_ver}_{r_txt}_{r_img}".encode("utf-8")).hexdigest()[:8]
     
     allowed_sports = None
     if selected_event:
@@ -1445,9 +1460,20 @@ async def update_configs(
         return RedirectResponse("/admin?error=Chua dang nhap", status_code=303)
 
     try:
+        # Tìm giải đấu đang hoạt động mới (ID != 1) để đồng bộ cấu hình quy chế & banner
+        active_event = db.query(CompetitionEvent).filter(
+            CompetitionEvent.is_active == True,
+            CompetitionEvent.id != 1
+        ).order_by(CompetitionEvent.id.desc()).first()
+
+        club_id_extracted = extract_strava_club_id(strava_club_id)
+        
         update_config(db, "strava_client_id", strava_client_id)
         update_config(db, "strava_client_secret", strava_client_secret)
-        update_config(db, "strava_club_id", extract_strava_club_id(strava_club_id))
+        update_config(db, "strava_club_id", club_id_extracted)
+        
+        if active_event:
+            active_event.strava_club_id = club_id_extracted
         
         # Nếu thay đổi tần suất đồng bộ, cần cập nhật lại Scheduler
         old_interval = db.query(Config).filter(Config.key == "sync_interval_hours").first()
@@ -1463,6 +1489,12 @@ async def update_configs(
         update_config(db, "rules_general_text", rules_general_text.strip())
         update_config(db, "rules_banner_mode", rules_banner_mode.strip())
         update_config(db, "rules_banner_reset_days", rules_banner_reset_days.strip())
+        
+        if active_event:
+            active_event.title = rules_title.strip()
+            active_event.rules_description = rules_description.strip()
+            active_event.rules_banner_text = rules_banner_text.strip()
+            active_event.rules_general_text = rules_general_text.strip()
         
         # Xử lý upload ảnh banner tùy chỉnh
         if banner_file and banner_file.filename:
@@ -1490,6 +1522,8 @@ async def update_configs(
                 
                 # Lưu đường dẫn vào database
                 update_config(db, "rules_banner_image", f"/static/uploads/{filename}")
+                if active_event:
+                    active_event.banner_image = f"/static/uploads/{filename}"
         
         # Xử lý upload ảnh QR group tùy chỉnh
         if group_qr_file and group_qr_file.filename:
