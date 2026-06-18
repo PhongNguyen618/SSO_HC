@@ -41,17 +41,25 @@ Dự án là web app Strava SSO_HC dùng FastAPI, SQLAlchemy và SQLite. Giao di
 ### 1. Kiểm thử tự động (Unit Test)
 - **Kiểm thử dọn dẹp hoạt động:** [test_deduplicate_tolerance.py](file:///C:/Users/PC/.gemini/antigravity/brain/bd264055-d159-48f2-b24a-882bf20c1d44/scratch/test_deduplicate_tolerance.py) - **PASSED (OK)**.
 - **Kiểm thử API quy chế:** [test_api_rules.py](file:///C:/Users/PC/.gemini/antigravity/brain/bd264055-d159-48f2-b24a-882bf20c1d44/scratch/test_api_rules.py) - **PASSED (OK)**. API trả về đúng dữ liệu cấu hình theo giải đấu và trả về 401 khi chưa đăng nhập admin.
-- **Kiểm thử Đăng ký & Trùng họ tên:** [test_post_register.py](file:///C:/Users/PC/.gemini/antigravity/brain/bd264055-d159-48f2-b24a-882bf20c1d44/scratch/test_post_register.py) - **PASSED (OK)**. Xác minh cơ chế phát hiện trùng họ tên chuẩn hóa và cho phép cập nhật thông tin.
-- **Kiểm thử Tự động đóng giải đấu:** [test_event_expiration.py](file:///C:/Users/PC/.gemini/antigravity/brain/bd264055-d159-48f2-b24a-882bf20c1d44/scratch/test_event_expiration.py) - **PASSED (OK)**. Xác minh giải đấu quá hạn tự động chuyển trạng thái sang inactive và loại bỏ khỏi danh sách quét.
+- **Kiểm thử Đăng ký & Trùng họ tên:** [test_post_register.py](file:///C:/Users/PC/.gemini/antigravity/brain/bd264055-d159-48f2-b24a-882bf20c1d44/scratch/test_post_register.py) - **PASSED (OK)**.
+- **Kiểm thử Tự động đóng giải đấu:** [test_event_expiration.py](file:///C:/Users/PC/.gemini/antigravity/brain/bd264055-d159-48f2-b24a-882bf20c1d44/scratch/test_event_expiration.py) - **PASSED (OK)**.
+- **Kiểm thử Phân trang hoạt động cá nhân:** [test_profile_pagination.py](file:///C:/Users/PC/.gemini/antigravity/brain/bd264055-d159-48f2-b24a-882bf20c1d44/scratch/test_profile_pagination.py) - **PASSED (OK)**. Xác minh phân trang 15 hoạt động trên trang, chuyển trang chính xác và bảo toàn tổng số calo/KM.
 
 ### 2. Commit lên Git
 - Đã commit và push toàn bộ các thay đổi mới lên Git.
 
 ---
 
-## Các tính năng bổ sung quản lý Vận động viên (Mới)
+## Các tính năng bổ sung quản lý Vận động viên & Phân trang (Mới)
 
-### 1. Hiển thị Ngày đăng ký của thành viên
+### 1. Phân trang nhật ký hoạt động cá nhân
+- **Files sửa đổi:** [main.py](file:///c:/Users/PC/Desktop/SSO_HC/backend/main.py) & [profile.html](file:///c:/Users/PC/Desktop/SSO_HC/templates/profile.html)
+- **Chi tiết:** 
+  - Tại trang chi tiết cá nhân VĐV (`/profile/{athlete_id}`), nhật ký hoạt động giờ đây được phân trang với kích thước **15 hoạt động mỗi trang** để tránh trang quá dài khó cuộn.
+  - Các chỉ số KPI tổng thể (tổng Calo, tổng KM, tổng giờ, chuỗi ngày liên tục) vẫn được tính toán dựa trên **toàn bộ hoạt động lịch sử** của VĐV để đảm bảo tính chính xác cho giải thưởng.
+  - Bổ sung thanh điều hướng phân trang đẹp mắt ở cuối bảng (bao gồm các nút Trang đầu, Trang trước, các số trang xung quanh, Trang sau, Trang cuối) tự động chuyển trang mượt mà qua tham số `&page=`.
+
+### 2. Hiển thị Ngày đăng ký của thành viên
 - **Files sửa đổi:** [main.py](file:///c:/Users/PC/Desktop/SSO_HC/backend/main.py) & [admin.html](file:///c:/Users/PC/Desktop/SSO_HC/templates/admin.html)
 - **Chi tiết:** 
   - Thống kê thời gian đăng ký (cột `registered_at` trong bảng `CompetitionRegistration`) của từng thành viên đăng ký giải chạy.
