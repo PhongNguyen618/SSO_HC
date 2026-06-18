@@ -226,6 +226,30 @@ def index(
     """
     configs = get_config_dict(db)
     
+    # Bổ sung thông tin active event và rules_hash vào configs để welcome modal hoạt động chính xác
+    active_event = db.query(CompetitionEvent).filter(
+        CompetitionEvent.is_active == True,
+        CompetitionEvent.id != 1
+    ).order_by(CompetitionEvent.id.desc()).first()
+    if active_event:
+        configs["active_event_id"] = active_event.id
+        if active_event.title:
+            configs["rules_title"] = active_event.title
+        if active_event.rules_description or active_event.description:
+            configs["rules_description"] = active_event.rules_description or active_event.description
+        if active_event.rules_banner_text:
+            configs["rules_banner_text"] = active_event.rules_banner_text
+        if active_event.rules_general_text:
+            configs["rules_general_text"] = active_event.rules_general_text
+        if active_event.banner_image:
+            configs["rules_banner_image"] = active_event.banner_image
+            
+    import hashlib
+    r_ver = configs.get("rules_version", "1.0")
+    r_txt = configs.get("rules_banner_text", "")
+    r_img = configs.get("rules_banner_image", "")
+    configs["rules_hash"] = hashlib.md5(f"{r_ver}_{r_txt}_{r_img}".encode("utf-8")).hexdigest()[:8]
+    
     # Lấy danh sách giải đấu đang hoạt động
     active_competitions = db.query(CompetitionEvent).filter(CompetitionEvent.is_active == True).order_by(CompetitionEvent.id).all()
     

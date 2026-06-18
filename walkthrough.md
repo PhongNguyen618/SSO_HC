@@ -107,6 +107,7 @@ Dự án là web app Strava SSO_HC dùng FastAPI, SQLAlchemy và SQLite. Giao di
 ### 2. Sửa lỗi cập nhật Banner quảng cáo và Popup chào mừng
 - **Đồng bộ tự động:** Khi Admin thay đổi banner hoặc quy chế ở tab cấu hình chung, hệ thống tự động đồng bộ sang giải đấu đang hoạt động (`active_event`) để cập nhật ngay lập tức lên trang chủ.
 - **Reset popup tự động:** Sử dụng mã băm `rules_hash` tính toán từ nội dung và banner thực tế lưu trong `localStorage`. Khi Admin cập nhật bất kỳ thay đổi nào, `rules_hash` thay đổi giúp popup chào mừng tự động hiển thị lại cho toàn bộ người dùng mà không cần tăng phiên bản quy chế thủ công.
+- **Vá lỗi truyền thiếu context cấu hình lên trang chủ (Mới):** Khắc phục lỗi thiếu các thuộc tính `active_event_id` và `rules_hash` trong context configs của route trang chủ (`/`). Trước đó, do truyền thiếu các trường này, logic JavaScript tại frontend hiểu lầm là không có giải đấu đang hoạt động và tắt hoàn toàn tính năng popup chào mừng (khiến cho cả chế độ "always" hay "days" đều không hoạt động). Đã bổ sung logic điền đầy đủ thông tin active event và tính toán hash quy chế vào configs của route trang chủ.
 
 ### 3. Bổ sung Tính năng Chỉnh sửa (Edit) Sự kiện Lịch sử
 - **Backend API (`backend/main.py`):** Bổ sung route POST `/admin/events/edit/{event_id}` để chỉnh sửa tiêu đề, video nhúng, tóm tắt, ảnh banner đại diện và album ảnh kỷ niệm.
