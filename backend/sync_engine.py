@@ -219,35 +219,57 @@ def sync_club_activities(event_id: int = None) -> dict:
     db = SessionLocal()
     result = {"status": "idle", "new_activities": 0, "error": None, "details": []}
     try:
-        configs = get_config_dict(db)
-        
-        # Lấy Access Token hợp lệ
-        access_token = refresh_strava_token(db, configs)
-        if not access_token:
-            result["status"] = "error"
-            result["error"] = "Không thể lấy Access Token. Vui lòng cấu hình OAuth."
-            return result
+        # 1. Tự động đóng các giải đấu đã hết hạn trước tiên
+        today_str = datetime.now().strftime("%Y-%m-%d")
+        if not event_id:
+            expired_events = db.query(CompetitionEvent).filter(
+                CompetitionEvent.is_active == True,
+                CompetitionEvent.end_date != None,
+                CompetitionEvent.end_date != '',
+                CompetitionEvent.end_date < today_str
+            ).all()
+            if expired_events:
+                for ex_ev in expired_events:
+                    ex_ev.is_active = False
+                    print(f"Sync Engine: Event '{ex_ev.title}' (ID {ex_ev.id}) has ended on {ex_ev.end_date}. Auto marked as INACTIVE.")
+                db.commit()
 
-        # Xác định danh sách giải đấu cần đồng bộ
+        # 2. Xác định danh sách giải đấu cần đồng bộ
         if event_id:
             events = db.query(CompetitionEvent).filter(CompetitionEvent.id == event_id).all()
         else:
             events = db.query(CompetitionEvent).filter(CompetitionEvent.is_active == True).all()
-        
+
+        configs = get_config_dict(db)
+
         if not events:
-            # Fallback: đồng bộ theo club_id toàn cục (tương thích ngược)
+            # Fallback: đồng bộ theo club_id toàn cục (tương thích ngược) nếu có cấu hình
             club_id = configs.get("strava_club_id")
             if not club_id:
-                result["status"] = "error"
-                result["error"] = "Không tìm thấy giải đấu hoạt động nào và thiếu Club ID trong cấu hình."
+                result["status"] = "success"
+                result["new_activities"] = 0
                 return result
-            # Tạo event giả tạm thời để sử dụng hàm _sync_single_event
+                
+            # Lấy Access Token cho fallback
+            access_token = refresh_strava_token(db, configs)
+            if not access_token:
+                result["status"] = "error"
+                result["error"] = "Không thể lấy Access Token cho cấu hình toàn cục."
+                return result
+                
             from types import SimpleNamespace
             fake_event = SimpleNamespace(id=None, title="Global (Legacy)", strava_club_id=club_id)
             sub_result = _sync_single_event(db, configs, access_token, fake_event)
             result["status"] = sub_result["status"]
             result["new_activities"] = sub_result["new_activities"]
             result["error"] = sub_result.get("error")
+            return result
+        
+        # 3. Lấy Access Token hợp lệ (chỉ khi thực sự có giải đấu cần đồng bộ)
+        access_token = refresh_strava_token(db, configs)
+        if not access_token:
+            result["status"] = "error"
+            result["error"] = "Không thể lấy Access Token. Vui lòng cấu hình OAuth."
             return result
         
         total_new = 0

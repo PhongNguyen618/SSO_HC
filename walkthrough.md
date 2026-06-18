@@ -42,6 +42,7 @@ Dự án là web app Strava SSO_HC dùng FastAPI, SQLAlchemy và SQLite. Giao di
 - **Kiểm thử dọn dẹp hoạt động:** [test_deduplicate_tolerance.py](file:///C:/Users/PC/.gemini/antigravity/brain/bd264055-d159-48f2-b24a-882bf20c1d44/scratch/test_deduplicate_tolerance.py) - **PASSED (OK)**.
 - **Kiểm thử API quy chế:** [test_api_rules.py](file:///C:/Users/PC/.gemini/antigravity/brain/bd264055-d159-48f2-b24a-882bf20c1d44/scratch/test_api_rules.py) - **PASSED (OK)**. API trả về đúng dữ liệu cấu hình theo giải đấu và trả về 401 khi chưa đăng nhập admin.
 - **Kiểm thử Đăng ký & Trùng họ tên:** [test_post_register.py](file:///C:/Users/PC/.gemini/antigravity/brain/bd264055-d159-48f2-b24a-882bf20c1d44/scratch/test_post_register.py) - **PASSED (OK)**. Xác minh cơ chế phát hiện trùng họ tên chuẩn hóa và cho phép cập nhật thông tin.
+- **Kiểm thử Tự động đóng giải đấu:** [test_event_expiration.py](file:///C:/Users/PC/.gemini/antigravity/brain/bd264055-d159-48f2-b24a-882bf20c1d44/scratch/test_event_expiration.py) - **PASSED (OK)**. Xác minh giải đấu quá hạn tự động chuyển trạng thái sang inactive và loại bỏ khỏi danh sách quét.
 
 ### 2. Commit lên Git
 - Đã commit và push toàn bộ các thay đổi mới lên Git.
