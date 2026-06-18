@@ -47,6 +47,20 @@ def extract_strava_club_id(input_str: str) -> str:
         return input_str
     return input_str
 
+def clean_name(name: str) -> str:
+    """Chuẩn hóa họ tên: viết thường, bỏ khoảng trắng và bỏ dấu tiếng Việt để so sánh trùng."""
+    if not name:
+        return ""
+    import unicodedata
+    name = name.strip().lower()
+    name = "".join(name.split())
+    # Loại bỏ dấu tiếng Việt
+    name = unicodedata.normalize('NFKD', name)
+    name = "".join([c for c in name if not unicodedata.combining(c)])
+    # Thay thế chữ đ/Đ
+    name = name.replace("đ", "d")
+    return name
+
 # Đảm bảo các thư mục templates và static tồn tại
 os.makedirs("templates", exist_ok=True)
 os.makedirs("static/css", exist_ok=True)
@@ -857,21 +871,35 @@ def register_athlete(
                     registered_names.add(cleaned)
     unlinked_athletes = [name[0] for name in unlinked_names if name[0] and name[0].strip().lower() not in registered_names]
 
-    # Kiểm tra xem tên Strava đã được đăng ký chưa (hỗ trợ nhiều tên cách nhau bằng dấu phẩy)
+    # Kiểm tra xem tên Strava hoặc Họ tên đã được đăng ký chưa
     new_names = [n.strip().lower() for n in strava_name.split(",") if n.strip()]
     exists = None
+    
+    # 1. Kiểm tra trùng lặp theo Họ và tên đã chuẩn hóa
+    new_clean_fullname = clean_name(full_name)
     for a in athletes:
-        if a.strava_name:
-            existing_names = [n.strip().lower() for n in a.strava_name.split(",") if n.strip()]
-            if set(new_names) & set(existing_names):
-                exists = a
-                break
+        if clean_name(a.full_name) == new_clean_fullname:
+            exists = a
+            break
+            
+    # 2. Nếu chưa trùng họ tên, kiểm tra trùng lặp theo Strava Name
+    if not exists:
+        for a in athletes:
+            if a.strava_name:
+                existing_names = [n.strip().lower() for n in a.strava_name.split(",") if n.strip()]
+                if set(new_names) & set(existing_names):
+                    exists = a
+                    break
+                    
     if exists:
         if is_update == "true":
             try:
-                # Chỉ cho phép cập nhật các trường không quan trọng: Phòng ban và Cân nặng
+                # Cho phép cập nhật cả Họ và tên mới và Strava Name mới nếu họ chỉnh sửa lỗi viết nhầm
+                exists.full_name = full_name.strip()
                 exists.department = department
                 exists.weight = weight
+                if strava_name and strava_name.strip():
+                    exists.strava_name = strava_name.strip()
                 db.commit()
                 
                 # Cập nhật và tính toán lại lượng calo (KCAL) của các hoạt động cũ dựa theo cân nặng mới
@@ -1301,6 +1329,26 @@ def admin_dashboard(
         ).filter(CompetitionRegistration.event_id == selected_event_id).order_by(Athlete.id).all()
     else:
         athletes = db.query(Athlete).order_by(Athlete.id).all()
+
+    # Thống kê ngày giờ đăng ký giải chạy của các VĐV
+    reg_map = {}
+    if selected_event_id:
+        reg_map = {r.athlete_id: r.registered_at for r in db.query(CompetitionRegistration).filter(CompetitionRegistration.event_id == selected_event_id).all()}
+    else:
+        # Nếu xem tất cả giải đấu, lấy ngày đăng ký gần nhất của từng VĐV
+        all_regs = db.query(CompetitionRegistration).order_by(CompetitionRegistration.registered_at.desc()).all()
+        for r in all_regs:
+            if r.athlete_id not in reg_map:
+                reg_map[r.athlete_id] = r.registered_at
+
+    for a in athletes:
+        reg_time = reg_map.get(a.id)
+        if reg_time:
+            # Quy đổi sang GMT+7 và định dạng chuỗi
+            local_time = reg_time + timedelta(hours=7)
+            a.registered_at_str = local_time.strftime("%d/%m/%Y %H:%M")
+        else:
+            a.registered_at_str = "N/A"
 
     # Lấy METs Rules
     mets = []

@@ -630,6 +630,7 @@
                             <th style="text-align: right;">Cân nặng</th>
                             <th>Strava Name</th>
                             <th style="text-align: center;">Trạng thái</th>
+                            <th style="text-align: center; white-space: nowrap;">Ngày đăng ký</th>
                             <th style="text-align: center;">Hành động</th>
                         </tr>
                     </thead>
@@ -660,6 +661,9 @@
                                         <option value="True" {% if ath.is_active %}selected{% endif %}>Active</option>
                                         <option value="False" {% if not ath.is_active %}selected{% endif %}>Banned</option>
                                     </select>
+                                </td>
+                                <td style="text-align: center; vertical-align: middle; white-space: nowrap; color: var(--text-muted);">
+                                    {{ ath.registered_at_str or 'N/A' }}
                                 </td>
                                 <td style="text-align: center; display: flex; gap: 0.3rem; justify-content: center;">
                                     <button type="submit" class="btn btn-primary btn-sm" style="padding:0.4rem 0.6rem; font-size:0.8rem;" title="Lưu thay đổi">
