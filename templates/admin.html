@@ -252,7 +252,7 @@
                         <h3 class="admin-section-title">Cấu hình Quy Chế & Welcome Banner</h3>
                         <div class="form-group" style="border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 1.2rem; margin-bottom: 1.2rem;">
                             <label for="apply_to_event_id" style="color: var(--color-primary); font-weight: 600;">Áp dụng quy chế này cho giải đấu:</label>
-                            <select id="apply_to_event_id" name="apply_to_event_id" class="form-control" style="border: 1px solid rgba(143, 205, 240, 0.3); background: rgba(0,0,0,0.2);">
+                            <select id="apply_to_event_id" name="apply_to_event_id" class="form-control" onchange="loadCompetitionRulesForConfig(this.value)" style="border: 1px solid rgba(143, 205, 240, 0.3); background: rgba(0,0,0,0.2);">
                                 <option value="active">Giải đấu đang hoạt động (Tự động tìm kiếm)</option>
                                 {% for comp in all_competitions %}
                                     <option value="{{ comp.id }}">{{ comp.title }} (ID: {{ comp.id }}){% if comp.is_active %} [Đang hoạt động]{% endif %}</option>
@@ -320,15 +320,17 @@
                             <small style="color: var(--text-muted); font-size: 0.8rem; display: block; margin-top: 0.4rem;">
                                 <i class="fa-solid fa-circle-info"></i> Tải lên hình ảnh poster hoặc banner quảng cáo của giải chạy (Định dạng PNG, JPG, WEBP). Nếu tải lên, ảnh này sẽ thay thế hoàn toàn phần logo và nội dung header trên popup chào mừng.
                             </small>
-                            {% if configs.rules_banner_image %}
-                            <div style="margin-top: 1.2rem; border: 1px solid var(--border-color); border-radius: 10px; padding: 1rem; display: flex; align-items: center; gap: 1.2rem; background: rgba(255, 255, 255, 0.02);">
-                                <img src="{{ configs.rules_banner_image }}" alt="Current Active Banner" style="max-height: 80px; border-radius: 6px; object-fit: cover; border: 1px solid rgba(255,255,255,0.1);">
-                                <div style="flex: 1;">
-                                    <span style="font-size: 0.85rem; color: var(--color-green); font-weight: 600; display: block; margin-bottom: 2px;"><i class="fa-solid fa-circle-check"></i> Ảnh banner hiện tại đang hoạt động</span>
-                                    <span style="font-size: 0.75rem; color: var(--text-muted); display: block; word-break: break-all; font-family: monospace;">{{ configs.rules_banner_image }}</span>
+                            <div id="rules_banner_preview_container">
+                                {% if configs.rules_banner_image %}
+                                <div style="margin-top: 1.2rem; border: 1px solid var(--border-color); border-radius: 10px; padding: 1rem; display: flex; align-items: center; gap: 1.2rem; background: rgba(255, 255, 255, 0.02);">
+                                    <img src="{{ configs.rules_banner_image }}" alt="Current Active Banner" style="max-height: 80px; border-radius: 6px; object-fit: cover; border: 1px solid rgba(255,255,255,0.1);">
+                                    <div style="flex: 1;">
+                                        <span style="font-size: 0.85rem; color: var(--color-green); font-weight: 600; display: block; margin-bottom: 2px;"><i class="fa-solid fa-circle-check"></i> Ảnh banner hiện tại đang hoạt động</span>
+                                        <span style="font-size: 0.75rem; color: var(--text-muted); display: block; word-break: break-all; font-family: monospace;">{{ configs.rules_banner_image }}</span>
+                                    </div>
                                 </div>
+                                {% endif %}
                             </div>
-                            {% endif %}
                         </div>
                         
                         <div class="form-group" style="margin-top: 1.5rem; border-top: 1px solid var(--border-color); padding-top: 1.5rem;">
@@ -337,15 +339,17 @@
                             <small style="color: var(--text-muted); font-size: 0.8rem; display: block; margin-top: 0.4rem;">
                                 <i class="fa-solid fa-circle-info"></i> Tải lên mã QR của nhóm Strava hoặc nhóm liên quan để VĐV quét tham gia ngay sau khi đăng ký (Định dạng PNG, JPG, WEBP).
                             </small>
-                            {% if configs.rules_group_qr %}
-                            <div style="margin-top: 1.2rem; border: 1px solid var(--border-color); border-radius: 10px; padding: 1rem; display: flex; align-items: center; gap: 1.2rem; background: rgba(255, 255, 255, 0.02); max-width: 400px;">
-                                <img src="{{ configs.rules_group_qr }}" alt="Current Group QR" style="max-height: 120px; border-radius: 6px; object-fit: contain; border: 1px solid rgba(255,255,255,0.1);">
-                                <div style="flex: 1;">
-                                    <span style="font-size: 0.85rem; color: var(--color-primary); font-weight: 600; display: block; margin-bottom: 2px;"><i class="fa-solid fa-circle-check"></i> Ảnh QR hiện tại đang hoạt động</span>
-                                    <span style="font-size: 0.75rem; color: var(--text-muted); display: block; word-break: break-all; font-family: monospace;">{{ configs.rules_group_qr }}</span>
+                            <div id="rules_group_qr_preview_container">
+                                {% if configs.rules_group_qr %}
+                                <div style="margin-top: 1.2rem; border: 1px solid var(--border-color); border-radius: 10px; padding: 1rem; display: flex; align-items: center; gap: 1.2rem; background: rgba(255, 255, 255, 0.02); max-width: 400px;">
+                                    <img src="{{ configs.rules_group_qr }}" alt="Current Group QR" style="max-height: 120px; border-radius: 6px; object-fit: contain; border: 1px solid rgba(255,255,255,0.1);">
+                                    <div style="flex: 1;">
+                                        <span style="font-size: 0.85rem; color: var(--color-primary); font-weight: 600; display: block; margin-bottom: 2px;"><i class="fa-solid fa-circle-check"></i> Ảnh QR hiện tại đang hoạt động</span>
+                                        <span style="font-size: 0.75rem; color: var(--text-muted); display: block; word-break: break-all; font-family: monospace;">{{ configs.rules_group_qr }}</span>
+                                    </div>
                                 </div>
+                                {% endif %}
                             </div>
-                            {% endif %}
                         </div>
                     </div>
                 </div>
@@ -2763,6 +2767,82 @@
         .catch(err => {
             alert('Lỗi kết nối: ' + err.message);
         });
+    }
+
+    function loadCompetitionRulesForConfig(eventId) {
+        if (!eventId) return;
+        
+        fetch(`/admin/api/competition-rules/${eventId}`)
+            .then(res => {
+                if (!res.ok) {
+                    throw new Error('Không thể tải cấu hình quy chế');
+                }
+                return res.json();
+            })
+            .then(data => {
+                // Điền thông tin vào các trường tương ứng
+                document.getElementById('rules_title').value = data.title || '';
+                document.getElementById('rules_version').value = data.rules_version || '';
+                document.getElementById('rules_description').value = data.rules_description || '';
+                document.getElementById('rules_general_text').value = data.rules_general_text || '';
+                document.getElementById('rules_banner_text').value = data.rules_banner_text || '';
+                
+                // Chọn banner mode
+                const bannerModeSelect = document.getElementById('rules_banner_mode');
+                if (bannerModeSelect) {
+                    bannerModeSelect.value = data.rules_banner_mode || 'version';
+                    // Trigger toggleBannerDaysRow
+                    if (typeof toggleBannerDaysRow === 'function') {
+                        toggleBannerDaysRow();
+                    }
+                }
+                
+                // Reset days
+                const bannerResetDaysInput = document.getElementById('rules_banner_reset_days');
+                if (bannerResetDaysInput) {
+                    bannerResetDaysInput.value = data.rules_banner_reset_days || '1';
+                }
+                
+                // Hiển thị/Cập nhật preview ảnh banner
+                const bannerPreviewContainer = document.getElementById('rules_banner_preview_container');
+                if (bannerPreviewContainer) {
+                    if (data.banner_image) {
+                        bannerPreviewContainer.innerHTML = `
+                            <div style="margin-top: 1.2rem; border: 1px solid var(--border-color); border-radius: 10px; padding: 1rem; display: flex; align-items: center; gap: 1.2rem; background: rgba(255, 255, 255, 0.02);">
+                                <img src="${data.banner_image}" alt="Current Active Banner" style="max-height: 80px; border-radius: 6px; object-fit: cover; border: 1px solid rgba(255,255,255,0.1);">
+                                <div style="flex: 1;">
+                                    <span style="font-size: 0.85rem; color: var(--color-green); font-weight: 600; display: block; margin-bottom: 2px;"><i class="fa-solid fa-circle-check"></i> Ảnh banner hiện tại đang hoạt động</span>
+                                    <span style="font-size: 0.75rem; color: var(--text-muted); display: block; word-break: break-all; font-family: monospace;">${data.banner_image}</span>
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        bannerPreviewContainer.innerHTML = '';
+                    }
+                }
+                
+                // Hiển thị/Cập nhật preview QR code group
+                const qrPreviewContainer = document.getElementById('rules_group_qr_preview_container');
+                if (qrPreviewContainer) {
+                    if (data.rules_group_qr) {
+                        qrPreviewContainer.innerHTML = `
+                            <div style="margin-top: 1.2rem; border: 1px solid var(--border-color); border-radius: 10px; padding: 1rem; display: flex; align-items: center; gap: 1.2rem; background: rgba(255, 255, 255, 0.02); max-width: 400px;">
+                                <img src="${data.rules_group_qr}" alt="Current Group QR" style="max-height: 120px; border-radius: 6px; object-fit: contain; border: 1px solid rgba(255,255,255,0.1);">
+                                <div style="flex: 1;">
+                                    <span style="font-size: 0.85rem; color: var(--color-primary); font-weight: 600; display: block; margin-bottom: 2px;"><i class="fa-solid fa-circle-check"></i> Ảnh QR hiện tại đang hoạt động</span>
+                                    <span style="font-size: 0.75rem; color: var(--text-muted); display: block; word-break: break-all; font-family: monospace;">${data.rules_group_qr}</span>
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        qrPreviewContainer.innerHTML = '';
+                    }
+                }
+            })
+            .catch(err => {
+                console.error('Lỗi khi tải cấu hình quy chế giải đấu:', err);
+                alert('Có lỗi xảy ra khi tải cấu hình quy chế cho giải đấu này!');
+            });
     }
 
 </script>

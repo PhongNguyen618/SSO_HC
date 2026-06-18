@@ -27,6 +27,24 @@ Dự án là web app Strava SSO_HC dùng FastAPI, SQLAlchemy và SQLite. Giao di
   2. Biểu đồ đường **Xu hướng Calo Tiêu Thụ Toàn Công Ty**: Hỗ trợ chuyển đổi chế độ xem nhanh giữa **Theo Tuần** (12 tuần gần nhất) và **Theo Tháng** (6 tháng gần nhất) bằng nút toggle động qua Javascript mà không cần tải lại trang.
   3. Biểu đồ hình tròn khuyết **Cơ Cấu Hoạt Động Theo Bộ Môn**: Thống kê tỷ lệ phân chia lượng calo đốt cháy theo các bộ môn thể thao (Chạy bộ, Đạp xe, Đi bộ, Bơi lội...) với tông màu pastel nhận diện thương hiệu.
 
+### 5. Tự động đồng bộ hóa form Quy Chế & Welcome Banner khi chọn giải đấu
+- **File sửa đổi:** [admin.html](file:///c:/Users/PC/Desktop/SSO_HC/templates/admin.html)
+- **Chi tiết:** 
+  - Đã thêm hàm JavaScript `loadCompetitionRulesForConfig(eventId)` sử dụng `fetch` để truy vấn API `GET /admin/api/competition-rules/{event_id}`.
+  - Tự động điền dữ liệu trả về vào các trường nhập liệu tương ứng bao gồm: Tiêu đề cuộc thi, Phiên bản quy chế, Nội dung giới thiệu, Quy định chung, Nội dung tóm tắt trên Welcome Banner, Chế độ hiển thị popup, Số ngày reset và cập nhật vùng hiển thị ảnh Banner/QR Code tương ứng của giải đấu đó.
+  - Ngăn ngừa hoàn toàn việc người dùng vô tình lưu đè dữ liệu của giải đấu cũ lên giải đấu mới được chọn dẫn đến việc tạo ra các giải đấu trùng tên trong cơ sở dữ liệu.
+
+---
+
+## Kết quả kiểm thử & Xác minh
+
+### 1. Kiểm thử tự động (Unit Test)
+- **Kiểm thử dọn dẹp hoạt động:** [test_deduplicate_tolerance.py](file:///C:/Users/PC/.gemini/antigravity/brain/bd264055-d159-48f2-b24a-882bf20c1d44/scratch/test_deduplicate_tolerance.py) - **PASSED (OK)**.
+- **Kiểm thử API quy chế:** [test_api_rules.py](file:///C:/Users/PC/.gemini/antigravity/brain/bd264055-d159-48f2-b24a-882bf20c1d44/scratch/test_api_rules.py) - **PASSED (OK)**. API trả về đúng dữ liệu cấu hình theo giải đấu và trả về 401 khi chưa đăng nhập admin.
+
+### 2. Commit lên Git
+- Đã commit toàn bộ các thay đổi mới lên Git.
+
 ---
 
 ## Kết quả kiểm thử & xác minh (Giai đoạn 2 & 3)

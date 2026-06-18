@@ -1772,6 +1772,49 @@ async def update_configs(
     except Exception as e:
         return RedirectResponse(f"/admin?error=Loi khi luu cau hinh: {str(e)}#tab-config", status_code=303)
 
+@app.get("/admin/api/competition-rules/{event_id}")
+def api_get_competition_rules(event_id: str, request: Request, db: Session = Depends(get_db)):
+    """API lấy thông tin cấu hình quy chế & banner của một giải đấu cụ thể (hoặc mặc định)."""
+    admin_session = get_admin_session(request, db)
+    if not admin_session:
+        return JSONResponse(status_code=401, content={"error": "Chưa đăng nhập admin"})
+        
+    configs = get_config_dict(db)
+    
+    # Nếu là giải đấu mặc định (đang hoạt động) hoặc "active"
+    if event_id == "active":
+        return JSONResponse(content={
+            "title": configs.get("rules_title", ""),
+            "rules_description": configs.get("rules_description", ""),
+            "rules_banner_text": configs.get("rules_banner_text", ""),
+            "rules_general_text": configs.get("rules_general_text", ""),
+            "banner_image": configs.get("rules_banner_image", ""),
+            "rules_version": configs.get("rules_version", ""),
+            "rules_banner_mode": configs.get("rules_banner_mode", "version"),
+            "rules_banner_reset_days": configs.get("rules_banner_reset_days", "1"),
+            "rules_group_qr": configs.get("rules_group_qr", "")
+        })
+        
+    try:
+        eid = int(event_id)
+        comp = db.query(CompetitionEvent).filter(CompetitionEvent.id == eid).first()
+        if not comp:
+            return JSONResponse(status_code=404, content={"error": "Không tìm thấy giải đấu"})
+            
+        return JSONResponse(content={
+            "title": comp.title or "",
+            "rules_description": comp.rules_description or "",
+            "rules_banner_text": comp.rules_banner_text or "",
+            "rules_general_text": comp.rules_general_text or "",
+            "banner_image": comp.banner_image or "",
+            "rules_version": configs.get("rules_version", ""),
+            "rules_banner_mode": configs.get("rules_banner_mode", "version"),
+            "rules_banner_reset_days": configs.get("rules_banner_reset_days", "1"),
+            "rules_group_qr": configs.get("rules_group_qr", "")
+        })
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
 @app.post("/admin/security")
 def update_admin_security(
     request: Request,
