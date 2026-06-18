@@ -94,3 +94,25 @@ Dự án là web app Strava SSO_HC dùng FastAPI, SQLAlchemy và SQLite. Giao di
 *   **Kết quả kiểm thử:**
     *   Đã chạy thành công kịch bản kiểm thử tự động `test_routes_validation.py` xác thực các routes hoạt động ổn định với các giá trị đầu vào của `event_id`.
     *   Đã viết và chạy thành công kịch bản kiểm thử tự động `test_km_ranking.py` mô phỏng giải chạy KM và lọc bộ môn. Kết quả xác nhận các hoạt động được nhân đôi quãng đường vào ngày Chủ nhật chính xác (lưu đúng raw và multiplied), loại bỏ bộ môn không hợp lệ ra khỏi BXH và tính toán tổng thành tích BXH cá nhân hoàn hảo (20.0 KM như thiết kế).
+
+---
+
+## Giai đoạn 5: Các nâng cấp và sửa lỗi gần đây
+
+### 1. Giải pháp Hỗ trợ VĐV Đổi tên hiển thị Strava
+- **Cơ chế lưu trữ:** Trường `strava_name` trong bảng `Athlete` nay có thể lưu nhiều tên hiển thị Strava cách nhau bởi dấu phẩy (ví dụ: `Tên Mới, Tên Cũ`).
+- **Tự động gom hoạt động:** Khi VĐV thêm tên cũ vào danh sách, hệ thống sử dụng toán tử SQL `IN` để gom nhanh toàn bộ hoạt động cũ chưa khớp về cho VĐV này, tự động tính lại KCAL và KM theo cân nặng của họ.
+- **Vá lỗi và hướng dẫn:** Thêm trường nhập `strava_name` bị thiếu ở form thêm VĐV thủ công của Admin, đồng thời bổ sung placeholder ví dụ hướng dẫn ở các trang đăng ký và quản trị.
+
+### 2. Sửa lỗi cập nhật Banner quảng cáo và Popup chào mừng
+- **Đồng bộ tự động:** Khi Admin thay đổi banner hoặc quy chế ở tab cấu hình chung, hệ thống tự động đồng bộ sang giải đấu đang hoạt động (`active_event`) để cập nhật ngay lập tức lên trang chủ.
+- **Reset popup tự động:** Sử dụng mã băm `rules_hash` tính toán từ nội dung và banner thực tế lưu trong `localStorage`. Khi Admin cập nhật bất kỳ thay đổi nào, `rules_hash` thay đổi giúp popup chào mừng tự động hiển thị lại cho toàn bộ người dùng mà không cần tăng phiên bản quy chế thủ công.
+
+### 3. Bổ sung Tính năng Chỉnh sửa (Edit) Sự kiện Lịch sử
+- **Backend API (`backend/main.py`):** Bổ sung route POST `/admin/events/edit/{event_id}` để chỉnh sửa tiêu đề, video nhúng, tóm tắt, ảnh banner đại diện và album ảnh kỷ niệm.
+- **Quản lý Album ảnh (Gallery) linh hoạt:**
+  - Nếu chọn **Bỏ tích** "Giữ lại ảnh cũ": Xóa sạch các ảnh cũ khỏi đĩa vật lý rồi lưu các ảnh mới.
+  - Nếu chọn **Tích chọn** (Mặc định): Các ảnh mới tải lên sẽ được ghi đĩa và nối tiếp vào danh sách ảnh cũ trong database.
+- **Tối ưu hóa tránh trùng tên file:** Bổ sung số ngẫu nhiên (`random.randint(100, 999)`) vào tên file vật lý (`event_banner_` và `event_gal_`) để tránh collision khi ghi đĩa trong các request diễn ra cực nhanh.
+- **Frontend UI (`templates/admin.html`):** Bổ sung nút **Sửa** cạnh nút Xóa ở tab Sự kiện lịch sử, và tích hợp dòng form ẩn `tr` trượt xuống khi bấm Sửa tương tự giao diện Giải đấu.
+- **Kiểm thử tự động (`scratch/test_edit_archived_event.py`):** Chạy và xác minh thành công 100% logic cập nhật văn bản, thay banner cũ, nối tiếp album, và ghi đè album cũ kèm dọn dẹp ổ đĩa vật lý.

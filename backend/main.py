@@ -3006,6 +3006,105 @@ def admin_delete_event(event_id: int, request: Request, db: Session = Depends(ge
         db.rollback()
         return RedirectResponse(f"/admin?error=Lỗi khi xóa: {str(e)}", status_code=303)
 
+
+@app.post("/admin/events/edit/{event_id}")
+async def admin_edit_event(
+    event_id: int,
+    request: Request,
+    title: str = Form(...),
+    video_url: str = Form(None),
+    summary_text: str = Form(...),
+    keep_existing_gallery: bool = Form(False),
+    banner_file: UploadFile = File(None),
+    gallery_files: list[UploadFile] = File(None),
+    db: Session = Depends(get_db)
+):
+    admin = get_admin_session(request, db)
+    if not admin:
+        return RedirectResponse("/admin?error=Chua dang nhap", status_code=303)
+        
+    try:
+        from backend.database import ArchivedEvent
+        import time
+        
+        event = db.query(ArchivedEvent).filter(ArchivedEvent.id == event_id).first()
+        if not event:
+            return RedirectResponse("/admin?error=Không tìm thấy sự kiện", status_code=303)
+            
+        event.title = title.strip()
+        event.video_url = video_url.strip() if video_url else None
+        event.summary_text = summary_text.strip()
+        
+        # 1. Cập nhật banner nếu có upload mới
+        if banner_file and banner_file.filename:
+            ext = os.path.splitext(banner_file.filename)[1].lower()
+            if ext in [".png", ".jpg", ".jpeg", ".webp", ".gif"]:
+                import random
+                filename = f"event_banner_{int(time.time())}_{random.randint(100, 999)}{ext}"
+                upload_dir = "static/uploads"
+                os.makedirs(upload_dir, exist_ok=True)
+                file_path = os.path.join(upload_dir, filename)
+                with open(file_path, "wb") as f:
+                    content = await banner_file.read()
+                    f.write(content)
+                
+                # Xóa banner cũ
+                if event.banner_image:
+                    old_path = event.banner_image.lstrip("/")
+                    if os.path.exists(old_path) and "static/uploads/" in old_path:
+                        try: os.remove(old_path)
+                        except: pass
+                event.banner_image = f"/static/uploads/{filename}"
+                
+        # 2. Xử lý album ảnh gallery
+        # Nếu chọn KHÔNG giữ ảnh cũ, xóa tất cả các ảnh cũ khỏi đĩa trước khi lưu ảnh mới
+        if not keep_existing_gallery and event.gallery_images:
+            paths = event.gallery_images.split(",")
+            for p in paths:
+                p_clean = p.lstrip("/")
+                if os.path.exists(p_clean) and "static/uploads/" in p_clean:
+                    try: os.remove(p_clean)
+                    except: pass
+            event.gallery_images = ""
+
+        # Upload các ảnh gallery mới
+        new_gallery_paths = []
+        if gallery_files:
+            import random
+            idx = 0
+            for g_file in gallery_files:
+                if g_file.filename:
+                    ext = os.path.splitext(g_file.filename)[1].lower()
+                    if ext in [".png", ".jpg", ".jpeg", ".webp", ".gif"]:
+                        filename = f"event_gal_{int(time.time())}_{random.randint(100, 999)}_{idx}{ext}"
+                        upload_dir = "static/uploads"
+                        os.makedirs(upload_dir, exist_ok=True)
+                        file_path = os.path.join(upload_dir, filename)
+                        with open(file_path, "wb") as f:
+                            content = await g_file.read()
+                            f.write(content)
+                        new_gallery_paths.append(f"/static/uploads/{filename}")
+                        idx += 1
+                        
+        if new_gallery_paths:
+            if keep_existing_gallery:
+                # Giữ lại các ảnh cũ và nối thêm các ảnh mới
+                old_paths = event.gallery_images.split(",") if event.gallery_images else []
+                old_paths = [p for p in old_paths if p]
+                all_paths = old_paths + new_gallery_paths
+            else:
+                # Thay thế hoàn toàn (ảnh cũ đã được xóa ở trên)
+                all_paths = new_gallery_paths
+            
+            event.gallery_images = ",".join(all_paths) if all_paths else ""
+            
+        db.commit()
+        return RedirectResponse("/admin?success=Cập nhật sự kiện lịch sử thành công#tab-events", status_code=303)
+    except Exception as e:
+        db.rollback()
+        return RedirectResponse(f"/admin?error=Lỗi khi cập nhật sự kiện: {str(e)}#tab-events", status_code=303)
+
+
 # --- QUẢN LÝ GIẢI ĐẤU (COMPETITIONS) ---
 
 @app.post("/admin/competitions/add")

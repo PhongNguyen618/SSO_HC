@@ -1612,11 +1612,65 @@
                                 <span style="color: var(--text-muted);">Không có</span>
                                 {% endif %}
                             </td>
-                            <td style="text-align: center;">
-                                <form action="/admin/events/delete/{{ ev.id }}" method="POST" style="display: inline;" onsubmit="return confirm('Bạn có chắc chắn muốn xóa sự kiện này và tất cả các ảnh liên quan?');">
-                                    <button type="submit" class="btn btn-danger btn-sm" style="padding:0.4rem 0.6rem; font-size:0.8rem;">
-                                        <i class="fa-solid fa-trash-can"></i> Xóa
+                            <td style="text-align: center; white-space: nowrap;">
+                                <div style="display: flex; gap: 0.5rem; justify-content: center;">
+                                    <button type="button" onclick="toggleEditEvent({{ ev.id }})" class="btn btn-secondary btn-sm" style="padding:0.4rem 0.6rem; font-size:0.8rem;">
+                                        <i class="fa-solid fa-pen-to-square"></i> Sửa
                                     </button>
+                                    <form action="/admin/events/delete/{{ ev.id }}" method="POST" style="display: inline;" onsubmit="return confirm('Bạn có chắc chắn muốn xóa sự kiện này và tất cả các ảnh liên quan?');">
+                                        <button type="submit" class="btn btn-danger btn-sm" style="padding:0.4rem 0.6rem; font-size:0.8rem;">
+                                            <i class="fa-solid fa-trash-can"></i> Xóa
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        <!-- Form chỉnh sửa ẩn cho sự kiện lịch sử -->
+                        <tr id="edit-event-{{ ev.id }}" style="display: none;">
+                            <td colspan="5" style="padding: 1.2rem;">
+                                <form action="/admin/events/edit/{{ ev.id }}" method="POST" enctype="multipart/form-data">
+                                    <div class="form-group">
+                                        <label>Tiêu đề sự kiện</label>
+                                        <input type="text" name="title" class="form-control" value="{{ ev.title }}" required>
+                                    </div>
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label>Link nhúng Video tổng kết (YouTube/Vimeo, Tùy chọn)</label>
+                                            <input type="url" name="video_url" class="form-control" value="{{ ev.video_url or '' }}" placeholder="Ví dụ: https://www.youtube.com/embed/dQw4w9WgXcQ">
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Thay đổi ảnh banner đại diện (Tùy chọn)</label>
+                                            <input type="file" name="banner_file" accept="image/*" class="form-control">
+                                            {% if ev.banner_image %}
+                                            <small style="color: var(--text-muted); display: block; margin-top: 0.2rem;">Đường dẫn banner hiện tại: {{ ev.banner_image }}</small>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Kết quả vinh danh & Tóm tắt sự kiện</label>
+                                        <textarea name="summary_text" class="form-control" style="min-height: 120px; font-family: inherit; font-size: 0.9rem; line-height: 1.5;" required>{{ ev.summary_text }}</textarea>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Tải ảnh album gallery mới (Tùy chọn)</label>
+                                        <input type="file" name="gallery_files" accept="image/*" class="form-control" multiple>
+                                        {% if ev.gallery_images %}
+                                        <small style="color: var(--text-muted); display: block; margin-top: 0.2rem;">Sự kiện hiện có {{ ev.gallery_images.split(',')|length }} ảnh trong album.</small>
+                                        {% endif %}
+                                    </div>
+                                    <div class="form-group">
+                                        <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; cursor: pointer; user-select: none;">
+                                            <input type="checkbox" name="keep_existing_gallery" value="true" checked style="width: 16px; height: 16px; margin: 0;">
+                                             <span>Giữ lại các ảnh hiện có trong Album (ảnh mới tải lên sẽ được thêm nối tiếp vào album)</span>
+                                        </label>
+                                    </div>
+                                    <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+                                        <button type="submit" class="btn btn-primary btn-sm">
+                                            <i class="fa-solid fa-floppy-disk"></i> Lưu thay đổi
+                                        </button>
+                                        <button type="button" onclick="toggleEditEvent({{ ev.id }})" class="btn btn-secondary btn-sm">
+                                            Hủy
+                                        </button>
+                                    </div>
                                 </form>
                             </td>
                         </tr>
@@ -1661,6 +1715,13 @@
     // --- QUẢN LÝ GIẢI ĐẤU JS ---
     function toggleEditComp(compId) {
         const row = document.getElementById('edit-comp-' + compId);
+        if (row) {
+            row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
+        }
+    }
+    
+    function toggleEditEvent(eventId) {
+        const row = document.getElementById('edit-event-' + eventId);
         if (row) {
             row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
         }
