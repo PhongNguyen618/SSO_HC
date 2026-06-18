@@ -129,16 +129,39 @@ def deduplicate_activities_logic(db: Session) -> dict:
                     if date_diff_days > 1:
                         continue
                         
-                    # 4. Kiểm tra độ lệch cự ly (distance_km_raw)
+                    # 4. Quy tắc về tên hoạt động: để tránh xóa nhầm hai hoạt động thực tế khác nhau tự đặt tên riêng
+                    name1_clean = (act1.name or "").strip().lower()
+                    name2_clean = (act2.name or "").strip().lower()
+                    
+                    generic_keywords = [
+                        "activity", "hoạt động strava", "hoạt động", "workout", "run", "walk", "ride",
+                        "morning run", "afternoon run", "evening run", "night run",
+                        "morning walk", "afternoon walk", "evening walk", "night walk",
+                        "morning ride", "afternoon ride", "evening ride", "night ride",
+                        "lunch run", "lunch walk", "lunch ride"
+                    ]
+                    is_generic1 = any(k in name1_clean for k in generic_keywords) or name1_clean == ""
+                    is_generic2 = any(k in name2_clean for k in generic_keywords) or name2_clean == ""
+                    
+                    if name1_clean != name2_clean and not is_generic1 and not is_generic2:
+                        continue
+                        
+                    # 5. Kiểm tra độ lệch cự ly (distance_km_raw)
                     dist1 = act1.distance_km_raw if act1.distance_km_raw is not None else act1.distance_km
                     dist2 = act2.distance_km_raw if act2.distance_km_raw is not None else act2.distance_km
                     dist_diff = abs((dist1 or 0) - (dist2 or 0))
                     
-                    # 5. Kiểm tra độ lệch thời gian di chuyển (moving_time_min)
+                    # 6. Kiểm tra độ lệch thời gian di chuyển (moving_time_min)
                     time_diff = abs((act1.moving_time_min or 0) - (act2.moving_time_min or 0))
                     
-                    # Ngưỡng gộp: cự ly lệch <= 0.05 km và thời gian lệch <= 1.0 phút
-                    if dist_diff <= 0.05 and time_diff <= 1.0:
+                    # 7. Kiểm tra độ lệch độ cao tăng thêm (elevation_gain_m)
+                    elev_diff = abs((act1.elevation_gain_m or 0) - (act2.elevation_gain_m or 0))
+                    
+                    # Ngưỡng gộp an toàn: 
+                    # - cự ly lệch <= 0.05 km
+                    # - thời gian lệch <= 1.0 phút
+                    # - độ cao lệch <= 10.0 m
+                    if dist_diff <= 0.05 and time_diff <= 1.0 and elev_diff <= 10.0:
                         to_delete.append(act2.id)
                         merged_indices.add(j)
                         
