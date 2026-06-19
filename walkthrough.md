@@ -43,7 +43,8 @@ Dự án là web app Strava SSO_HC dùng FastAPI, SQLAlchemy và SQLite. Giao di
 - **Kiểm thử API quy chế:** [test_api_rules.py](file:///C:/Users/PC/.gemini/antigravity/brain/bd264055-d159-48f2-b24a-882bf20c1d44/scratch/test_api_rules.py) - **PASSED (OK)**. API trả về đúng dữ liệu cấu hình theo giải đấu và trả về 401 khi chưa đăng nhập admin.
 - **Kiểm thử Đăng ký & Trùng họ tên:** [test_post_register.py](file:///C:/Users/PC/.gemini/antigravity/brain/bd264055-d159-48f2-b24a-882bf20c1d44/scratch/test_post_register.py) - **PASSED (OK)**.
 - **Kiểm thử Tự động đóng giải đấu:** [test_event_expiration.py](file:///C:/Users/PC/.gemini/antigravity/brain/bd264055-d159-48f2-b24a-882bf20c1d44/scratch/test_event_expiration.py) - **PASSED (OK)**.
-- **Kiểm thử Phân trang hoạt động cá nhân:** [test_profile_pagination.py](file:///C:/Users/PC/.gemini/antigravity/brain/bd264055-d159-48f2-b24a-882bf20c1d44/scratch/test_profile_pagination.py) - **PASSED (OK)**. Xác minh phân trang 15 hoạt động trên trang, chuyển trang chính xác và bảo toàn tổng số calo/KM.
+- **Kiểm thử Phân trang hoạt động cá nhân:** [test_profile_pagination.py](file:///C:/Users/PC/.gemini/antigravity/brain/bd264055-d159-48f2-b24a-882bf20c1d44/scratch/test_profile_pagination.py) - **PASSED (OK)**.
+- **Kiểm thử Giao diện Trang chủ & Carousel:** [test_render_index.py](file:///C:/Users/PC/.gemini/antigravity/brain/bd264055-d159-48f2-b24a-882bf20c1d44/scratch/test_render_index.py) - **PASSED (OK)**. Xác minh template trang chủ render thành công, có đầy đủ container carousel và JS trượt.
 
 ### 2. Commit lên Git
 - Đã commit và push toàn bộ các thay đổi mới lên Git.
@@ -72,6 +73,15 @@ Dự án là web app Strava SSO_HC dùng FastAPI, SQLAlchemy và SQLite. Giao di
   - Viết hàm helper `clean_name(name)` để chuẩn hóa chuỗi (chuyển chữ thường, bỏ khoảng trắng, bỏ dấu tiếng Việt).
   - Khi người chơi đăng ký mới, hệ thống sẽ chuẩn hóa Họ tên họ nhập vào và so sánh với danh sách VĐV đã có. Nếu phát hiện trùng lặp Họ tên chuẩn hóa (ví dụ: `Nguyen Van A` trùng khớp với `Nguyễn Văn A`), hệ thống sẽ nhận diện đây là cùng một người và ngăn chặn việc tạo tài khoản trùng thứ hai.
   - Chuyển hướng người chơi sang luồng cập nhật thông tin. Tại đây, cho phép họ cập nhật cả Họ tên đúng, Phòng ban, Cân nặng và cả tên Strava mới (nếu trước đó họ ghi nhầm tên Strava của mình) giúp họ tự sửa lỗi ghi nhận hoạt động cực kỳ nhanh chóng.
+
+### 4. Thiết kế lại giao diện Trang chủ (Banner nổi bật & Carousel sự kiện lịch sử)
+- **File sửa đổi:** [index.html](file:///c:/Users/PC/Desktop/SSO_HC/templates/index.html)
+- **Chi tiết:** 
+  - Thay đổi cấu trúc Grid hai cột thành cấu trúc Flexbox dọc để **giải đấu đang diễn ra chiếm 100% chiều rộng** trang web, nổi bật và hoành tráng hơn hẳn.
+  - Tăng chiều cao banner chính giải đấu đang diễn ra lên `min-height: 340px` trên máy tính để tăng hiệu ứng hình ảnh (visual impact) và tự động thu gọn về `250px` trên điện thoại di động.
+  - Tái cấu trúc phần **"Sự kiện lịch sử"** (các giải đấu cũ) xuống hàng bên dưới dưới dạng một **Carousel (Slide trượt ngang) vô cùng hiện đại và gọn gàng**.
+  - Các card sự kiện lịch sử trượt ngang được phủ bóng mờ tinh tế ở biên và đi kèm **nút mũi tên trượt trái/phải mượt mà**.
+  - Tích hợp JS tự động phát hiện số lượng sự kiện: Nếu số lượng sự kiện quá ít (vừa vặn khung màn hình và không cần cuộn) thì tự động ẩn các nút mũi tên điều hướng để giao diện luôn sạch sẽ, nếu tràn khung thì tự động hiện nút.
 
 ---
 
@@ -170,3 +180,22 @@ Dự án là web app Strava SSO_HC dùng FastAPI, SQLAlchemy và SQLite. Giao di
   - Nếu để mặc định `"active"`, hệ thống tự động fallback tìm giải đấu đang hoạt động mới nhất (`active_event`) để đồng bộ.
 - **Frontend UI (`templates/admin.html`):** Bổ sung dropdown chọn giải đấu (`apply_to_event_id`) ngay trên đầu phần *Cấu hình Quy Chế & Welcome Banner* ở tab *Cấu hình API & Rules*, lặp qua danh sách `all_competitions` để Admin có thể lựa chọn linh hoạt.
 - **Kiểm thử tự động (`scratch/test_rules_target_event.py`):** Tạo 2 giải đấu mẫu, cấu hình quy chế riêng cho giải đấu B và xác minh thành công: các giá trị quy chế mới được áp dụng chuẩn xác cho giải đấu B, còn giải đấu A hoàn toàn không bị ảnh hưởng hay ghi đè nhầm lẫn.
+
+### 5. Cải tiến giao diện Trang chủ: Banner Giải đấu Nổi bật & Carousel Tự động trượt
+- **Files sửa đổi:** [templates/index.html](file:///c:/Users/PC/Desktop/SSO_HC/templates/index.html)
+- **Chi tiết cải tiến:**
+  - **Banner giải đấu đang diễn ra:**
+    - Tăng chiều cao banner `.main-hero-banner` từ `340px` lên `380px` (trên máy tính) tạo hiệu ứng hình ảnh lớn và hoành tráng.
+    - Tăng kích thước chữ tiêu đề giải chạy đang diễn ra từ `2.2rem` lên `2.6rem` (kèm `font-weight: 800`), tối ưu bóng mờ cho tiêu đề để hiển thị cực nét.
+    - Cải thiện lớp phủ màu tối chân banner (gradient overlay mịn hơn) giúp thông tin và nút bấm luôn rõ ràng trên mọi hình nền.
+    - Gom và tối ưu hóa CSS padding của banner thông qua class `.hero-banner-content` để responsive tốt hơn trên các thiết bị.
+  - **Carousel sự kiện quá khứ tự động trượt (Auto-Play Slide):**
+    - Lập trình hàm Javascript tự động cuộn (Auto-Play) sau mỗi `4` giây một khoảng `300px` mượt mà.
+    - Khi cuộn đến điểm cuối của danh sách sự kiện lịch sử, Carousel sẽ tự động cuộn ngược về đầu một cách mượt mà để tạo vòng lặp vô hạn.
+    - Tích hợp tính năng **Hover Pause**: Tự động tạm dừng cuộn khi người dùng rê chuột vào vùng Carousel để họ dễ dàng click, và tiếp tục cuộn khi chuột rời đi.
+    - Bổ sung **Reset Timer**: Tự động đặt lại bộ đếm 4 giây khi người dùng nhấn nút Prev/Next thủ công hoặc vuốt chạm tay trên thiết bị di động, tránh hiện tượng Carousel tự trượt ngay sau khi người dùng vừa thao tác.
+  - **Tối ưu hóa Nút điều hướng Carousel:**
+    - Thiết kế nút Prev/Next ẩn hoàn toàn ở trạng thái bình thường (opacity = 0, pointer-events = none).
+    - Chỉ hiển thị nút điều hướng tương ứng với hướng có thể cuộn khi người dùng hover chuột vào vùng Carousel trên máy tính.
+    - Tự động ẩn hoàn toàn các nút điều hướng trên thiết bị di động để nhường không gian cho thao tác vuốt chạm.
+- **Kết quả kiểm thử (`scratch/test_render_index.py`):** Kiểm thử render trang chủ tích hợp DB thực tế chạy thành công 100%, xác nhận không có lỗi cú pháp và các cấu trúc HTML/JS của Carousel hoạt động ổn định.
