@@ -240,9 +240,9 @@ Dự án là web app Strava SSO_HC dùng FastAPI, SQLAlchemy và SQLite. Giao di
   - **Triển khai đục lỗ thông minh ở server (`duc_lo_frame_neu_duc`):**
     - Viết lại hàm `duc_lo_frame_neu_duc` sử dụng thư viện `PIL.ImageDraw` vẽ hình tròn trong suốt đè lên tâm ảnh.
     - Cơ chế kiểm tra an toàn: Hàm kiểm tra pixel chính giữa tâm ảnh, nếu điểm tâm đã có kênh alpha trong suốt (A=0, tức ảnh đã được đục lỗ sẵn bằng Photoshop/Canva) thì giữ nguyên để tránh làm hỏng thiết kế gốc của admin. Chỉ thực hiện đục lỗ tròn ở giữa khi tâm ảnh bị đặc màu (A>0) với tỉ lệ chuẩn.
-  - **Tích hợp tùy chọn tỉ lệ đục lỗ động (Scale):**
-    - **Frontend (`templates/admin.html`):** Bổ sung dropdown "Tỉ lệ đục lỗ lòng trong" hỗ trợ nhiều kích cỡ từ `50%` đến `80%` (mặc định khuyên dùng là `65%` - giúp viền dày và che phủ mép cắt avatar cũng như darkmode tốt hơn).
-    - **Backend (`backend/main.py`):** Nhận tham số `frame_scale` từ form và truyền vào hàm `duc_lo_frame_neu_duc` để xử lý đục lỗ linh hoạt theo ý muốn admin.
+  - **Tích hợp tùy chọn tỉ lệ đục lỗ động (Scale) và vị trí lệch tâm X, Y:**
+    - **Frontend (`templates/admin.html`):** Bổ sung dropdown "Tỉ lệ đục lỗ lòng trong" (`50%` đến `80%`, mặc định `65%`) và hai ô nhập số "Lệch ngang X", "Lệch dọc Y" (từ `-50%` đến `50%`, mặc định `0%`).
+    - **Backend (`backend/main.py`):** Nhận các tham số `frame_scale`, `frame_offset_x`, `frame_offset_y` từ form và truyền vào hàm `duc_lo_frame_neu_duc` để xử lý đục lỗ linh hoạt theo kích thước và vị trí lệch tâm mong muốn của admin.
 - **Kết quả kiểm thử:**
-  - Chạy script kiểm thử [test_upload_avatar_frame.py](file:///C:/Users/PC/.gemini/antigravity/brain/bd264055-d159-48f2-b24a-882bf20c1d44/scratch/test_upload_avatar_frame.py) thành công. File ảnh thật `frame.png` được đục lỗ và tách nền hoàn hảo với tỉ lệ `0.65`, dung lượng giảm từ 329KB xuống 293KB.
+  - Chạy script kiểm thử [test_upload_avatar_frame.py](file:///C:/Users/PC/.gemini/antigravity/brain/bd264055-d159-48f2-b24a-882bf20c1d44/scratch/test_upload_avatar_frame.py) thành công. File ảnh thật `frame.png` được đục lỗ và tách nền hoàn hảo với tỉ lệ `0.65`, lệch ngang `2.5%` và lệch dọc `-1.5%`, dung lượng giảm từ 329KB xuống 297KB.
   - Kiểm tra pixel tâm ảnh và rìa ảnh bằng PIL trả về độ trong suốt hoàn hảo `(0, 0, 0, 0)` (alpha = 0), khắc phục triệt để lỗi ảnh khung viền đè mất chân dung VĐV.

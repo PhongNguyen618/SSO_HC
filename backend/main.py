@@ -61,9 +61,9 @@ def clean_name(name: str) -> str:
     name = name.replace("đ", "d")
     return name
 
-def duc_lo_frame_neu_duc(frame_image, scale=0.72):
+def duc_lo_frame_neu_duc(frame_image, scale=0.72, offset_x=0.0, offset_y=0.0):
     """
-    Tự động đục lỗ tròn ở giữa nếu ảnh khung viền là ảnh đặc (chưa có lỗ trong suốt ở tâm).
+    Tự động đục lỗ tròn ở vị trí tùy chỉnh (offset X, Y theo phần trăm) nếu ảnh khung viền là ảnh đặc.
     Nếu ảnh đã được đục lỗ sẵn (điểm ở tâm đã trong suốt), giữ nguyên để tránh làm hỏng thiết kế.
     """
     try:
@@ -71,19 +71,25 @@ def duc_lo_frame_neu_duc(frame_image, scale=0.72):
         img = frame_image.convert("RGBA")
         width, height = img.size
         
-        # Kiểm tra pixel ở chính tâm
-        center_pixel = img.getpixel((width // 2, height // 2))
+        # Tính toán tọa độ tâm dựa trên offset (offset_x, offset_y ở dạng số thực từ -0.5 đến 0.5)
+        center_x = int(width * (0.5 + offset_x))
+        center_y = int(height * (0.5 + offset_y))
+        
+        # Kiểm tra pixel ở tâm đục lỗ mới (đảm bảo nằm trong giới hạn ảnh)
+        check_x = max(0, min(width - 1, center_x))
+        check_y = max(0, min(height - 1, center_y))
+        center_pixel = img.getpixel((check_x, check_y))
+        
         # Nếu alpha = 0, tức là tâm đã trong suốt (đã được đục lỗ sẵn), trả về ảnh gốc
         if center_pixel[3] == 0:
             return frame_image
             
-        # Ngược lại, tiến hành đục lỗ hình tròn ở tâm
+        # Ngược lại, tiến hành đục lỗ hình tròn
         empty = Image.new("RGBA", (width, height), (0, 0, 0, 0))
         mask = Image.new("L", (width, height), 0)
         draw = ImageDraw.Draw(mask)
         
         r = int((min(width, height) * scale) / 2)
-        center_x, center_y = width // 2, height // 2
         draw.ellipse((center_x - r, center_y - r, center_x + r, center_y + r), fill=255)
         
         img.paste(empty, (0, 0), mask=mask)
@@ -2056,6 +2062,8 @@ async def update_avatar_frame(
     global_avatar_frame: UploadFile = File(...),
     frame_remove_bg: str = Form("false"),
     frame_scale: float = Form(0.65),
+    frame_offset_x: float = Form(0.0),
+    frame_offset_y: float = Form(0.0),
     db: Session = Depends(get_db)
 ):
     """API upload khung viền avatar chung hệ thống (nằm trên Form độc lập)."""
@@ -2088,8 +2096,13 @@ async def update_avatar_frame(
             from io import BytesIO
             from PIL import Image
             img = Image.open(BytesIO(content))
-            # Tự động đục lỗ tròn ở giữa nếu tâm ảnh không trong suốt
-            processed_img = duc_lo_frame_neu_duc(img, scale=frame_scale)
+            # Tự động đục lỗ tròn ở vị trí tùy chỉnh nếu tâm ảnh không trong suốt
+            processed_img = duc_lo_frame_neu_duc(
+                img, 
+                scale=frame_scale, 
+                offset_x=frame_offset_x / 100.0, 
+                offset_y=frame_offset_y / 100.0
+            )
             
             out_buf = BytesIO()
             processed_img.save(out_buf, format="PNG")
