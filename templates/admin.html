@@ -1682,7 +1682,20 @@
                                         <label>Tải ảnh album gallery mới (Tùy chọn)</label>
                                         <input type="file" name="gallery_files" accept="image/*" class="form-control" multiple>
                                         {% if ev.gallery_images %}
-                                        <small style="color: var(--text-muted); display: block; margin-top: 0.2rem;">Sự kiện hiện có {{ ev.gallery_images.split(',')|length }} ảnh trong album.</small>
+                                        <div class="existing-gallery-container" style="display: flex; flex-wrap: wrap; gap: 0.8rem; margin-top: 0.8rem; margin-bottom: 0.8rem;">
+                                            {% for img in ev.gallery_images.split(',') %}
+                                                {% if img %}
+                                                <div class="gallery-item-wrapper" style="position: relative; width: 80px; height: 60px; border-radius: 6px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1);">
+                                                    <img src="{{ img }}" style="width: 100%; height: 100%; object-fit: cover;">
+                                                    <button type="button" onclick="markImageForDeletion({{ ev.id }}, '{{ img }}', this)" style="position: absolute; top: 2px; right: 2px; background: rgba(220, 53, 69, 0.85); border: none; color: white; border-radius: 4px; padding: 2px 5px; cursor: pointer; font-size: 0.7rem; display: flex; align-items: center; justify-content: center;" title="Xóa ảnh này">
+                                                        <i class="fa-solid fa-trash-can"></i>
+                                                    </button>
+                                                </div>
+                                                {% endif %}
+                                            {% endfor %}
+                                        </div>
+                                        <input type="hidden" id="deleted-images-{{ ev.id }}" name="deleted_images" value="">
+                                        <small style="color: var(--text-muted); display: block; margin-top: 0.2rem; margin-bottom: 0.8rem;">Click nút đỏ để chọn xóa nhanh từng ảnh. Sự kiện hiện có {{ ev.gallery_images.split(',')|length }} ảnh trong album.</small>
                                         {% endif %}
                                     </div>
                                     <div class="form-group">
@@ -2863,6 +2876,28 @@
                 console.error('Lỗi khi tải cấu hình quy chế giải đấu:', err);
                 alert('Có lỗi xảy ra khi tải cấu hình quy chế cho giải đấu này!');
             });
+    }
+
+
+    function markImageForDeletion(eventId, imagePath, btn) {
+        if (!confirm('Bạn có chắc chắn muốn xóa ảnh này khỏi album? (Ảnh sẽ thực sự bị xóa khi bạn bấm "Lưu thay đổi")')) {
+            return;
+        }
+        const input = document.getElementById('deleted-images-' + eventId);
+        if (input) {
+            let deleted = input.value ? input.value.split(',') : [];
+            deleted.push(imagePath);
+            input.value = deleted.join(',');
+        }
+        // Ẩn wrapper của ảnh
+        const wrapper = btn.closest('.gallery-item-wrapper');
+        if (wrapper) {
+            wrapper.style.transition = 'all 0.3s ease';
+            wrapper.style.opacity = '0';
+            setTimeout(() => {
+                wrapper.remove();
+            }, 300);
+        }
     }
 
 </script>

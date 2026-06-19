@@ -131,6 +131,7 @@ class Activity(Base):
     pace_min_km = Column(Float)
     elevation_gain_m = Column(Float)
     activity_date = Column(String, index=True) # Format: YYYY-MM-DD
+    activity_time = Column(String, nullable=True) # Format: HH:MM (giờ phút local)
     sync_date = Column(DateTime, default=datetime.utcnow)
     kcal_burned = Column(Float)
     mets_value = Column(Float)
@@ -190,6 +191,12 @@ def init_db(excel_filepath: str = "TDTT_SSO.xlsx"):
         print("Database Migration: Adding multiplier column to activities...")
         with engine.connect() as conn:
             conn.execute(text("ALTER TABLE activities ADD COLUMN multiplier FLOAT DEFAULT 1.0"))
+            conn.commit()
+
+    if 'activity_time' not in columns:
+        print("Database Migration: Adding activity_time column to activities...")
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE activities ADD COLUMN activity_time TEXT"))
             conn.commit()
 
     # Di trú các cột cho mets_rules, reward_rules, badge_rules

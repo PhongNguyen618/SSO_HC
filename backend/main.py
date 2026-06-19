@@ -304,8 +304,6 @@ def get_global_configs():
                 configs["rules_general_text"] = active_event.rules_general_text
             if active_event.banner_image:
                 configs["rules_banner_image"] = active_event.banner_image
-            if active_event.strava_club_id:
-                configs["strava_club_id"] = active_event.strava_club_id
             configs["active_event_id"] = active_event.id
             
         # Tạo mã hash duy nhất cho nội dung quy chế/banner để tự động kích hoạt lại popup ở client-side khi có thay đổi
@@ -731,8 +729,6 @@ def rules_page(
             configs["rules_general_text"] = selected_event.rules_general_text
         if selected_event.banner_image:
             configs["rules_banner_image"] = selected_event.banner_image
-        if selected_event.strava_club_id:
-            configs["strava_club_id"] = selected_event.strava_club_id
         if selected_event.rules_group_qr:
             configs["rules_group_qr"] = selected_event.rules_group_qr
             
@@ -1885,7 +1881,8 @@ def api_get_competition_rules(event_id: str, request: Request, db: Session = Dep
             "rules_version": configs.get("rules_version", ""),
             "rules_banner_mode": configs.get("rules_banner_mode", "version"),
             "rules_banner_reset_days": configs.get("rules_banner_reset_days", "1"),
-            "rules_group_qr": group_qr
+            "rules_group_qr": group_qr,
+            "strava_club_id": (active_event.strava_club_id if active_event else "") or configs.get("strava_club_id", "")
         })
         
     try:
@@ -1903,7 +1900,8 @@ def api_get_competition_rules(event_id: str, request: Request, db: Session = Dep
             "rules_version": configs.get("rules_version", ""),
             "rules_banner_mode": configs.get("rules_banner_mode", "version"),
             "rules_banner_reset_days": configs.get("rules_banner_reset_days", "1"),
-            "rules_group_qr": comp.rules_group_qr or configs.get("rules_group_qr", "")
+            "rules_group_qr": comp.rules_group_qr or configs.get("rules_group_qr", ""),
+            "strava_club_id": comp.strava_club_id or configs.get("strava_club_id", "")
         })
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
@@ -2773,6 +2771,7 @@ def get_activities_api(
             "pace_min_km": act.pace_min_km,
             "elevation_gain_m": act.elevation_gain_m,
             "activity_date": act.activity_date,
+            "activity_time": act.activity_time,
             "kcal_burned": act.kcal_burned,
             "kcal_burned_raw": act.kcal_burned_raw,
             "multiplier": act.multiplier,
@@ -3212,7 +3211,7 @@ async def admin_add_event(
         banner_path = ""
         if banner_file and banner_file.filename:
             ext = os.path.splitext(banner_file.filename)[1].lower()
-            if ext in [".png", ".jpg", ".jpeg", ".webp", ".gif"]:
+            if ext in [".png", ".jpg", ".jpeg", ".webp", ".gif", ".heic", ".heif", ".jfif", ".svg", ".bmp"]:
                 filename = f"event_banner_{int(time.time())}{ext}"
                 upload_dir = "static/uploads"
                 os.makedirs(upload_dir, exist_ok=True)
@@ -3232,7 +3231,7 @@ async def admin_add_event(
             for g_file in gallery_files:
                 if g_file.filename:
                     ext = os.path.splitext(g_file.filename)[1].lower()
-                    if ext in [".png", ".jpg", ".jpeg", ".webp", ".gif"]:
+                    if ext in [".png", ".jpg", ".jpeg", ".webp", ".gif", ".heic", ".heif", ".jfif", ".svg", ".bmp"]:
                         filename = f"event_gal_{int(time.time())}_{random.randint(100, 999)}_{idx}{ext}"
                         upload_dir = "static/uploads"
                         os.makedirs(upload_dir, exist_ok=True)
@@ -3303,6 +3302,7 @@ async def admin_edit_event(
     video_url: str = Form(None),
     summary_text: str = Form(...),
     keep_existing_gallery: bool = Form(False),
+    deleted_images: str = Form(""),
     banner_file: UploadFile = File(None),
     gallery_files: list[UploadFile] = File(None),
     db: Session = Depends(get_db)
@@ -3312,6 +3312,9 @@ async def admin_edit_event(
         return RedirectResponse("/admin?error=Chua dang nhap", status_code=303)
         
     try:
+        # Chuẩn hóa deleted_images nếu nhận đối tượng Form (do gọi trực tiếp từ test script)
+        if not isinstance(deleted_images, str):
+            deleted_images = ""
         from backend.database import ArchivedEvent
         import time
         
@@ -3323,10 +3326,28 @@ async def admin_edit_event(
         event.video_url = video_url.strip() if video_url else None
         event.summary_text = summary_text.strip()
         
+        # Xử lý xóa các ảnh được yêu cầu xóa khỏi album
+        if deleted_images and event.gallery_images:
+            to_delete = [p.strip() for p in deleted_images.split(",") if p.strip()]
+            current_images = event.gallery_images.split(",")
+            updated_images = []
+            for img in current_images:
+                if img in to_delete:
+                    # Xóa file vật lý trên đĩa
+                    p_clean = img.lstrip("/")
+                    if os.path.exists(p_clean) and "static/uploads/" in p_clean:
+                        try:
+                            os.remove(p_clean)
+                        except Exception as ex:
+                            print(f"Error removing image file: {ex}")
+                else:
+                    updated_images.append(img)
+            event.gallery_images = ",".join(updated_images)
+        
         # 1. Cập nhật banner nếu có upload mới
         if banner_file and banner_file.filename:
             ext = os.path.splitext(banner_file.filename)[1].lower()
-            if ext in [".png", ".jpg", ".jpeg", ".webp", ".gif"]:
+            if ext in [".png", ".jpg", ".jpeg", ".webp", ".gif", ".heic", ".heif", ".jfif", ".svg", ".bmp"]:
                 import random
                 filename = f"event_banner_{int(time.time())}_{random.randint(100, 999)}{ext}"
                 upload_dir = "static/uploads"
@@ -3365,7 +3386,7 @@ async def admin_edit_event(
             for g_file in gallery_files:
                 if g_file.filename:
                     ext = os.path.splitext(g_file.filename)[1].lower()
-                    if ext in [".png", ".jpg", ".jpeg", ".webp", ".gif"]:
+                    if ext in [".png", ".jpg", ".jpeg", ".webp", ".gif", ".heic", ".heif", ".jfif", ".svg", ".bmp"]:
                         filename = f"event_gal_{int(time.time())}_{random.randint(100, 999)}_{idx}{ext}"
                         upload_dir = "static/uploads"
                         os.makedirs(upload_dir, exist_ok=True)

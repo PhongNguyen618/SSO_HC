@@ -421,7 +421,7 @@
             <tbody>
                 {% for act in activities %}
                 <tr {% if act.is_suspicious %}style="background: rgba(255, 94, 54, 0.03);"{% endif %}>
-                    <td style="color: var(--text-muted);">{{ act.activity_date }}</td>
+                    <td style="color: var(--text-muted);">{{ act.activity_date }}{% if act.activity_time %} <span style="color: var(--color-primary); font-size: 0.85em;">{{ act.activity_time }}</span>{% endif %}</td>
                     <td style="font-weight: 500;">{{ act.name }}</td>
                     <td>
                         <span class="gender-badge male" style="background: rgba(255,255,255,0.05); color: var(--text-main); border: 1px solid var(--border-color);">

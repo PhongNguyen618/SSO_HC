@@ -129,10 +129,13 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
         if distance_km > 0:
             pace_min_km = round(moving_time_min / distance_km, 2)
 
-        # Lấy ngày hoạt động thực tế từ Strava API
+        # Lấy ngày và giờ hoạt động thực tế từ Strava API
         start_date_local = act.get("start_date_local") or act.get("start_date")
+        act_time_str = None
         if start_date_local:
             act_date_str = start_date_local[:10]  # Định dạng YYYY-MM-DD
+            if len(start_date_local) >= 16:
+                act_time_str = start_date_local[11:16]  # Định dạng HH:MM
         else:
             act_date_str = today_str
 
@@ -191,7 +194,8 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
             elapsed_time_min=elapsed_time_min,
             pace_min_km=pace_min_km,
             elevation_gain_m=elevation_gain_m,
-            activity_date=act_date_str, # Sử dụng ngày diễn ra hoạt động thực tế
+            activity_date=act_date_str,
+            activity_time=act_time_str,
             kcal_burned=kcal_burned,
             kcal_burned_raw=kcal_burned_raw,
             mets_value=mets_value,
@@ -415,18 +419,24 @@ async def import_excel_files(files: list[UploadFile], db: Session, event_id: int
                 
                 date_val = row.get(col_map.get("Ngày"))
                 
-                # Chuẩn hóa ngày
+                # Chuẩn hóa ngày và giờ
                 activity_date = None
+                activity_time = None
                 if pd.notna(date_val):
                     if isinstance(date_val, datetime):
                         activity_date = date_val.strftime("%Y-%m-%d")
+                        if date_val.hour > 0 or date_val.minute > 0:
+                            activity_time = date_val.strftime("%H:%M")
                     elif hasattr(date_val, 'strftime'):
                         activity_date = date_val.strftime("%Y-%m-%d")
                     else:
                         date_str = str(date_val).strip()
-                        for fmt in ("%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y"):
+                        for fmt in ("%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y %H:%M", "%Y-%m-%d %H:%M", "%d-%m-%Y %H:%M"):
                             try:
-                                activity_date = datetime.strptime(date_str, fmt).strftime("%Y-%m-%d")
+                                parsed_dt = datetime.strptime(date_str, fmt)
+                                activity_date = parsed_dt.strftime("%Y-%m-%d")
+                                if parsed_dt.hour > 0 or parsed_dt.minute > 0:
+                                    activity_time = parsed_dt.strftime("%H:%M")
                                 break
                             except ValueError:
                                 continue
@@ -500,6 +510,7 @@ async def import_excel_files(files: list[UploadFile], db: Session, event_id: int
                     pace_min_km=pace,
                     elevation_gain_m=elev,
                     activity_date=activity_date,
+                    activity_time=activity_time,
                     kcal_burned=kcal_val,
                     kcal_burned_raw=kcal_raw,
                     mets_value=mets_val,
