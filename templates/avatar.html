@@ -384,31 +384,7 @@
                     <i class="fa-solid fa-sliders"></i> PANEL ĐIỀU CHỈNH ẢNH
                 </h3>
 
-                <!-- Slider thay đổi cỡ lỗ đục khung viền, tối thiểu 40% tối đa 85%, mặc định 55% -->
-                <div class="control-group">
-                    <div class="control-label">
-                        <span><i class="fa-solid fa-circle-dot"></i> Cỡ lỗ đục khung viền (Hole Size)</span>
-                        <span id="holeVal">55%</span>
-                    </div>
-                    <input type="range" id="holeSlider" class="slider-input" min="40" max="85" step="1" value="55">
-                </div>
 
-                <!-- Slider thay đổi vị trí tâm lỗ đục -->
-                <div class="control-group">
-                    <div class="control-label">
-                        <span><i class="fa-solid fa-arrows-left-right"></i> Dịch ngang lỗ đục (Hole X)</span>
-                        <span id="holeXVal">0%</span>
-                    </div>
-                    <input type="range" id="holeXSlider" class="slider-input" min="-15" max="15" step="0.5" value="0">
-                </div>
-                
-                <div class="control-group">
-                    <div class="control-label">
-                        <span><i class="fa-solid fa-arrows-up-down"></i> Dịch dọc lỗ đục (Hole Y)</span>
-                        <span id="holeYVal">0%</span>
-                    </div>
-                    <input type="range" id="holeYSlider" class="slider-input" min="-15" max="15" step="0.5" value="0">
-                </div>
                 
                 <div class="control-group">
                     <div class="control-label">
@@ -530,12 +506,6 @@
     const canvas = document.getElementById('avatarCanvas');
     const ctx = canvas.getContext('2d');
     
-    // Tạo Canvas phụ để đục lỗ động ở client-side
-    const offCanvas = document.createElement('canvas');
-    offCanvas.width = 1200;
-    offCanvas.height = 1200;
-    const offCtx = offCanvas.getContext('2d');
-    
     // Khung viền mặc định tải từ Server
     const frameImg = new Image();
     frameImg.crossOrigin = "anonymous";
@@ -552,9 +522,6 @@
     let brightness = 100; // Độ sáng (%)
     let contrast = 100;   // Độ tương phản (%)
     let isFlipped = false; // Trạng thái lật ngang
-    let holeScale = 0.55;  // Tỷ lệ lỗ đục mặc định mới (55%)
-    let holeOffsetX = 0;   // Dịch chuyển X của lỗ đục (%)
-    let holeOffsetY = 0;   // Dịch chuyển Y của lỗ đục (%)
     
     // Trạng thái kéo thả ảnh (Pan) trên canvas
     let isDragging = false;
@@ -578,45 +545,25 @@
         const centerX = canvas.width / 2;
         const centerY = canvas.height / 2;
         
-        // Tính toán tọa độ tâm của lỗ đục động dựa trên slider dịch chuyển (holeOffsetX, holeOffsetY)
-        const holeCenterX = centerX + (holeOffsetX * canvas.width) / 100;
-        const holeCenterY = centerY + (holeOffsetY * canvas.height) / 100;
-        
         // 3. Vẽ ảnh người dùng lồng tròn (nếu đã tải ảnh lên)
         if (userImg) {
             ctx.save();
             
-            if (isUserBgRemoved) {
-                // NẾU ĐÃ TÁCH NỀN: Cắt clipping path theo vòng tròn ngoài cùng của avatar (bán kính canvas.width / 2)
-                // giúp ảnh chân dung tự do hiển thị trong lỗ đục (giống Canva) nhưng không bị tràn ra ngoài viền tròn avatar
-                const clipRadius = canvas.width / 2;
-                ctx.beginPath();
-                ctx.arc(centerX, centerY, clipRadius, 0, Math.PI * 2);
-                ctx.clip();
-                
-                // Vẽ màu nền đã chọn đằng sau người (trong phạm vi lỗ đục nhỏ)
-                if (bgColor && bgColor !== 'transparent') {
-                    ctx.fillStyle = bgColor;
-                    ctx.beginPath();
-                    ctx.arc(holeCenterX, holeCenterY, (canvas.width * holeScale) / 2, 0, Math.PI * 2);
-                    ctx.fill();
-                }
-            } else {
-                // NẾU CHƯA TÁCH NỀN: Bắt buộc clip tròn theo lỗ đục nhỏ để giấu nền ảnh gốc không bị tràn ra ngoài
-                const clipRadius = (canvas.width * holeScale) / 2;
-                ctx.beginPath();
-                ctx.arc(holeCenterX, holeCenterY, clipRadius, 0, Math.PI * 2);
-                ctx.clip();
-                
-                // Vẽ màu nền đã chọn ở lớp dưới cùng (đằng sau người VĐV)
-                if (bgColor && bgColor !== 'transparent') {
-                    ctx.fillStyle = bgColor;
-                    ctx.fill();
-                }
+            // Cắt clipping path theo vòng tròn ngoài cùng của avatar (bán kính canvas.width / 2)
+            // giúp ảnh chân dung tự do hiển thị trong lỗ đục (giống Canva) nhưng không bị tràn ra ngoài viền tròn avatar
+            const clipRadius = canvas.width / 2;
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, clipRadius, 0, Math.PI * 2);
+            ctx.clip();
+            
+            // Vẽ màu nền đã chọn đằng sau người
+            if (bgColor && bgColor !== 'transparent') {
+                ctx.fillStyle = bgColor;
+                ctx.fill();
             }
             
-            // Tịnh tiến tọa độ vẽ về tâm lỗ đục mới để áp dụng Xoay và Phóng to
-            ctx.translate(holeCenterX + offsetX, holeCenterY + offsetY);
+            // Tịnh tiến tọa độ vẽ về tâm để áp dụng Xoay và Phóng to
+            ctx.translate(centerX + offsetX, centerY + offsetY);
             ctx.rotate((rotation * Math.PI) / 180);
             
             // Áp dụng phép lật ngang nếu được kích hoạt
@@ -628,8 +575,8 @@
             ctx.filter = `brightness(${brightness}%) contrast(${contrast}%)`;
             
             // Tính toán kích thước hiển thị ảnh
-            // Cơ chế Aspect Cover giữ nguyên tỉ lệ aspect ratio, không bị crop cứng mất đầu
-            const drawDiameter = canvas.width * (holeScale + 0.25); // Đường kính vẽ lớn hơn lỗ đục 25% để người dùng thoải mái căn chỉnh mà không lo hở viền
+            // Sử dụng mặc định đường kính vẽ bằng 70% kích thước canvas (840px) làm chuẩn ban đầu
+            const drawDiameter = canvas.width * 0.7;
             let drawWidth, drawHeight;
             const imgRatio = userImg.width / userImg.height;
             
@@ -658,37 +605,40 @@
             ctx.save();
             ctx.fillStyle = '#181528';
             ctx.beginPath();
-            ctx.arc(holeCenterX, holeCenterY, (canvas.width * (holeScale + 0.08)) / 2, 0, Math.PI * 2);
+            ctx.arc(centerX, centerY, (canvas.width * 0.63) / 2, 0, Math.PI * 2);
             ctx.fill();
             
             ctx.fillStyle = '#8f8c9d';
             ctx.font = 'bold 36px Be Vietnam Pro, Inter, sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText('CHƯA CÓ ẢNH CHÂN DUNG', holeCenterX, holeCenterY - 15);
+            ctx.fillText('CHƯA CÓ ẢNH CHÂN DUNG', centerX, centerY - 15);
             ctx.font = '24px Be Vietnam Pro, Inter, sans-serif';
-            ctx.fillText('Hãy tải ảnh của bạn ở bước 1', holeCenterX, holeCenterY + 30);
+            ctx.fillText('Hãy tải ảnh của bạn ở bước 1', centerX, centerY + 30);
             ctx.restore();
         }
         
-        // 4. Vẽ khung viền (Frame) đè lên trên cùng và đục lỗ động ở client-side
+        // 4. Vẽ khung viền (Frame) đè lên trên cùng.
+        // Đục lỗ tròn trong suốt ở giữa frameImg (tỉ lệ 63%) bằng offscreen canvas
+        // để hỗ trợ cả các file frame đặc màu (RGB không alpha) do admin tải lên.
         if (frameImg.complete) {
-            offCtx.clearRect(0, 0, offCanvas.width, offCanvas.height);
-            // Vẽ khung viền gốc đặc lên Canvas phụ
+            const offCanvas = document.createElement('canvas');
+            offCanvas.width = canvas.width;
+            offCanvas.height = canvas.height;
+            const offCtx = offCanvas.getContext('2d');
+            
+            // Vẽ frameImg nguyên bản lên canvas phụ
             offCtx.drawImage(frameImg, 0, 0, offCanvas.width, offCanvas.height);
             
-            // Đục lỗ tròn ở tâm dịch chuyển trên Canvas phụ bằng Composite Operation
+            // Sử dụng globalCompositeOperation 'destination-out' để đục một hình tròn trong suốt ở giữa
+            offCtx.save();
             offCtx.globalCompositeOperation = 'destination-out';
-            offCtx.fillStyle = '#000000';
             offCtx.beginPath();
-            const holeRadius = (offCanvas.width * holeScale) / 2;
-            const offHoleCenterX = offCanvas.width / 2 + (holeOffsetX * offCanvas.width) / 100;
-            const offHoleCenterY = offCanvas.height / 2 + (holeOffsetY * offCanvas.height) / 100;
-            offCtx.arc(offHoleCenterX, offHoleCenterY, holeRadius, 0, Math.PI * 2);
+            offCtx.arc(centerX, centerY, (offCanvas.width * 0.63) / 2, 0, Math.PI * 2);
             offCtx.fill();
-            offCtx.globalCompositeOperation = 'source-over';
+            offCtx.restore();
             
-            // Vẽ Canvas phụ đã đục lỗ đè lên Canvas chính
-            ctx.drawImage(offCanvas, 0, 0);
+            // Vẽ canvas phụ đã đục lỗ đè lên canvas chính
+            ctx.drawImage(offCanvas, 0, 0, canvas.width, canvas.height);
         }
     }
     
@@ -779,9 +729,6 @@
             brightness = 100;
             contrast = 100;
             isFlipped = false;
-            holeScale = 0.55;
-            holeOffsetX = 0;
-            holeOffsetY = 0;
             
             document.getElementById('zoomSlider').value = 1.0;
             document.getElementById('zoomVal').innerText = '1.00x';
@@ -791,12 +738,6 @@
             document.getElementById('brightnessVal').innerText = '100%';
             document.getElementById('contrastSlider').value = 100;
             document.getElementById('contrastVal').innerText = '100%';
-            document.getElementById('holeSlider').value = 55;
-            document.getElementById('holeVal').innerText = '55%';
-            document.getElementById('holeXSlider').value = 0;
-            document.getElementById('holeXVal').innerText = '0%';
-            document.getElementById('holeYSlider').value = 0;
-            document.getElementById('holeYVal').innerText = '0%';
             
             drawCanvas();
             if (isBgRemoved) {
@@ -835,27 +776,6 @@
         drawCanvas();
     });
 
-    const holeSlider = document.getElementById('holeSlider');
-    holeSlider.addEventListener('input', (e) => {
-        holeScale = parseInt(e.target.value) / 100;
-        document.getElementById('holeVal').innerText = e.target.value + '%';
-        drawCanvas();
-    });
-
-    const holeXSlider = document.getElementById('holeXSlider');
-    holeXSlider.addEventListener('input', (e) => {
-        holeOffsetX = parseFloat(e.target.value);
-        document.getElementById('holeXVal').innerText = (holeOffsetX > 0 ? '+' : '') + holeOffsetX + '%';
-        drawCanvas();
-    });
-
-    const holeYSlider = document.getElementById('holeYSlider');
-    holeYSlider.addEventListener('input', (e) => {
-        holeOffsetY = parseFloat(e.target.value);
-        document.getElementById('holeYVal').innerText = (holeOffsetY > 0 ? '+' : '') + holeOffsetY + '%';
-        drawCanvas();
-    });
-    
     // --- NÚT HÀNH ĐỘNG NHANH ---
     // Nút Lật ảnh
     document.getElementById('flipBtn').addEventListener('click', () => {
@@ -878,9 +798,6 @@
         brightness = 100;
         contrast = 100;
         isFlipped = false;
-        holeScale = 0.55;
-        holeOffsetX = 0;
-        holeOffsetY = 0;
         
         document.getElementById('zoomSlider').value = 1.0;
         document.getElementById('zoomVal').innerText = '1.00x';
@@ -890,12 +807,6 @@
         document.getElementById('brightnessVal').innerText = '100%';
         document.getElementById('contrastSlider').value = 100;
         document.getElementById('contrastVal').innerText = '100%';
-        document.getElementById('holeSlider').value = 55;
-        document.getElementById('holeVal').innerText = '55%';
-        document.getElementById('holeXSlider').value = 0;
-        document.getElementById('holeXVal').innerText = '0%';
-        document.getElementById('holeYSlider').value = 0;
-        document.getElementById('holeYVal').innerText = '0%';
         
         drawCanvas();
         showAlert('success', 'Đã khôi phục các thông số chỉnh ảnh về mặc định.');
