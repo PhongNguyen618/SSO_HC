@@ -1351,7 +1351,7 @@
                             <td style="text-align: center;">
                                 <div style="display: flex; gap: 0.5rem; justify-content: center; flex-wrap: wrap;">
                                     {% if comp.strava_club_id %}
-                                    <button onclick="syncCompetition({{ comp.id }}, '{{ comp.title }}')" class="btn btn-secondary btn-sm" style="font-size: 0.75rem; padding: 0.3rem 0.6rem;">
+                                    <button onclick="syncCompetition(event, {{ comp.id }}, '{{ comp.title }}')" class="btn btn-secondary btn-sm" style="font-size: 0.75rem; padding: 0.3rem 0.6rem;">
                                         <i class="fa-solid fa-rotate"></i> Sync
                                     </button>
                                     {% endif %}
@@ -1779,7 +1779,7 @@
         }
     }
     
-    async function syncCompetition(compId, compTitle) {
+    async function syncCompetition(event, compId, compTitle) {
         if (!confirm('Đồng bộ dữ liệu từ Strava cho giải đấu "' + compTitle + '"?')) return;
         
         const btn = event.target.closest('button');
