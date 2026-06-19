@@ -831,18 +831,17 @@ def get_avatar_page(
         # Fallback về giải đấu mới nhất trong toàn bộ DB nếu không có giải nào active
         selected_event = db.query(CompetitionEvent).order_by(CompetitionEvent.id.desc()).first()
         
-    # Xác định đường dẫn khung viền avatar
+    # Xác định đường dẫn khung viền avatar toàn cục
+    global_frame = configs.get("global_avatar_frame")
     avatar_frame_url = "/static/uploads/frame.png"
-    if selected_event and selected_event.avatar_frame:
-        # Kiểm tra file thực tế trên đĩa
-        clean_path = selected_event.avatar_frame.lstrip("/")
+    
+    if global_frame:
+        clean_path = global_frame.lstrip("/")
         if os.path.exists(clean_path):
-            avatar_frame_url = f"{selected_event.avatar_frame}?t={int(time.time())}"
+            avatar_frame_url = global_frame
             
-    # Nếu dùng frame mặc định, cũng thêm timestamp để tránh cache
-    if avatar_frame_url == "/static/uploads/frame.png":
-        if os.path.exists("static/uploads/frame.png"):
-            avatar_frame_url = f"/static/uploads/frame.png?t={int(time.time())}"
+    # Thêm timestamp để tránh cache ảnh cũ của trình duyệt
+    avatar_frame_url = f"{avatar_frame_url}?t={int(time.time())}"
             
     # Lấy toàn bộ VĐV đang hoạt động (avatar là duy nhất cho mỗi người, không phụ thuộc giải đấu)
     all_athletes = db.query(Athlete).filter(
@@ -1875,6 +1874,7 @@ async def update_configs(
     rules_general_text: str = Form(...),
     banner_file: UploadFile = File(None),
     group_qr_file: UploadFile = File(None),
+    global_avatar_frame: UploadFile = File(None),  # Nhận file frame toàn cục
     rules_banner_mode: str = Form("version"),
     rules_banner_reset_days: str = Form("1"),
     apply_to_event_id: str = Form("active"),
@@ -2014,6 +2014,42 @@ async def update_configs(
                 update_config(db, "rules_group_qr", f"/static/uploads/{filename}")
                 if target_event:
                     target_event.rules_group_qr = f"/static/uploads/{filename}"
+                    
+        # Xử lý upload Khung viền Avatar chung (Global Avatar Frame)
+        if global_avatar_frame and global_avatar_frame.filename:
+            ext = os.path.splitext(global_avatar_frame.filename)[1].lower()
+            if ext in [".png", ".jpg", ".jpeg", ".webp", ".gif"]:
+                filename = f"frame_{int(time.time())}{ext}"
+                upload_dir = "static/uploads"
+                os.makedirs(upload_dir, exist_ok=True)
+                file_path = os.path.join(upload_dir, filename)
+                
+                # Lưu file ảnh mới
+                with open(file_path, "wb") as f:
+                    content = await global_avatar_frame.read()
+                    f.write(content)
+                
+                # Xóa file cũ của global_avatar_frame nếu có
+                old_frame = db.query(Config).filter(Config.key == "global_avatar_frame").first()
+                if old_frame and old_frame.value:
+                    old_path = old_frame.value.lstrip("/")
+                    if os.path.exists(old_path) and "static/uploads/" in old_path:
+                        try:
+                            if old_path != "static/uploads/frame.png":
+                                os.remove(old_path)
+                        except Exception as ex:
+                            print(f"Error removing old global frame file: {ex}")
+                
+                # Lưu đường dẫn mới vào database
+                new_frame_url = f"/static/uploads/{filename}"
+                update_config(db, "global_avatar_frame", new_frame_url)
+                
+                # Để tương thích ngược tốt nhất, đồng thời copy/ghi đè file này vào static/uploads/frame.png
+                try:
+                    import shutil
+                    shutil.copyfile(file_path, "static/uploads/frame.png")
+                except Exception as ex:
+                    print(f"Error copying to default frame.png: {ex}")
         
         # Cập nhật quy tắc gian lận
         update_config(db, "rule_run_pace_min", rule_run_pace_min)
