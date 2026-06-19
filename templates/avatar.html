@@ -565,9 +565,9 @@
         if (userImg) {
             ctx.save();
             
-            // Cắt clipping path hình tròn ở tâm lỗ đục mới để bo tròn ảnh người dùng
-            // Bán kính cắt lớn hơn 8% so với lỗ đục để giấu mép cắt dưới thân khung viền, tránh che mất họa tiết của frame
-            const clipRadius = (canvas.width * (holeScale + 0.08)) / 2;
+            // Cắt clipping path hình tròn chính xác bằng kích thước lỗ đục để bo tròn ảnh người dùng
+            // Điều này giống hệt Canva: ảnh được crop gọn lịm trong lỗ đục, không bao giờ bị tràn hay đè lên họa tiết của frame
+            const clipRadius = (canvas.width * holeScale) / 2;
             ctx.beginPath();
             ctx.arc(holeCenterX, holeCenterY, clipRadius, 0, Math.PI * 2);
             ctx.clip();
@@ -586,7 +586,7 @@
             
             // Tính toán kích thước hiển thị ảnh
             // Cơ chế Aspect Cover giữ nguyên tỉ lệ aspect ratio, không bị crop cứng mất đầu
-            const drawDiameter = canvas.width * (holeScale + 0.12); // Đường kính vẽ lớn hơn lỗ đục 12% để phủ kín lỗ đục và tự động co giãn cân đối
+            const drawDiameter = canvas.width * (holeScale + 0.25); // Đường kính vẽ lớn hơn lỗ đục 25% để người dùng thoải mái căn chỉnh mà không lo hở viền
             let drawWidth, drawHeight;
             const imgRatio = userImg.width / userImg.height;
             
