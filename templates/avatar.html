@@ -880,6 +880,28 @@
     const searchWrapper = document.getElementById('searchDropdownWrapper');
     const syncBtn = document.getElementById('syncProfileBtn');
     
+    // Tự động chọn VĐV nếu có athlete_id trên URL query parameter
+    const urlParams = new URLSearchParams(window.location.search);
+    const initialAthleteId = urlParams.get('athlete_id');
+    if (initialAthleteId) {
+        const item = resultsList.querySelector(`.search-result-item[data-id="${initialAthleteId}"]`);
+        if (item) {
+            selectedAthleteId = initialAthleteId;
+            const name = item.getAttribute('data-name');
+            const dept = item.getAttribute('data-dept');
+            
+            badgeName.innerText = name;
+            badgeDept.innerText = dept;
+            badge.style.display = 'flex';
+            searchWrapper.style.display = 'none';
+            resultsList.style.display = 'none';
+            
+            syncBtn.disabled = false;
+            syncBtn.classList.remove('btn-secondary');
+            syncBtn.classList.add('btn-primary');
+        }
+    }
+    
     // Hiển thị danh sách kết quả khi focus vào input tìm kiếm
     searchInput.addEventListener('focus', () => {
         filterAthletes();
@@ -991,6 +1013,15 @@
                 showAlert('success', '🎉 Chúc mừng! Ảnh đại diện của bạn đã được cập nhật thành công lên Bảng xếp hạng và Trang cá nhân.');
                 // Cuộn trang lên đầu để xem thông báo thành công
                 window.scrollTo({ top: 0, behavior: 'smooth' });
+                
+                // Tự động redirect về trang cá nhân sau 2.5 giây nếu có athlete_id trên URL
+                const currentParams = new URLSearchParams(window.location.search);
+                const athId = currentParams.get('athlete_id');
+                if (athId) {
+                    setTimeout(() => {
+                        window.location.href = '/profile/' + athId;
+                    }, 2500);
+                }
             } else {
                 let errorMsg = 'Không rõ lỗi.';
                 if (data) {

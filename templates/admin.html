@@ -2433,11 +2433,15 @@
                 btnSync.disabled = false;
                 btnSync.innerHTML = '<i class="fa-solid fa-cloud-arrow-down"></i> Đồng Bộ Thủ Công Ngay';
                 
-                if (data.status === 'success') {
-                    alert(`Đồng bộ thành công! Tìm thấy ${data.new_activities} hoạt động mới.`);
+                if (data.status === 'success' || data.status === 'partial') {
+                    let msg = `Đồng bộ thành công! Tìm thấy ${data.new_activities || 0} hoạt động mới.`;
+                    if (data.status === 'partial') {
+                        msg += `\n(Lưu ý: ${data.error || 'Một số giải đấu đồng bộ thất bại.'})`;
+                    }
+                    alert(msg);
                     window.location.reload(); // Tải lại trang để cập nhật giao diện
                 } else {
-                    alert(`Lỗi đồng bộ: ${data.error}`);
+                    alert(`Lỗi đồng bộ: ${data.error || 'Lỗi không xác định'}`);
                 }
             })
             .catch(err => {

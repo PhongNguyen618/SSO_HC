@@ -95,6 +95,7 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
     
     new_count = 0
     today_str = datetime.now().strftime("%Y-%m-%d")
+    seen_ids = set()
 
     # Cache danh sách vận động viên để đối khớp tốc độ cao (hỗ trợ nhiều tên cách nhau bằng dấu phẩy)
     athletes = db.query(Athlete).all()
@@ -143,10 +144,17 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
         unique_str = f"{athlete_name_raw}_{act_date_str}_{name}_{act_type}_{distance_km}_{moving_time_min}_{elapsed_time_min}_{elevation_gain_m}_{event_id}"
         act_id = hashlib.sha256(unique_str.encode("utf-8")).hexdigest()
         
+        # Lọc trùng lặp in-memory trong cùng một lượt tải từ Strava
+        if act_id in seen_ids:
+            continue
+            
         # Kiểm tra xem hoạt động đã có trong DB chưa
         exists = db.query(Activity).filter(Activity.id == act_id).first()
         if exists:
+            seen_ids.add(act_id)
             continue
+            
+        seen_ids.add(act_id)
             
         # Khớp vận động viên đã đăng ký
         athlete = athlete_map.get(athlete_name_raw.lower())
@@ -207,10 +215,17 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
         db.add(new_activity)
         new_count += 1
         
-    db.commit()
-    print(f"Sync Engine: Saved {new_count} new activities for event '{event.title}'.")
-    result["status"] = "success"
-    result["new_activities"] = new_count
+    try:
+        db.commit()
+        print(f"Sync Engine: Saved {new_count} new activities for event '{event.title}'.")
+        result["status"] = "success"
+        result["new_activities"] = new_count
+    except Exception as e:
+        db.rollback()
+        print(f"Sync Engine: Error committing activities for event '{event.title}': {e}")
+        result["status"] = "error"
+        result["error"] = f"Lỗi lưu cơ sở dữ liệu: {str(e)}"
+        
     return result
 
 
@@ -286,11 +301,14 @@ def sync_club_activities(event_id: int = None) -> dict:
                 if sub_result["status"] == "error":
                     all_success = False
             except Exception as e:
+                db.rollback()
                 result["details"].append({"event": ev.title, "status": "error", "error": str(e)})
                 all_success = False
         
         result["status"] = "success" if all_success else "partial"
         result["new_activities"] = total_new
+        if not all_success:
+            result["error"] = "Một số giải đấu đồng bộ thất bại. Vui lòng kiểm tra chi tiết."
         
     except Exception as e:
         db.rollback()

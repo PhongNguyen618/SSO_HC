@@ -218,26 +218,9 @@ def deduplicate_activities_logic(db: Session) -> dict:
                         to_delete.append(act2.id)
                         merged_indices.add(j)
                         
-                # Đồng bộ hóa ID cho hoạt động được giữ lại theo chuẩn SHA256 để chống trùng lặp sau này
-                # (Sử dụng ngày hoạt động thực tế thay vì ngày đồng bộ)
-                dist_km_round = round(float((act1.distance_km_raw if act1.distance_km_raw is not None else act1.distance_km) or 0), 2)
-                mov_time_round = round(float(act1.moving_time_min or 0), 1)
-                ela_time_round = round(float(act1.elapsed_time_min or 0), 1)
-                elev_round = float(act1.elevation_gain_m or 0)
-                
-                unique_str = f"{ath_key}_{act1.activity_date}_{act1.sport_type}_{dist_km_round}_{mov_time_round}_{ela_time_round}_{elev_round}_{act1.event_id}"
-                new_id = hashlib.sha256(unique_str.encode("utf-8")).hexdigest()
-                
-                if act1.id != new_id:
-                    try:
-                        exists = db.query(Activity).filter(Activity.id == new_id).first()
-                        if not exists:
-                            db.execute(
-                                Activity.__table__.update().where(Activity.id == act1.id).values(id=new_id)
-                            )
-                            updated_count += 1
-                    except Exception:
-                        pass
+                # Giữ nguyên ID nguyên bản của hoạt động chính (act1) để tránh việc Strava đồng bộ lại
+                pass
+
                         
         deleted_count = 0
         if to_delete:
@@ -2186,6 +2169,14 @@ def trigger_sync(request: Request, db: Session = Depends(get_db)):
         return JSONResponse(status_code=401, content={"error": "Chưa đăng nhập admin"})
         
     res = sync_club_activities()
+    
+    # Tự động dọn dẹp hoạt động trùng lặp sau khi đồng bộ thủ công thành công
+    if res.get("status") in ("success", "partial"):
+        try:
+            deduplicate_activities_logic(db)
+        except Exception as e:
+            print(f"Manual Sync: Error during auto deduplication: {e}")
+            
     return JSONResponse(content=res)
 
 # --- QUẢN LÝ VẬN ĐỘNG VIÊN TRÊN ADMIN ---
@@ -3931,6 +3922,14 @@ def admin_sync_competition(comp_id: int, request: Request, db: Session = Depends
         return JSONResponse(status_code=401, content={"error": "Chưa đăng nhập admin"})
     
     res = sync_club_activities(event_id=comp_id)
+    
+    # Tự động dọn dẹp hoạt động trùng lặp sau khi đồng bộ thủ công thành công
+    if res.get("status") in ("success", "partial"):
+        try:
+            deduplicate_activities_logic(db)
+        except Exception as e:
+            print(f"Manual Sync Comp: Error during auto deduplication: {e}")
+            
     return JSONResponse(content=res)
 
 

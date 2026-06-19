@@ -169,6 +169,13 @@
         box-shadow: 0 0 12px rgba(255, 94, 54, 0.4);
         transition: width 1.2s cubic-bezier(0.075, 0.82, 0.165, 1);
     }
+    
+    /* CSS cho nút cập nhật avatar */
+    .avatar-edit-btn:hover {
+        transform: scale(1.15);
+        background-color: #00F5FF !important;
+        box-shadow: 0 0 10px rgba(0, 173, 181, 0.6);
+    }
 </style>
 {% endblock %}
 
@@ -180,13 +187,18 @@
 
 <!-- Profile Header -->
 <div class="profile-header">
-    {% if athlete.avatar_url %}
-    <img src="{{ athlete.avatar_url }}" alt="{{ athlete.full_name }}" class="profile-avatar" style="object-fit: cover; border: 2px solid var(--border-focus);">
-    {% else %}
-    <div class="profile-avatar">
-        {{ athlete.full_name[:1] }}
+    <div class="profile-avatar-container" style="position: relative; width: 80px; height: 80px; flex-shrink: 0;">
+        {% if athlete.avatar_url %}
+        <img src="{{ athlete.avatar_url }}" alt="{{ athlete.full_name }}" class="profile-avatar" style="object-fit: cover; border: 2px solid var(--border-focus); margin: 0;">
+        {% else %}
+        <div class="profile-avatar" style="margin: 0;">
+            {{ athlete.full_name[:1] }}
+        </div>
+        {% endif %}
+        <a href="/avatar?athlete_id={{ athlete.id }}" class="avatar-edit-btn" title="Cập nhật ảnh đại diện" style="position: absolute; bottom: -2px; right: -2px; background: #00ADB5; width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; border: 2px solid #0d0b18; cursor: pointer; transition: all 0.2s ease-in-out; text-decoration: none;">
+            <i class="fa-solid fa-camera" style="font-size: 0.7rem;"></i>
+        </a>
     </div>
-    {% endif %}
     <div class="profile-meta">
         <h2>{{ athlete.full_name }}</h2>
         <div class="meta-sub">
