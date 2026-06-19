@@ -68,18 +68,38 @@
             </div>
             {% endif %}
 
-            <!-- Photo Gallery Card -->
+            <!-- Photo Gallery Card (Slider/Carousel tự trôi) -->
             {% if images %}
-            <div class="glass-card" style="padding: 1.5rem;">
+            <div class="glass-card" style="padding: 1.5rem; display: flex; flex-direction: column;">
                 <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.2rem; color: var(--color-purple); margin-top: 0; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
                     <i class="fa-regular fa-images"></i> Album Ảnh Kỷ Niệm
                 </h3>
-                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.8rem;">
-                    {% for img in images %}
-                    <div class="gallery-photo-wrapper" onclick="openLightbox('{{ img }}')" style="position: relative; padding-bottom: 75%; height: 0; border-radius: 8px; overflow: hidden; border: 1px solid rgba(255,255,255,0.08); cursor: pointer; transition: all 0.2s ease;">
-                        <img src="{{ img }}" alt="Gallery Image" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover;">
+                <div class="gallery-slider-wrapper" style="position: relative; width: 100%; height: 260px; border-radius: 12px; overflow: hidden; border: 1px solid var(--border-color); background: #000;">
+                    <!-- Các slide chứa ảnh -->
+                    <div id="gallerySlider" style="width: 100%; height: 100%; position: relative;">
+                        {% for img in images %}
+                        <div class="gallery-slide {% if loop.first %}active{% endif %}" onclick="openLightbox('{{ img }}')" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; transition: opacity 0.5s ease-in-out; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 1;">
+                            <img src="{{ img }}" alt="Gallery Image" style="width: 100%; height: 100%; object-fit: cover;">
+                        </div>
+                        {% endfor %}
                     </div>
-                    {% endfor %}
+                    
+                    {% if images|length > 1 %}
+                    <!-- Nút bấm chuyển slide -->
+                    <button class="slider-btn prev" onclick="moveSlide(-1)" style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); z-index: 10; width: 32px; height: 32px; border-radius: 50%; background: rgba(10, 8, 20, 0.8); border: 1px solid rgba(255,255,255,0.15); color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s ease;">
+                        <i class="fa-solid fa-chevron-left"></i>
+                    </button>
+                    <button class="slider-btn next" onclick="moveSlide(1)" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); z-index: 10; width: 32px; height: 32px; border-radius: 50%; background: rgba(10, 8, 20, 0.8); border: 1px solid rgba(255,255,255,0.15); color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s ease;">
+                        <i class="fa-solid fa-chevron-right"></i>
+                    </button>
+                    
+                    <!-- Chấm tròn chỉ số (Dots) -->
+                    <div class="slider-dots" style="position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); z-index: 10; display: flex; gap: 0.5rem;">
+                        {% for img in images %}
+                        <span class="slider-dot {% if loop.first %}active{% endif %}" onclick="currentSlide({{ loop.index0 }})" style="width: 8px; height: 8px; border-radius: 50%; background: rgba(255, 255, 255, 0.4); cursor: pointer; transition: all 0.2s ease;"></span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
                 </div>
             </div>
             {% endif %}
@@ -101,9 +121,21 @@
         }
     }
     
-    .gallery-photo-wrapper:hover {
-        transform: scale(1.05);
+    /* CSS cho Gallery Slider */
+    .gallery-slide.active {
+        opacity: 1 !important;
+        z-index: 2 !important;
+    }
+    .slider-btn:hover {
+        background: var(--color-primary) !important;
+        color: #0a0814 !important;
         border-color: var(--color-primary) !important;
+        box-shadow: 0 0 10px rgba(143, 205, 240, 0.4);
+    }
+    .slider-dot.active {
+        background: var(--color-primary) !important;
+        transform: scale(1.2);
+        box-shadow: 0 0 8px var(--color-primary);
     }
 </style>
 {% endblock %}
@@ -133,6 +165,81 @@
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
             closeLightbox();
+        }
+    });
+    
+    // --- GALLERY SLIDER LOGIC ---
+    let currentSlideIndex = 0;
+    let sliderInterval = null;
+    let isMouseOverSlider = false;
+    const slides = document.querySelectorAll('.gallery-slide');
+    const dots = document.querySelectorAll('.slider-dot');
+    
+    function showSlide(index) {
+        if (slides.length === 0) return;
+        
+        if (index >= slides.length) {
+            currentSlideIndex = 0;
+        } else if (index < 0) {
+            currentSlideIndex = slides.length - 1;
+        } else {
+            currentSlideIndex = index;
+        }
+        
+        slides.forEach(slide => slide.classList.remove('active'));
+        dots.forEach(dot => dot.classList.remove('active'));
+        
+        if (slides[currentSlideIndex]) {
+            slides[currentSlideIndex].classList.add('active');
+        }
+        if (dots[currentSlideIndex]) {
+            dots[currentSlideIndex].classList.add('active');
+        }
+    }
+    
+    function moveSlide(direction) {
+        showSlide(currentSlideIndex + direction);
+        resetSliderTimer();
+    }
+    
+    function currentSlide(index) {
+        showSlide(index);
+        resetSliderTimer();
+    }
+    
+    function startSliderAutoPlay() {
+        stopSliderAutoPlay();
+        if (slides.length > 1) {
+            sliderInterval = setInterval(() => {
+                if (!isMouseOverSlider) {
+                    showSlide(currentSlideIndex + 1);
+                }
+            }, 3500); // Tự trôi sau mỗi 3.5 giây
+        }
+    }
+    
+    function stopSliderAutoPlay() {
+        if (sliderInterval) {
+            clearInterval(sliderInterval);
+            sliderInterval = null;
+        }
+    }
+    
+    function resetSliderTimer() {
+        startSliderAutoPlay();
+    }
+    
+    window.addEventListener('DOMContentLoaded', () => {
+        const sliderWrapper = document.querySelector('.gallery-slider-wrapper');
+        if (sliderWrapper) {
+            sliderWrapper.addEventListener('mouseenter', () => {
+                isMouseOverSlider = true;
+            });
+            sliderWrapper.addEventListener('mouseleave', () => {
+                isMouseOverSlider = false;
+            });
+            
+            startSliderAutoPlay();
         }
     });
 </script>
