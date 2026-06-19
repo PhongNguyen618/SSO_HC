@@ -2030,6 +2030,7 @@ async def update_configs(
 async def update_avatar_frame(
     request: Request,
     global_avatar_frame: UploadFile = File(...),
+    frame_remove_bg: str = Form("false"),
     db: Session = Depends(get_db)
 ):
     """API upload khung viền avatar chung hệ thống (nằm trên Form độc lập)."""
@@ -2045,6 +2046,20 @@ async def update_avatar_frame(
         if ext not in [".png", ".jpg", ".jpeg", ".webp"]:
             return RedirectResponse("/admin?error=Dinh dang anh khong hop le (ho tro PNG, JPG, WEBP)#tab-config", status_code=303)
             
+        # Đọc nội dung file ảnh tải lên
+        content = await global_avatar_frame.read()
+        
+        # Nếu được yêu cầu tự động tách nền / đục lỗ khung viền bằng AI
+        if frame_remove_bg in ["on", "true"]:
+            try:
+                from rembg import remove
+                content = remove(content)
+                # Tách nền bằng rembg luôn xuất ra ảnh PNG trong suốt
+                ext = ".png"
+            except Exception as rembg_ex:
+                print(f"Error removing bg for frame: {rembg_ex}")
+                # Nếu lỗi AI, tiếp tục dùng file gốc
+                
         filename = f"frame_{int(time.time())}{ext}"
         upload_dir = "static/uploads"
         os.makedirs(upload_dir, exist_ok=True)
@@ -2052,7 +2067,6 @@ async def update_avatar_frame(
         
         # Lưu file ảnh mới
         with open(file_path, "wb") as f:
-            content = await global_avatar_frame.read()
             f.write(content)
             
         # Xóa file cũ của global_avatar_frame nếu có
