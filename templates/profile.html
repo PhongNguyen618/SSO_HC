@@ -352,8 +352,22 @@
                 {{ badge.name }}
             </div>
             
-            <div style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.4; flex: 1;">
-                {{ badge.description }}
+            <div style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.4; flex: 1; display: flex; flex-direction: column; gap: 0.2rem;">
+                <div>{{ badge.description }}</div>
+                {% if badge.threshold is defined and badge.unit is defined %}
+                <div style="font-size: 0.75rem; color: var(--text-muted); opacity: 0.8; margin-top: 0.1rem; display: flex; align-items: center; gap: 0.2rem;">
+                    <i class="fa-solid fa-circle-info" style="font-size: 0.7rem;"></i>
+                    <span>Mốc: <strong>{{ badge.threshold }}</strong>
+                        {% if badge.unit == 'activities' %}hoạt động
+                        {% elif badge.unit == 'run_distance_km' %}km chạy
+                        {% elif badge.unit == 'ride_distance_km' %}km đạp
+                        {% elif badge.unit == 'total_time_hours' %}giờ tích lũy
+                        {% elif badge.unit == 'total_kcal' %}Kcal tích lũy
+                        {% elif badge.unit == 'max_streak_days' %}ngày liên tục
+                        {% else %}{{ badge.unit }}{% endif %}
+                    </span>
+                </div>
+                {% endif %}
             </div>
             
             {% if badge.achieved %}

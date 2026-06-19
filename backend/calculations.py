@@ -366,6 +366,8 @@ def get_athlete_badges(
             "icon": r.icon,
             "color": r.color,
             "achieved": achieved,
-            "achieved_date": achieved_date
+            "achieved_date": achieved_date,
+            "threshold": r.threshold,
+            "unit": r.unit
         })
     return result
