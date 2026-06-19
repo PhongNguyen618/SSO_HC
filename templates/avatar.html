@@ -538,29 +538,25 @@
         // 1. Xóa sạch canvas
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         
-        // 2. Không vẽ nền đặc dưới cùng để giữ nguyên độ trong suốt (Transparent PNG)
-        // ctx.fillStyle = '#181528';
-        // ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
         const centerX = canvas.width / 2;
         const centerY = canvas.height / 2;
         
-        // 3. Vẽ ảnh người dùng lồng tròn (nếu đã tải ảnh lên)
+        // 2. Vẽ khung viền (Frame) NGUYÊN BẢN làm lớp nền dưới cùng — KHÔNG đục lỗ
+        if (frameImg.complete) {
+            ctx.drawImage(frameImg, 0, 0, canvas.width, canvas.height);
+        }
+        
+        // 3. Vẽ ảnh người dùng (đã tách nền trong suốt) ĐÈ LÊN TRÊN frame
+        // Vì ảnh đã tách nền nên chỉ có phần người hiện lên,
+        // phần trong suốt sẽ tự động để lộ nền frame bên dưới → tự khớp màu
         if (userImg) {
             ctx.save();
             
-            // Cắt clipping path theo vòng tròn ngoài cùng của avatar (bán kính canvas.width / 2)
-            // giúp ảnh chân dung tự do hiển thị trong lỗ đục (giống Canva) nhưng không bị tràn ra ngoài viền tròn avatar
+            // Clip theo vòng tròn ngoài cùng để ảnh không tràn ra ngoài canvas
             const clipRadius = canvas.width / 2;
             ctx.beginPath();
             ctx.arc(centerX, centerY, clipRadius, 0, Math.PI * 2);
             ctx.clip();
-            
-            // Vẽ màu nền đã chọn đằng sau người
-            if (bgColor && bgColor !== 'transparent') {
-                ctx.fillStyle = bgColor;
-                ctx.fill();
-            }
             
             // Tịnh tiến tọa độ vẽ về tâm để áp dụng Xoay và Phóng to
             ctx.translate(centerX + offsetX, centerY + offsetY);
@@ -593,52 +589,28 @@
             // Vẽ ảnh người dùng vào tâm đã dịch chuyển
             ctx.drawImage(
                 userImg,
-                -drawWidth / 2, -drawHeight / 2, // Đặt tâm ảnh trùng với tâm toạ độ mới
+                -drawWidth / 2, -drawHeight / 2,
                 drawWidth, drawHeight
             );
             
             ctx.restore();
-            // Reset filter về mặc định để vẽ Frame đè lên không bị ảnh hưởng bộ lọc
+            // Reset filter về mặc định
             ctx.filter = 'none';
         } else {
-            // Nếu chưa có ảnh, vẽ dòng chữ hướng dẫn ở giữa vòng tròn rỗng
+            // Nếu chưa có ảnh, vẽ dòng chữ hướng dẫn ở giữa
             ctx.save();
-            ctx.fillStyle = '#181528';
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
             ctx.beginPath();
-            ctx.arc(centerX, centerY, (canvas.width * 0.63) / 2, 0, Math.PI * 2);
+            ctx.arc(centerX, centerY, (canvas.width * 0.3), 0, Math.PI * 2);
             ctx.fill();
             
-            ctx.fillStyle = '#8f8c9d';
+            ctx.fillStyle = '#ffffff';
             ctx.font = 'bold 36px Be Vietnam Pro, Inter, sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText('CHƯA CÓ ẢNH CHÂN DUNG', centerX, centerY - 15);
+            ctx.fillText('TẢI ẢNH CỦA BẠN', centerX, centerY - 15);
             ctx.font = '24px Be Vietnam Pro, Inter, sans-serif';
-            ctx.fillText('Hãy tải ảnh của bạn ở bước 1', centerX, centerY + 30);
+            ctx.fillText('Ảnh sẽ hiển thị trên khung này', centerX, centerY + 30);
             ctx.restore();
-        }
-        
-        // 4. Vẽ khung viền (Frame) đè lên trên cùng.
-        // Đục lỗ tròn trong suốt ở giữa frameImg (tỉ lệ 63%) bằng offscreen canvas
-        // để hỗ trợ cả các file frame đặc màu (RGB không alpha) do admin tải lên.
-        if (frameImg.complete) {
-            const offCanvas = document.createElement('canvas');
-            offCanvas.width = canvas.width;
-            offCanvas.height = canvas.height;
-            const offCtx = offCanvas.getContext('2d');
-            
-            // Vẽ frameImg nguyên bản lên canvas phụ
-            offCtx.drawImage(frameImg, 0, 0, offCanvas.width, offCanvas.height);
-            
-            // Sử dụng globalCompositeOperation 'destination-out' để đục một hình tròn trong suốt ở giữa
-            offCtx.save();
-            offCtx.globalCompositeOperation = 'destination-out';
-            offCtx.beginPath();
-            offCtx.arc(centerX, centerY, (offCanvas.width * 0.63) / 2, 0, Math.PI * 2);
-            offCtx.fill();
-            offCtx.restore();
-            
-            // Vẽ canvas phụ đã đục lỗ đè lên canvas chính
-            ctx.drawImage(offCanvas, 0, 0, canvas.width, canvas.height);
         }
     }
     
