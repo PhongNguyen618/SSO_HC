@@ -1342,6 +1342,13 @@
                     <label>Ảnh banner (tuỳ chọn)</label>
                     <input type="file" name="banner_file" class="form-control" accept="image/*">
                 </div>
+                <div class="form-group">
+                    <label>Khung viền Avatar riêng (tuỳ chọn, PNG/JPG)</label>
+                    <input type="file" name="avatar_frame_file" class="form-control" accept="image/*">
+                    <small style="color: var(--text-muted); font-size: 0.8rem; display: block; margin-top: 0.4rem;">
+                        <i class="fa-solid fa-circle-info"></i> Hệ thống tự động đục lỗ ở giữa cho khung viền nếu ảnh tải lên không có kênh alpha trong suốt.
+                    </small>
+                </div>
                 <button type="submit" class="btn btn-primary">
                     <i class="fa-solid fa-plus"></i> Tạo giải đấu
                 </button>
@@ -1496,6 +1503,16 @@
                                         {% if comp.banner_image %}
                                         <small style="color: var(--text-muted);">Banner hiện tại: {{ comp.banner_image }}</small>
                                         {% endif %}
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Khung viền Avatar mới (bỏ trống để giữ nguyên, PNG/JPG)</label>
+                                        <input type="file" name="avatar_frame_file" class="form-control" accept="image/*">
+                                        {% if comp.avatar_frame %}
+                                        <small style="color: var(--text-muted); display: block; margin-top: 0.2rem;">Khung viền hiện tại: {{ comp.avatar_frame }}</small>
+                                        {% endif %}
+                                        <small style="color: var(--text-muted); font-size: 0.8rem; display: block; margin-top: 0.4rem;">
+                                            <i class="fa-solid fa-circle-info"></i> Hệ thống tự động đục lỗ ở giữa cho khung viền nếu ảnh tải lên không có kênh alpha trong suốt.
+                                        </small>
                                     </div>
                                     <div style="display: flex; gap: 0.5rem;">
                                         <button type="submit" class="btn btn-primary btn-sm">

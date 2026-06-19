@@ -61,6 +61,45 @@ def clean_name(name: str) -> str:
     name = name.replace("đ", "d")
     return name
 
+def duc_lo_frame_neu_duc(frame_image, scale=0.72):
+    """
+    Trả về nguyên bản ảnh gốc để client-side tự động đục lỗ động.
+    Điều này giúp tránh làm biến dạng hoặc giảm chất lượng thiết kế ban đầu của admin.
+    """
+    return frame_image
+
+def tao_frame_mau_neu_thieu(path_frame, size=1000):
+    """
+    Tu dong tao mot khung hinh dac mau dep mat (frame.png) neu chua co san.
+    """
+    from PIL import Image, ImageDraw
+    if os.path.exists(path_frame):
+        return
+    
+    print("Khong tim thay file frame.png, dang tu dong tao mot khung vien mau dac ky niem...")
+    # Tao anh dac mau toi trung voi giao dien Studio
+    frame = Image.new("RGB", (size, size), (24, 20, 42))
+    draw = ImageDraw.Draw(frame)
+    
+    # Vien day hon de trung khop voi ty le lo duc mac dinh 65% (moi ben 17.5% vien)
+    vien_day = int(size * 0.175)
+    draw.ellipse((vien_day, vien_day, size - vien_day, size - vien_day), outline=(65, 105, 225), width=vien_day)
+    draw.ellipse((vien_day + 15, vien_day + 15, size - vien_day - 15, size - vien_day - 15), 
+                 outline=(255, 215, 0, 200), width=4)
+    
+    draw.arc((10, 10, size // 4, size // 4), start=180, end=270, fill=(255, 215, 0, 255), width=8)
+    draw.arc((size - size // 4, size - size // 4, size - 10, size - 10), start=0, end=90, fill=(255, 215, 0, 255), width=8)
+    
+    draw.polygon([
+        (size // 4, size - vien_day),
+        (3 * size // 4, size - vien_day),
+        (size - vien_day, size - size // 4),
+        (vien_day, size - size // 4)
+    ], fill=(220, 20, 60, 240)) # Crimson
+    
+    frame.save(path_frame, "PNG")
+    print(f"Da tao thanh cong khung vien mau tai: {path_frame}")
+
 # Đảm bảo các thư mục templates và static tồn tại
 os.makedirs("templates", exist_ok=True)
 os.makedirs("static/css", exist_ok=True)
@@ -257,8 +296,11 @@ def start_scheduler():
 
 @app.on_event("startup")
 def startup_event():
-    # Đảm bảo thư mục upload tồn tại
+    # Đảm bảo thư mục upload và avatar tồn tại
     os.makedirs("static/uploads", exist_ok=True)
+    os.makedirs("static/uploads/avatars", exist_ok=True)
+    # Khởi tạo frame mặc định nếu thiếu
+    tao_frame_mau_neu_thieu("static/uploads/frame.png")
     # Khởi tạo database và di chuyển dữ liệu cũ từ Excel nếu có
     init_db()
     # Khởi chạy Scheduler đồng bộ ngầm
@@ -508,6 +550,7 @@ def index(
         Athlete.full_name,
         Athlete.gender,
         Athlete.department,
+        Athlete.avatar_url,
         func.sum(Activity.distance_km).label("total_dist"),
         func.sum(Activity.moving_time_min).label("total_time"),
         func.sum(Activity.kcal_burned).label("total_kcal")
@@ -539,6 +582,7 @@ def index(
             "full_name": item.full_name,
             "gender": item.gender,
             "department": item.department,
+            "avatar_url": item.avatar_url,
             "total_dist": round(item.total_dist or 0, 1),
             "total_time": round((item.total_time or 0) / 60.0, 1), # Đổi sang giờ
             "total_kcal": int(item.total_kcal or 0),
@@ -774,6 +818,179 @@ def rules_page(
             "selected_event_id": selected_event.id if selected_event else None
         }
     )
+
+@app.get("/avatar", response_class=HTMLResponse)
+def get_avatar_page(
+    request: Request,
+    event_id: Optional[int] = None,
+    db: Session = Depends(get_db)
+):
+    """Trang giao dien ghep frame avatar cho VDVs."""
+    configs = get_config_dict(db)
+    
+    # Lấy danh sách các giải đấu đang hoạt động để hiển thị trong dropdown
+    active_competitions = db.query(CompetitionEvent).filter(CompetitionEvent.is_active == True).order_by(CompetitionEvent.id.desc()).all()
+    
+    # Logic xác định giải đấu được chọn (mặc định là giải chạy ưu tiên)
+    selected_event = None
+    if event_id:
+        selected_event = db.query(CompetitionEvent).filter(CompetitionEvent.id == event_id).first()
+        
+    if not selected_event and active_competitions:
+        # Ưu tiên các giải chạy active khác giải trường kỳ (id != 1)
+        new_active = [c for c in active_competitions if c.id != 1]
+        if new_active:
+            selected_event = new_active[0] # Lấy giải mới nhất (ID lớn nhất)
+        else:
+            selected_event = active_competitions[0]
+            
+    if not selected_event:
+        # Fallback về giải đấu mới nhất trong toàn bộ DB nếu không có giải nào active
+        selected_event = db.query(CompetitionEvent).order_by(CompetitionEvent.id.desc()).first()
+        
+    # Xác định đường dẫn khung viền avatar
+    avatar_frame_url = "/static/uploads/frame.png"
+    if selected_event and selected_event.avatar_frame:
+        # Kiểm tra file thực tế trên đĩa
+        clean_path = selected_event.avatar_frame.lstrip("/")
+        if os.path.exists(clean_path):
+            avatar_frame_url = f"{selected_event.avatar_frame}?t={int(time.time())}"
+            
+    # Nếu dùng frame mặc định, cũng thêm timestamp để tránh cache
+    if avatar_frame_url == "/static/uploads/frame.png":
+        if os.path.exists("static/uploads/frame.png"):
+            avatar_frame_url = f"/static/uploads/frame.png?t={int(time.time())}"
+            
+    # Lấy danh sách VĐV đã đăng ký tham gia giải chạy được chọn để gán avatar đúng giải đấu
+    all_athletes = []
+    if selected_event:
+        all_athletes = db.query(Athlete).join(
+            CompetitionRegistration, Athlete.id == CompetitionRegistration.athlete_id
+        ).filter(
+            Athlete.is_active == True,
+            CompetitionRegistration.event_id == selected_event.id
+        ).order_by(Athlete.full_name).all()
+    
+    return templates.TemplateResponse(
+        request=request,
+        name="avatar.html",
+        context={
+            "request": request,
+            "configs": configs,
+            "all_athletes": all_athletes,
+            "active_competitions": active_competitions,
+            "selected_event": selected_event,
+            "avatar_frame_url": avatar_frame_url
+        }
+    )
+
+@app.post("/api/avatar/sync-profile")
+def sync_profile_avatar(
+    athlete_id: int = Form(...),
+    image_data: str = Form(...),
+    db: Session = Depends(get_db)
+):
+    """API luu tru avatar da ghep va dong bo vao CSDL cho VDV."""
+    try:
+        athlete = db.query(Athlete).filter(Athlete.id == athlete_id).first()
+        if not athlete:
+            return JSONResponse(status_code=404, content={"status": "error", "message": "Khong tim thay van dong vien"})
+        
+        # Xu ly chuoi Base64 gui tu Canvas
+        if "," in image_data:
+            header, base64_str = image_data.split(",", 1)
+        else:
+            base64_str = image_data
+            
+        import base64
+        image_bytes = base64.b64decode(base64_str)
+        
+        import time
+        # Luu file anh thuc te kem timestamp de tranh cache trinh duyet
+        os.makedirs("static/uploads/avatars", exist_ok=True)
+        
+        # Xoa file anh cu neu co de don dep bo nho
+        if athlete.avatar_url:
+            old_path = athlete.avatar_url.lstrip("/")
+            if os.path.exists(old_path) and "default" not in old_path:
+                try:
+                    os.remove(old_path)
+                except Exception:
+                    pass
+        
+        timestamp = int(time.time())
+        file_name = f"athlete_{athlete_id}_{timestamp}.png"
+        file_path = os.path.join("static/uploads/avatars", file_name)
+        with open(file_path, "wb") as f:
+            f.write(image_bytes)
+            
+        # Cap nhat duong dan avatar vao DB
+        avatar_url = f"/static/uploads/avatars/{file_name}"
+        athlete.avatar_url = avatar_url
+        db.commit()
+        
+        return {"status": "success", "message": "Cap nhat anh dai dien thanh cong", "avatar_url": avatar_url}
+    except Exception as e:
+        db.rollback()
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(status_code=500, content={"status": "error", "message": f"Loi he thong: {str(e)}"})
+
+@app.post("/api/avatar/remove-bg")
+async def api_remove_background(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    """API nhan file anh chan dung, tu dong xoa nen bang rembg va tra ve file PNG trong suot."""
+    try:
+        content = await file.read()
+        
+        # Su dung rembg de xoa nen
+        from rembg import remove
+        import io
+        from fastapi.responses import StreamingResponse
+        
+        # Thuc hien xoa nen
+        output_bytes = remove(content)
+        
+        # Tra ve file PNG trong suot cho client
+        return StreamingResponse(io.BytesIO(output_bytes), media_type="image/png")
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(status_code=500, content={"status": "error", "message": f"Loi xoa nen: {str(e)}"})
+
+@app.post("/admin/upload-frame")
+def upload_custom_frame(
+    request: Request,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    """API cho phep admin tai len khung vien ky niem moi va tu dong duc lo."""
+    # Kiem tra quyen Admin
+    admin_user = get_admin_session(request, db)
+    if not admin_user:
+        return RedirectResponse(url="/admin/login", status_code=status.HTTP_303_SEE_OTHER)
+        
+    try:
+        contents = file.file.read()
+        from io import BytesIO
+        from PIL import Image
+        
+        img = Image.open(BytesIO(contents))
+        
+        # Duc lo tron o giua voi scale = 0.72
+        processed_img = duc_lo_frame_neu_duc(img, scale=0.72)
+        
+        os.makedirs("static/uploads", exist_ok=True)
+        path_frame = "static/uploads/frame.png"
+        processed_img.save(path_frame, "PNG")
+        
+        return RedirectResponse(url="/admin?msg=frame_updated", status_code=status.HTTP_303_SEE_OTHER)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return HTMLResponse(content=f"<h3>Loi khi xu ly file anh: {str(e)}</h3>", status_code=500)
 
 @app.get("/register", response_class=HTMLResponse)
 def register_page(
@@ -1627,7 +1844,8 @@ def admin_dashboard(
             "stats_data": stats_data,
             "departments": departments,
             "all_competitions": all_competitions,
-            "selected_event_id": selected_event_id
+            "selected_event_id": selected_event_id,
+            "time_stamp": int(time.time())
         }
     )
 
@@ -3490,6 +3708,7 @@ async def admin_add_competition(
     department_members: str = Form(""),
     ranking_metric: str = Form("kcal"),
     banner_file: UploadFile = File(None),
+    avatar_frame_file: UploadFile = File(None),
     db: Session = Depends(get_db)
 ):
     admin = get_admin_session(request, db)
@@ -3545,6 +3764,28 @@ async def admin_add_competition(
             ranking_sports=ranking_sports_str
         )
         db.add(new_comp)
+        db.flush() # Sinh ID cho new_comp trước khi lưu ảnh
+
+        # Xử lý khung viền avatar riêng nếu có tải lên
+        if avatar_frame_file and avatar_frame_file.filename:
+            ext = os.path.splitext(avatar_frame_file.filename)[1].lower()
+            if ext in [".png", ".jpg", ".jpeg", ".webp"]:
+                from io import BytesIO
+                from PIL import Image
+                
+                os.makedirs("static/uploads/frames", exist_ok=True)
+                frame_filename = f"event_{new_comp.id}_frame.png"
+                frame_filepath = os.path.join("static/uploads/frames", frame_filename)
+                
+                content = await avatar_frame_file.read()
+                img = Image.open(BytesIO(content))
+                
+                # Gọi helper đục lỗ nếu là ảnh đặc
+                processed_img = duc_lo_frame_neu_duc(img, scale=0.72)
+                processed_img.save(frame_filepath, "PNG")
+                
+                new_comp.avatar_frame = f"/static/uploads/frames/{frame_filename}"
+
         db.commit()
         return RedirectResponse("/admin?success=Thêm giải đấu mới thành công#tab-competitions", status_code=303)
     except Exception as e:
@@ -3572,6 +3813,7 @@ async def admin_edit_competition(
     department_members: str = Form(""),
     ranking_metric: str = Form("kcal"),
     banner_file: UploadFile = File(None),
+    avatar_frame_file: UploadFile = File(None),
     db: Session = Depends(get_db)
 ):
     admin = get_admin_session(request, db)
@@ -3632,6 +3874,26 @@ async def admin_edit_competition(
                         try: os.remove(old_path)
                         except: pass
                 comp.banner_image = f"/static/uploads/{filename}"
+        
+        # Cập nhật khung viền avatar riêng nếu có tải lên mới
+        if avatar_frame_file and avatar_frame_file.filename:
+            ext = os.path.splitext(avatar_frame_file.filename)[1].lower()
+            if ext in [".png", ".jpg", ".jpeg", ".webp"]:
+                from io import BytesIO
+                from PIL import Image
+                
+                os.makedirs("static/uploads/frames", exist_ok=True)
+                frame_filename = f"event_{comp.id}_frame.png"
+                frame_filepath = os.path.join("static/uploads/frames", frame_filename)
+                
+                content = await avatar_frame_file.read()
+                img = Image.open(BytesIO(content))
+                
+                # Gọi helper đục lỗ
+                processed_img = duc_lo_frame_neu_duc(img, scale=0.72)
+                processed_img.save(frame_filepath, "PNG")
+                
+                comp.avatar_frame = f"/static/uploads/frames/{frame_filename}"
         
         db.commit()
         return RedirectResponse("/admin?success=Cập nhật giải đấu thành công#tab-competitions", status_code=303)

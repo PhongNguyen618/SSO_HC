@@ -30,6 +30,7 @@ class Athlete(Base):
     weight = Column(Float)
     strava_name = Column(String, unique=True, index=True)
     is_active = Column(Boolean, default=True)
+    avatar_url = Column(String, nullable=True)
 
     activities = relationship("Activity", back_populates="athlete")
 
@@ -92,6 +93,7 @@ class CompetitionEvent(Base):
     ranking_metric = Column(String, default="kcal", nullable=True) # "kcal" hoặc "distance"
     ranking_sports = Column(String, default="All", nullable=True) # Mặc định là tất cả bộ môn "All"
     rules_group_qr = Column(String, nullable=True) # Đường dẫn QR code group Strava riêng của giải đấu
+    avatar_frame = Column(String, nullable=True) # Đường dẫn khung viền avatar riêng của giải đấu
 
     activities = relationship("Activity", back_populates="event", cascade="all, delete-orphan")
 
@@ -160,6 +162,15 @@ def init_db(excel_filepath: str = "TDTT_SSO.xlsx"):
     # Thực hiện di trú cột event_id nếu chưa có
     from sqlalchemy import inspect, text
     inspector = inspect(engine)
+    
+    # Di trú cho bảng athletes
+    athlete_columns = [c['name'] for c in inspector.get_columns('athletes')]
+    if 'avatar_url' not in athlete_columns:
+        print("Database Migration: Adding avatar_url column to athletes table...")
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE athletes ADD COLUMN avatar_url TEXT"))
+            conn.commit()
+
     columns = [c['name'] for c in inspector.get_columns('activities')]
     if 'event_id' not in columns:
         print("Database Migration: Adding event_id column to activities table...")
@@ -268,6 +279,12 @@ def init_db(excel_filepath: str = "TDTT_SSO.xlsx"):
         print("Database Migration: Adding rules_group_qr column to competition_events...")
         with engine.connect() as conn:
             conn.execute(text("ALTER TABLE competition_events ADD COLUMN rules_group_qr VARCHAR"))
+            conn.commit()
+            
+    if 'avatar_frame' not in comp_columns:
+        print("Database Migration: Adding avatar_frame column to competition_events...")
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE competition_events ADD COLUMN avatar_frame TEXT"))
             conn.commit()
 
     # Phục hồi các giải đấu đang bị giới hạn về 4 môn mặc định hoặc NULL/rỗng trở lại thành 'All' để tính calo cho tất cả các môn như ban đầu

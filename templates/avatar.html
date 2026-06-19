@@ -1,0 +1,1077 @@
+{% extends "base.html" %}
+
+{% block title %}Đồng bộ Frame Avatar Kỷ Niệm - SSO HC{% endblock %}
+
+{% block head %}
+<style>
+    /* Bố cục Studio Split-Screen chia 2 cột */
+    .avatar-container {
+        display: grid;
+        grid-template-columns: 360px 1fr;
+        gap: 2.5rem;
+        margin-top: 1rem;
+    }
+    
+    @media (max-width: 1024px) {
+        .avatar-container {
+            grid-template-columns: 1fr;
+            gap: 2rem;
+        }
+    }
+    
+    /* Cột bên trái chứa preview được cố định khi cuộn trang */
+    .editor-left-column {
+        position: sticky;
+        top: 1.5rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 1.2rem;
+        align-self: start; /* Cần thiết để thuộc tính sticky hoạt động trong Grid */
+    }
+    
+    @media (max-width: 1024px) {
+        .editor-left-column {
+            position: relative;
+            top: 0;
+        }
+    }
+    
+    /* Khung chứa canvas tròn tối giản với hiệu ứng viền phát sáng mượt mà */
+    .canvas-wrapper {
+        position: relative;
+        width: 330px;
+        height: 330px;
+        border-radius: 50%;
+        padding: 5px;
+        background: linear-gradient(135deg, var(--color-primary), #8e2de2);
+        box-shadow: 0 12px 36px rgba(0, 0, 0, 0.6), inset 0 2px 10px rgba(255, 255, 255, 0.2);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        transition: transform 0.3s cubic-bezier(0.165, 0.84, 0.44, 1);
+    }
+    
+    .canvas-wrapper:hover {
+        transform: scale(1.02);
+        box-shadow: 0 16px 45px rgba(143, 205, 240, 0.25);
+    }
+    
+    #avatarCanvas {
+        width: 100%;
+        height: 100%;
+        border-radius: 50%;
+        cursor: grab;
+        background: #110e20;
+    }
+    
+    #avatarCanvas:active {
+        cursor: grabbing;
+    }
+
+    /* Các nút hành động nhanh dưới Canvas */
+    .quick-actions {
+        display: flex;
+        gap: 0.8rem;
+        width: 100%;
+        justify-content: center;
+    }
+    
+    .btn-action {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        color: var(--text-color);
+        border-radius: 20px;
+        padding: 0.5rem 1.2rem;
+        font-size: 0.8rem;
+        font-weight: 600;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: all 0.2s ease;
+        font-family: 'Outfit', sans-serif;
+    }
+    
+    .btn-action:hover {
+        background: rgba(255, 255, 255, 0.08);
+        border-color: var(--color-primary);
+        color: var(--color-primary);
+        box-shadow: 0 4px 12px rgba(143, 205, 240, 0.15);
+    }
+    
+    .btn-action-reset {
+        color: #ff7b5a;
+        border-color: rgba(255, 123, 90, 0.2);
+    }
+    
+    .btn-action-reset:hover {
+        color: #ff7b5a;
+        border-color: #ff7b5a;
+        background: rgba(255, 123, 90, 0.06);
+        box-shadow: 0 4px 12px rgba(255, 123, 90, 0.15);
+    }
+    
+    /* Panel điều khiển Glassmorphism */
+    .controls-panel {
+        width: 100%;
+        background: rgba(255, 255, 255, 0.01);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 16px;
+        padding: 1.5rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1.2rem;
+    }
+    
+    .control-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.6rem;
+    }
+    
+    .control-label {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.82rem;
+        color: var(--text-muted);
+        font-weight: 600;
+        letter-spacing: 0.5px;
+    }
+    
+    .slider-input {
+        width: 100%;
+        height: 5px;
+        background: rgba(255, 255, 255, 0.08);
+        border-radius: 5px;
+        outline: none;
+        -webkit-appearance: none;
+        transition: background 0.3s;
+    }
+    
+    .slider-input::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, var(--color-primary), #8e2de2);
+        cursor: pointer;
+        box-shadow: 0 0 10px rgba(143, 205, 240, 0.8);
+        transition: transform 0.1s;
+    }
+    
+    .slider-input::-webkit-slider-thumb:hover {
+        transform: scale(1.25);
+    }
+    
+    /* Dropdown tìm kiếm VĐV tùy chỉnh */
+    .search-dropdown-wrapper {
+        position: relative;
+        width: 100%;
+    }
+    
+    .search-results-list {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        z-index: 50;
+        background: rgba(10, 8, 22, 0.98);
+        backdrop-filter: blur(25px);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        max-height: 220px;
+        overflow-y: auto;
+        margin-top: 6px;
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6);
+        display: none;
+    }
+    
+    .search-result-item {
+        padding: 0.8rem 1rem;
+        cursor: pointer;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+        transition: background 0.2s;
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.9rem;
+    }
+    
+    .search-result-item:hover {
+        background: rgba(255, 255, 255, 0.06);
+    }
+    
+    .search-result-item .dept-text {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+    }
+    
+    /* Vùng thả file */
+    .upload-zone {
+        border: 2px dashed rgba(255, 255, 255, 0.1);
+        border-radius: 14px;
+        padding: 2rem;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        background: rgba(255, 255, 255, 0.005);
+    }
+    
+    .upload-zone:hover, .upload-zone.dragover {
+        border-color: var(--color-primary);
+        background: rgba(143, 205, 240, 0.02);
+        box-shadow: inset 0 0 12px rgba(143, 205, 240, 0.05);
+    }
+    
+    .upload-zone i {
+        font-size: 2.5rem;
+        background: linear-gradient(135deg, var(--color-primary), #8e2de2);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 0.8rem;
+    }
+    
+    .upload-zone h4 {
+        font-family: 'Outfit', sans-serif;
+        font-size: 1.1rem;
+        margin-bottom: 0.3rem;
+        font-weight: 600;
+    }
+    
+    .upload-zone p {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+    }
+    
+    /* VĐV được chọn tag */
+    .selected-athlete-badge {
+        background: rgba(143, 205, 240, 0.06);
+        border: 1px solid rgba(143, 205, 240, 0.2);
+        padding: 0.8rem 1.2rem;
+        border-radius: 10px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+        display: none;
+    }
+    
+    .selected-athlete-badge .info {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+    
+    .selected-athlete-badge .name {
+        font-weight: 700;
+        color: var(--color-primary);
+        font-size: 1rem;
+    }
+    
+    .selected-athlete-badge .dept {
+        font-size: 0.78rem;
+        color: var(--text-muted);
+    }
+    
+    .selected-athlete-badge .btn-remove {
+        background: none;
+        border: none;
+        color: #ff5e36;
+        cursor: pointer;
+        font-size: 1.2rem;
+        transition: transform 0.2s;
+    }
+    
+    .selected-athlete-badge .btn-remove:hover {
+        transform: scale(1.2);
+    }
+    
+    .guide-box {
+        font-size: 0.82rem;
+        line-height: 1.6;
+        color: var(--text-muted);
+        background: rgba(255, 255, 255, 0.005);
+        border-left: 3px solid var(--color-primary);
+        padding: 0.8rem 1.2rem;
+        border-radius: 0 10px 10px 0;
+        margin-bottom: 0.5rem;
+        width: 100%;
+        box-sizing: border-box;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="glass-card">
+    <h2 class="card-title">
+        <i class="fa-solid fa-user-circle"></i> ĐỒNG BỘ AVATAR CHÀO MỪNG NGÀY LỄ KỶ NIỆM
+    </h2>
+    <p style="color: var(--text-muted); font-size: 0.95rem; margin-top: -0.5rem; margin-bottom: 2rem;">
+        Tải ảnh cá nhân của bạn lên, căn chỉnh khuôn mặt vừa vặn vào khung kỷ niệm của giải chạy và tải ảnh về hoặc cập nhật trực tiếp vào hồ sơ của mình trên Bảng xếp hạng.
+    </p>
+    
+    <div id="statusAlert" style="display: none;"></div>
+    
+    <!-- LỰA CHỌN GIẢI ĐẤU -->
+    <div class="glass-card" style="margin: 0 0 2rem 0; padding: 1.2rem; background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-color);">
+        <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+            <label style="font-weight: 600; font-size: 0.95rem; color: var(--color-primary); white-space: nowrap; margin: 0; display: flex; align-items: center; gap: 0.5rem;">
+                <i class="fa-solid fa-trophy"></i> ĐANG GHÉP CHO GIẢI CHẠY:
+            </label>
+            <select id="eventSelect" class="form-control" style="max-width: 400px; background: rgba(10, 8, 20, 0.8); cursor: pointer; border-radius: 8px; border: 1px solid var(--border-color); color: var(--text-color); padding: 0.4rem 0.8rem; font-family: inherit;">
+                {% for comp in active_competitions %}
+                <option value="{{ comp.id }}" {% if selected_event and selected_event.id == comp.id %}selected{% endif %}>
+                    {{ comp.title }}
+                </option>
+                {% endfor %}
+            </select>
+            <small style="color: var(--text-muted); font-size: 0.85rem;">
+                <i class="fa-solid fa-circle-info"></i> Hãy chọn đúng giải chạy bạn tham gia để tải đúng khung viền và đồng bộ avatar phù hợp.
+            </small>
+        </div>
+    </div>
+    
+    <div class="avatar-container">
+        <!-- CỘT 1: EDITOR PREVIEW BÊN TRÁI (STICKY) -->
+        <div class="editor-left-column">
+            <div class="canvas-wrapper">
+                <!-- Canvas kích thước 1200x1200px siêu nét, kích thước hiển thị CSS là 330x330px -->
+                <canvas id="avatarCanvas" width="1200" height="1200"></canvas>
+            </div>
+            
+            <!-- Bộ nút hành động nhanh dưới Canvas -->
+            <div class="quick-actions">
+                <button id="flipBtn" class="btn-action" title="Lật ảnh theo chiều ngang">
+                    <i class="fa-solid fa-arrows-left-right"></i> Lật ngang (Flip)
+                </button>
+                <button id="resetBtn" class="btn-action btn-action-reset" title="Đặt lại mọi thông số chỉnh sửa">
+                    <i class="fa-solid fa-arrow-rotate-left"></i> Đặt lại (Reset)
+                </button>
+            </div>
+            
+            <div class="guide-box">
+                <i class="fa-solid fa-circle-info"></i> <strong>Căn chỉnh ảnh:</strong> Bạn có thể dùng chuột hoặc ngón tay chạm <strong>kéo thả trực tiếp</strong> trên ảnh để di chuyển khuôn mặt vào đúng tâm khung tròn.
+            </div>
+        </div>
+        
+        <!-- CỘT 2: PANEL THAO TÁC BÊN PHẢI -->
+        <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+            <!-- BƯỚC 1: TẢI ẢNH LÊN -->
+            <div class="glass-card" style="margin: 0; padding: 1.5rem; background: rgba(255,255,255,0.01);">
+                <h3 style="font-size: 1.1rem; margin-bottom: 1rem; font-family: 'Outfit', sans-serif;">
+                    <i class="fa-solid fa-cloud-arrow-up" style="color: var(--color-primary);"></i> BƯỚC 1: TẢI ẢNH CHÂN DUNG CỦA BẠN
+                </h3>
+                <input type="file" id="avatarFileInput" accept="image/*" style="display: none;">
+                <div class="upload-zone" id="uploadZone">
+                    <i class="fa-solid fa-image"></i>
+                    <h4>Kéo thả ảnh vào đây</h4>
+                    <p>Hoặc click để duyệt tìm ảnh từ thiết bị</p>
+                </div>
+            </div>
+            
+            <!-- PANEL ĐIỀU CHỈNH THÔNG SỐ (SLIDERS) -->
+            <div class="controls-panel">
+                <h3 style="font-size: 1.1rem; margin-bottom: 0.5rem; font-family: 'Outfit', sans-serif; display: flex; align-items: center; gap: 0.5rem; color: var(--color-primary);">
+                    <i class="fa-solid fa-sliders"></i> PANEL ĐIỀU CHỈNH ẢNH
+                </h3>
+
+                <!-- Slider thay đổi cỡ lỗ đục khung viền, tối thiểu 40% tối đa 85%, mặc định 55% -->
+                <div class="control-group">
+                    <div class="control-label">
+                        <span><i class="fa-solid fa-circle-dot"></i> Cỡ lỗ đục khung viền (Hole Size)</span>
+                        <span id="holeVal">55%</span>
+                    </div>
+                    <input type="range" id="holeSlider" class="slider-input" min="40" max="85" step="1" value="55">
+                </div>
+
+                <!-- Slider thay đổi vị trí tâm lỗ đục -->
+                <div class="control-group">
+                    <div class="control-label">
+                        <span><i class="fa-solid fa-arrows-left-right"></i> Dịch ngang lỗ đục (Hole X)</span>
+                        <span id="holeXVal">0%</span>
+                    </div>
+                    <input type="range" id="holeXSlider" class="slider-input" min="-15" max="15" step="0.5" value="0">
+                </div>
+                
+                <div class="control-group">
+                    <div class="control-label">
+                        <span><i class="fa-solid fa-arrows-up-down"></i> Dịch dọc lỗ đục (Hole Y)</span>
+                        <span id="holeYVal">0%</span>
+                    </div>
+                    <input type="range" id="holeYSlider" class="slider-input" min="-15" max="15" step="0.5" value="0">
+                </div>
+                
+                <div class="control-group">
+                    <div class="control-label">
+                        <span><i class="fa-solid fa-magnifying-glass-plus"></i> Thu phóng (Zoom)</span>
+                        <span id="zoomVal">1.00x</span>
+                    </div>
+                    <input type="range" id="zoomSlider" class="slider-input" min="0.1" max="3.0" step="0.01" value="1.0">
+                </div>
+                
+                <div class="control-group">
+                    <div class="control-label">
+                        <span><i class="fa-solid fa-rotate"></i> Xoay ảnh (Rotate)</span>
+                        <span id="rotateVal">0°</span>
+                    </div>
+                    <input type="range" id="rotateSlider" class="slider-input" min="0" max="360" step="1" value="0">
+                </div>
+
+                <div class="control-group">
+                    <div class="control-label">
+                        <span><i class="fa-solid fa-sun"></i> Độ sáng (Brightness)</span>
+                        <span id="brightnessVal">100%</span>
+                    </div>
+                    <input type="range" id="brightnessSlider" class="slider-input" min="50" max="150" step="1" value="100">
+                </div>
+
+                <div class="control-group">
+                    <div class="control-label">
+                        <span><i class="fa-solid fa-circle-half-stroke"></i> Độ tương phản (Contrast)</span>
+                        <span id="contrastVal">100%</span>
+                    </div>
+                    <input type="range" id="contrastSlider" class="slider-input" min="50" max="150" step="1" value="100">
+                </div>
+            </div>
+            
+            <!-- BƯỚC 2: TẢI VỀ HOẶC CẬP NHẬT HỒ SƠ -->
+            <div class="glass-card" style="margin: 0; padding: 1.5rem; background: rgba(255,255,255,0.01);">
+                <h3 style="font-size: 1.1rem; margin-bottom: 1rem; font-family: 'Outfit', sans-serif;">
+                    <i class="fa-solid fa-circle-check" style="color: var(--color-green);"></i> BƯỚC 2: TẢI VỀ HOẶC GÁN VÀO HỒ SƠ
+                </h3>
+                
+                <div style="display: flex; flex-direction: column; gap: 1.2rem;">
+                    <!-- Nút Tải Về Máy -->
+                    <button id="downloadBtn" class="btn btn-primary" style="width: 100%; padding: 0.9rem; font-weight: bold;">
+                        <i class="fa-solid fa-download"></i> Tải ảnh đã ghép về máy (Siêu nét)
+                    </button>
+                    
+                    <div style="text-align: center; color: var(--text-muted); font-size: 0.85rem; margin: 0.2rem 0; border-top: 1px dashed rgba(255,255,255,0.08); padding-top: 0.8rem;">
+                       HOẶC GÁN TRỰC TIẾP LÀM AVATAR TRÊN BẢNG XẾP HẠNG
+                    </div>
+                    
+                    <!-- Form đồng bộ hồ sơ VĐV -->
+                    <div id="athleteSelectSection" style="display: flex; flex-direction: column; gap: 0.8rem;">
+                        <label style="font-size: 0.9rem; color: var(--text-muted); font-weight: 500;">
+                            Chọn tên của bạn trong danh sách giải chạy:
+                        </label>
+                        
+                        <!-- Badge hiển thị VĐV đã chọn -->
+                        <div class="selected-athlete-badge" id="selectedAthleteBadge">
+                            <div class="info">
+                                <span class="name" id="selectedAthleteName">Nguyễn Văn A</span>
+                                <span class="dept" id="selectedAthleteDept">PHÒNG KỸ THUẬT</span>
+                            </div>
+                            <button class="btn-remove" id="btnRemoveAthlete" title="Chọn lại tên khác">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+                        
+                        <!-- Hộp tìm kiếm VĐV -->
+                        <div class="search-dropdown-wrapper" id="searchDropdownWrapper">
+                            <i class="fa-solid fa-search" style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 0.9rem;"></i>
+                            <input type="text" id="athleteSearchInput" class="form-control" placeholder="Gõ tìm kiếm tên của bạn..." style="padding-left: 2.5rem; background: rgba(10, 8, 20, 0.8);">
+                            <small style="color: var(--text-muted); margin-top: 4px; display: block; font-size: 0.78rem;">
+                                <i class="fa-solid fa-circle-info"></i> Hãy click chọn chính xác họ tên của bạn trong danh sách hiển thị bên dưới.
+                            </small>
+                            
+                            <div class="search-results-list" id="searchResultsList">
+                                {% for ath in all_athletes %}
+                                <div class="search-result-item" data-id="{{ ath.id }}" data-name="{{ ath.full_name }}" data-dept="{{ ath.department }}">
+                                    <span class="name-text">{{ ath.full_name }}</span>
+                                    <span class="dept-text">{{ ath.department }}</span>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        
+                        <button id="syncProfileBtn" class="btn btn-secondary" style="width: 100%; padding: 0.9rem; font-weight: bold; border-color: rgba(143, 205, 240, 0.4);" disabled>
+                            <i class="fa-solid fa-arrows-spin"></i> Cập nhật vào hồ sơ giải chạy
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // --- KHAI BÁO BIẾN TOÀN CỤC ---
+    const canvas = document.getElementById('avatarCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    // Tạo Canvas phụ để đục lỗ động ở client-side
+    const offCanvas = document.createElement('canvas');
+    offCanvas.width = 1200;
+    offCanvas.height = 1200;
+    const offCtx = offCanvas.getContext('2d');
+    
+    // Khung viền mặc định tải từ Server
+    const frameImg = new Image();
+    frameImg.crossOrigin = "anonymous";
+    frameImg.src = "{{ avatar_frame_url }}"; // Tải file frame kỷ niệm từ server
+    
+    // Ảnh người dùng tải lên
+    let userImg = null;
+    
+    // Các tham số biến đổi ảnh của người dùng
+    let scale = 1.0;
+    let rotation = 0; // Độ (0 - 360)
+    let offsetX = 0;  // Dịch chuyển X so với tâm
+    let offsetY = 0;  // Dịch chuyển Y so với tâm
+    let brightness = 100; // Độ sáng (%)
+    let contrast = 100;   // Độ tương phản (%)
+    let isFlipped = false; // Trạng thái lật ngang
+    let holeScale = 0.55;  // Tỷ lệ lỗ đục mặc định mới (55%)
+    let holeOffsetX = 0;   // Dịch chuyển X của lỗ đục (%)
+    let holeOffsetY = 0;   // Dịch chuyển Y của lỗ đục (%)
+    
+    // Trạng thái kéo thả ảnh (Pan) trên canvas
+    let isDragging = false;
+    let startX = 0;
+    let startY = 0;
+    
+    // ID vận động viên được chọn
+    let selectedAthleteId = null;
+    
+    // --- HÀM VẼ CANVAS CHÍNH ---
+    function drawCanvas() {
+        // 1. Xóa sạch canvas
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // 2. Không vẽ nền đặc dưới cùng để giữ nguyên độ trong suốt (Transparent PNG)
+        // ctx.fillStyle = '#181528';
+        // ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        
+        // Tính toán tọa độ tâm của lỗ đục động dựa trên slider dịch chuyển (holeOffsetX, holeOffsetY)
+        const holeCenterX = centerX + (holeOffsetX * canvas.width) / 100;
+        const holeCenterY = centerY + (holeOffsetY * canvas.height) / 100;
+        
+        // 3. Vẽ ảnh người dùng lồng tròn (nếu đã tải ảnh lên)
+        if (userImg) {
+            ctx.save();
+            
+            // Cắt clipping path hình tròn ở tâm lỗ đục mới để bo tròn ảnh người dùng
+            // Bán kính cắt lớn hơn 8% so với lỗ đục để giấu mép cắt dưới thân khung viền, tránh che mất họa tiết của frame
+            const clipRadius = (canvas.width * (holeScale + 0.08)) / 2;
+            ctx.beginPath();
+            ctx.arc(holeCenterX, holeCenterY, clipRadius, 0, Math.PI * 2);
+            ctx.clip();
+            
+            // Tịnh tiến tọa độ vẽ về tâm lỗ đục mới để áp dụng Xoay và Phóng to
+            ctx.translate(holeCenterX + offsetX, holeCenterY + offsetY);
+            ctx.rotate((rotation * Math.PI) / 180);
+            
+            // Áp dụng phép lật ngang nếu được kích hoạt
+            if (isFlipped) {
+                ctx.scale(-1, 1);
+            }
+            
+            // Áp dụng bộ lọc ảnh (Độ sáng & Độ tương phản) trực tiếp trên canvas
+            ctx.filter = `brightness(${brightness}%) contrast(${contrast}%)`;
+            
+            // Tính toán kích thước hiển thị ảnh
+            // Cơ chế Aspect Cover giữ nguyên tỉ lệ aspect ratio, không bị crop cứng mất đầu
+            const drawDiameter = canvas.width * (holeScale + 0.12); // Đường kính vẽ lớn hơn lỗ đục 12% để phủ kín lỗ đục và tự động co giãn cân đối
+            let drawWidth, drawHeight;
+            const imgRatio = userImg.width / userImg.height;
+            
+            if (userImg.width > userImg.height) {
+                // Ảnh ngang
+                drawHeight = drawDiameter * scale;
+                drawWidth = drawHeight * imgRatio;
+            } else {
+                // Ảnh dọc hoặc vuông
+                drawWidth = drawDiameter * scale;
+                drawHeight = drawWidth / imgRatio;
+            }
+            
+            // Vẽ ảnh người dùng vào tâm đã dịch chuyển
+            ctx.drawImage(
+                userImg,
+                -drawWidth / 2, -drawHeight / 2, // Đặt tâm ảnh trùng với tâm toạ độ mới
+                drawWidth, drawHeight
+            );
+            
+            ctx.restore();
+            // Reset filter về mặc định để vẽ Frame đè lên không bị ảnh hưởng bộ lọc
+            ctx.filter = 'none';
+        } else {
+            // Nếu chưa có ảnh, vẽ dòng chữ hướng dẫn ở giữa vòng tròn rỗng
+            ctx.save();
+            ctx.fillStyle = '#181528';
+            ctx.beginPath();
+            ctx.arc(holeCenterX, holeCenterY, (canvas.width * (holeScale + 0.08)) / 2, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.fillStyle = '#8f8c9d';
+            ctx.font = 'bold 36px Be Vietnam Pro, Inter, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('CHƯA CÓ ẢNH CHÂN DUNG', holeCenterX, holeCenterY - 15);
+            ctx.font = '24px Be Vietnam Pro, Inter, sans-serif';
+            ctx.fillText('Hãy tải ảnh của bạn ở bước 1', holeCenterX, holeCenterY + 30);
+            ctx.restore();
+        }
+        
+        // 4. Vẽ khung viền (Frame) đè lên trên cùng và đục lỗ động ở client-side
+        if (frameImg.complete) {
+            offCtx.clearRect(0, 0, offCanvas.width, offCanvas.height);
+            // Vẽ khung viền gốc đặc lên Canvas phụ
+            offCtx.drawImage(frameImg, 0, 0, offCanvas.width, offCanvas.height);
+            
+            // Đục lỗ tròn ở tâm dịch chuyển trên Canvas phụ bằng Composite Operation
+            offCtx.globalCompositeOperation = 'destination-out';
+            offCtx.fillStyle = '#000000';
+            offCtx.beginPath();
+            const holeRadius = (offCanvas.width * holeScale) / 2;
+            const offHoleCenterX = offCanvas.width / 2 + (holeOffsetX * offCanvas.width) / 100;
+            const offHoleCenterY = offCanvas.height / 2 + (holeOffsetY * offCanvas.height) / 100;
+            offCtx.arc(offHoleCenterX, offHoleCenterY, holeRadius, 0, Math.PI * 2);
+            offCtx.fill();
+            offCtx.globalCompositeOperation = 'source-over';
+            
+            // Vẽ Canvas phụ đã đục lỗ đè lên Canvas chính
+            ctx.drawImage(offCanvas, 0, 0);
+        }
+    }
+    
+    // Khi frame load xong, vẽ lại canvas
+    frameImg.onload = drawCanvas;
+    
+    // --- XỬ LÝ SỰ KIỆN UPLOAD ẢNH ---
+    const uploadZone = document.getElementById('uploadZone');
+    const fileInput = document.getElementById('avatarFileInput');
+    
+    uploadZone.addEventListener('click', () => fileInput.click());
+    
+    // Drag and drop events
+    uploadZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadZone.classList.add('dragover');
+    });
+    
+    uploadZone.addEventListener('dragleave', () => {
+        uploadZone.classList.remove('dragover');
+    });
+    
+    uploadZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadZone.classList.remove('dragover');
+        if (e.dataTransfer.files.length > 0) {
+            handleImageFile(e.dataTransfer.files[0]);
+        }
+    });
+    
+    fileInput.addEventListener('change', (e) => {
+        if (e.target.files.length > 0) {
+            handleImageFile(e.target.files[0]);
+        }
+    });
+    
+    function handleImageFile(file) {
+        if (!file.type.startsWith('image/')) {
+            showAlert('danger', 'Vui lòng chọn file ảnh hợp lệ (PNG, JPG, JPEG).');
+            return;
+        }
+        
+        // Hiển thị thông báo đang xử lý tách nền
+        showAlert('info', '<i class="fa-solid fa-spinner fa-spin"></i> Đang tự động tách nền ảnh chân dung bằng AI, vui lòng đợi trong giây lát...');
+        
+        // Gửi file ảnh lên backend để xóa nền
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        fetch('/api/avatar/remove-bg', {
+            method: 'POST',
+            body: formData
+        })
+        .then(res => {
+            if (!res.ok) {
+                throw new Error('Mã lỗi ' + res.status);
+            }
+            return res.blob();
+        })
+        .then(blob => {
+            // Tách nền thành công, tạo URL blob của ảnh PNG trong suốt
+            const imageUrl = URL.createObjectURL(blob);
+            loadUserImage(imageUrl, true);
+        })
+        .catch(err => {
+            console.error('Lỗi xóa nền:', err);
+            // Fallback: Sử dụng ảnh gốc nếu xóa nền bị lỗi
+            showAlert('warning', '<i class="fa-solid fa-triangle-exclamation"></i> Không thể tách nền tự động (Lỗi: ' + err.message + '). Hệ thống sẽ chuyển sang sử dụng ảnh gốc của bạn.');
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                loadUserImage(e.target.result, false);
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+    
+    // Hàm phụ để load ảnh vào đối tượng userImg
+    function loadUserImage(src, isBgRemoved) {
+        userImg = new Image();
+        userImg.onload = function() {
+            // Reset các thanh trượt và toạ độ khi tải ảnh mới
+            scale = 1.0;
+            rotation = 0;
+            offsetX = 0;
+            offsetY = 0;
+            brightness = 100;
+            contrast = 100;
+            isFlipped = false;
+            holeScale = 0.55;
+            holeOffsetX = 0;
+            holeOffsetY = 0;
+            
+            document.getElementById('zoomSlider').value = 1.0;
+            document.getElementById('zoomVal').innerText = '1.00x';
+            document.getElementById('rotateSlider').value = 0;
+            document.getElementById('rotateVal').innerText = '0°';
+            document.getElementById('brightnessSlider').value = 100;
+            document.getElementById('brightnessVal').innerText = '100%';
+            document.getElementById('contrastSlider').value = 100;
+            document.getElementById('contrastVal').innerText = '100%';
+            document.getElementById('holeSlider').value = 55;
+            document.getElementById('holeVal').innerText = '55%';
+            document.getElementById('holeXSlider').value = 0;
+            document.getElementById('holeXVal').innerText = '0%';
+            document.getElementById('holeYSlider').value = 0;
+            document.getElementById('holeYVal').innerText = '0%';
+            
+            drawCanvas();
+            if (isBgRemoved) {
+                showAlert('success', '🎉 Đã tự động tách nền ảnh chân dung thành công! Bạn có thể bắt đầu căn chỉnh ghép khung viền.');
+            }
+        };
+        userImg.src = src;
+    }
+    
+    // --- XỬ LÝ CÁC SLIDER ĐIỀU KHIỂN ---
+    const zoomSlider = document.getElementById('zoomSlider');
+    zoomSlider.addEventListener('input', (e) => {
+        scale = parseFloat(e.target.value);
+        document.getElementById('zoomVal').innerText = scale.toFixed(2) + 'x';
+        drawCanvas();
+    });
+    
+    const rotateSlider = document.getElementById('rotateSlider');
+    rotateSlider.addEventListener('input', (e) => {
+        rotation = parseInt(e.target.value);
+        document.getElementById('rotateVal').innerText = rotation + '°';
+        drawCanvas();
+    });
+
+    const brightnessSlider = document.getElementById('brightnessSlider');
+    brightnessSlider.addEventListener('input', (e) => {
+        brightness = parseInt(e.target.value);
+        document.getElementById('brightnessVal').innerText = brightness + '%';
+        drawCanvas();
+    });
+
+    const contrastSlider = document.getElementById('contrastSlider');
+    contrastSlider.addEventListener('input', (e) => {
+        contrast = parseInt(e.target.value);
+        document.getElementById('contrastVal').innerText = contrast + '%';
+        drawCanvas();
+    });
+
+    const holeSlider = document.getElementById('holeSlider');
+    holeSlider.addEventListener('input', (e) => {
+        holeScale = parseInt(e.target.value) / 100;
+        document.getElementById('holeVal').innerText = e.target.value + '%';
+        drawCanvas();
+    });
+
+    const holeXSlider = document.getElementById('holeXSlider');
+    holeXSlider.addEventListener('input', (e) => {
+        holeOffsetX = parseFloat(e.target.value);
+        document.getElementById('holeXVal').innerText = (holeOffsetX > 0 ? '+' : '') + holeOffsetX + '%';
+        drawCanvas();
+    });
+
+    const holeYSlider = document.getElementById('holeYSlider');
+    holeYSlider.addEventListener('input', (e) => {
+        holeOffsetY = parseFloat(e.target.value);
+        document.getElementById('holeYVal').innerText = (holeOffsetY > 0 ? '+' : '') + holeOffsetY + '%';
+        drawCanvas();
+    });
+    
+    // --- NÚT HÀNH ĐỘNG NHANH ---
+    // Nút Lật ảnh
+    document.getElementById('flipBtn').addEventListener('click', () => {
+        if (!userImg) {
+            showAlert('danger', 'Vui lòng tải ảnh chân dung lên trước khi lật ảnh.');
+            return;
+        }
+        isFlipped = !isFlipped;
+        drawCanvas();
+    });
+
+    // Nút Reset
+    document.getElementById('resetBtn').addEventListener('click', () => {
+        if (!userImg) return;
+        
+        scale = 1.0;
+        rotation = 0;
+        offsetX = 0;
+        offsetY = 0;
+        brightness = 100;
+        contrast = 100;
+        isFlipped = false;
+        holeScale = 0.55;
+        holeOffsetX = 0;
+        holeOffsetY = 0;
+        
+        document.getElementById('zoomSlider').value = 1.0;
+        document.getElementById('zoomVal').innerText = '1.00x';
+        document.getElementById('rotateSlider').value = 0;
+        document.getElementById('rotateVal').innerText = '0°';
+        document.getElementById('brightnessSlider').value = 100;
+        document.getElementById('brightnessVal').innerText = '100%';
+        document.getElementById('contrastSlider').value = 100;
+        document.getElementById('contrastVal').innerText = '100%';
+        document.getElementById('holeSlider').value = 55;
+        document.getElementById('holeVal').innerText = '55%';
+        document.getElementById('holeXSlider').value = 0;
+        document.getElementById('holeXVal').innerText = '0%';
+        document.getElementById('holeYSlider').value = 0;
+        document.getElementById('holeYVal').innerText = '0%';
+        
+        drawCanvas();
+        showAlert('success', 'Đã khôi phục các thông số chỉnh ảnh về mặc định.');
+    });
+    
+    // --- THAO TÁC KÉO THẢ (PAN/DRAG) TRÊN CANVAS ---
+    // Lấy tọa độ chuột/chạm tương đối trong canvas
+    function getEventCoords(e) {
+        const rect = canvas.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        
+        // Quy đổi tỉ lệ vì kích thước hiển thị CSS (330x330) khác kích thước thật của canvas (1200x1200)
+        return {
+            x: ((clientX - rect.left) / rect.width) * canvas.width,
+            y: ((clientY - rect.top) / rect.height) * canvas.height
+        };
+    }
+    
+    function startDrag(e) {
+        if (!userImg) return;
+        isDragging = true;
+        const coords = getEventCoords(e);
+        startX = coords.x - offsetX;
+        startY = coords.y - offsetY;
+        e.preventDefault();
+    }
+    
+    function drag(e) {
+        if (!isDragging || !userImg) return;
+        const coords = getEventCoords(e);
+        offsetX = coords.x - startX;
+        offsetY = coords.y - startY;
+        drawCanvas();
+        e.preventDefault();
+    }
+    
+    function stopDrag() {
+        isDragging = false;
+    }
+    
+    // Sự kiện chuột
+    canvas.addEventListener('mousedown', startDrag);
+    window.addEventListener('mousemove', drag);
+    window.addEventListener('mouseup', stopDrag);
+    
+    // Sự kiện cảm ứng (cho điện thoại di động)
+    canvas.addEventListener('touchstart', startDrag);
+    canvas.addEventListener('touchmove', drag, { passive: false });
+    canvas.addEventListener('touchend', stopDrag);
+    
+    // --- XỬ LÝ DOWNLOAD ẢNH ---
+    document.getElementById('downloadBtn').addEventListener('click', () => {
+        if (!userImg) {
+            showAlert('danger', 'Vui lòng tải ảnh chân dung của bạn lên trước khi tải ảnh ghép về.');
+            return;
+        }
+        
+        // Trích xuất ảnh định dạng PNG nền trong suốt
+        const dataUrl = canvas.toDataURL('image/png');
+        
+        const link = document.createElement('a');
+        link.download = 'avatar_kyle_niem.png';
+        link.href = dataUrl;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        showAlert('success', 'Đã xuất và tải ảnh ghép chất lượng cao về máy của bạn!');
+    });
+    
+    // --- XỬ LÝ SEARCHABLE SELECT DROP-DOWN VĐV ---
+    const searchInput = document.getElementById('athleteSearchInput');
+    const resultsList = document.getElementById('searchResultsList');
+    const badge = document.getElementById('selectedAthleteBadge');
+    const badgeName = document.getElementById('selectedAthleteName');
+    const badgeDept = document.getElementById('selectedAthleteDept');
+    const searchWrapper = document.getElementById('searchDropdownWrapper');
+    const syncBtn = document.getElementById('syncProfileBtn');
+    
+    // Hiển thị danh sách kết quả khi focus vào input tìm kiếm
+    searchInput.addEventListener('focus', () => {
+        filterAthletes();
+        resultsList.style.display = 'block';
+    });
+    
+    // Tự động đóng dropdown khi click ra ngoài
+    document.addEventListener('click', (e) => {
+        if (!searchWrapper.contains(e.target) && e.target !== searchInput) {
+            resultsList.style.display = 'none';
+        }
+    });
+    
+    // Tìm kiếm và lọc tên VĐV khi gõ
+    searchInput.addEventListener('input', filterAthletes);
+    
+    function filterAthletes() {
+        const query = searchInput.value.toLowerCase().trim();
+        const items = resultsList.getElementsByClassName('search-result-item');
+        let visibleCount = 0;
+        
+        for (let item of items) {
+            const name = item.getAttribute('data-name').toLowerCase();
+            const dept = item.getAttribute('data-dept').toLowerCase();
+            
+            if (name.includes(query) || dept.includes(query)) {
+                item.style.display = 'flex';
+                visibleCount++;
+            } else {
+                item.style.display = 'none';
+            }
+        }
+        
+        // Hiện dropdown nếu có kết quả lọc
+        resultsList.style.display = visibleCount > 0 ? 'block' : 'none';
+    }
+    
+    // Xử lý khi click chọn một VĐV từ danh sách
+    resultsList.addEventListener('click', (e) => {
+        const item = e.target.closest('.search-result-item');
+        if (!item) return;
+        
+        selectedAthleteId = item.getAttribute('data-id');
+        const name = item.getAttribute('data-name');
+        const dept = item.getAttribute('data-dept');
+        
+        // Cập nhật giao diện hiển thị VĐV đã chọn
+        badgeName.innerText = name;
+        badgeDept.innerText = dept;
+        badge.style.display = 'flex';
+        searchWrapper.style.display = 'none';
+        resultsList.style.display = 'none';
+        
+        // Kích hoạt nút Cập nhật
+        syncBtn.disabled = false;
+        syncBtn.classList.remove('btn-secondary');
+        syncBtn.classList.add('btn-primary');
+    });
+    
+    // Nút hủy chọn VĐV để chọn lại
+    document.getElementById('btnRemoveAthlete').addEventListener('click', () => {
+        selectedAthleteId = null;
+        badge.style.display = 'none';
+        searchWrapper.style.display = 'block';
+        searchInput.value = '';
+        searchInput.focus();
+        
+        // Vô hiệu hóa nút Cập nhật
+        syncBtn.disabled = true;
+        syncBtn.classList.remove('btn-primary');
+        syncBtn.classList.add('btn-secondary');
+    });
+    
+    // --- XỬ LÝ POST ĐỒNG BỘ AVATAR LÊN HỒ SƠ ---
+    syncBtn.addEventListener('click', () => {
+        if (!userImg) {
+            showAlert('danger', 'Vui lòng tải ảnh chân dung của bạn lên trước khi cập nhật hồ sơ.');
+            return;
+        }
+        if (!selectedAthleteId) {
+            showAlert('danger', 'Vui lòng tìm và chọn đúng họ tên của bạn trong danh sách trước.');
+            return;
+        }
+        
+        // Vô hiệu hoá nút trong quá trình xử lý gửi API
+        syncBtn.disabled = true;
+        syncBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang đồng bộ...';
+        
+        // Lấy ảnh dạng Base64 từ Canvas định dạng PNG nền trong suốt
+        const dataUrl = canvas.toDataURL('image/png');
+        
+        // Sử dụng Form Data gửi lên FastAPI
+        const formData = new FormData();
+        formData.append('athlete_id', selectedAthleteId);
+        formData.append('image_data', dataUrl);
+        
+        fetch('/api/avatar/sync-profile', {
+            method: 'POST',
+            body: formData
+        })
+        .then(res => {
+            if (!res.ok) {
+                console.error('Server error status:', res.status);
+            }
+            return res.json();
+        })
+        .then(data => {
+            if (data && data.status === 'success') {
+                showAlert('success', '🎉 Chúc mừng! Ảnh đại diện của bạn đã được cập nhật thành công lên Bảng xếp hạng và Trang cá nhân.');
+                // Cuộn trang lên đầu để xem thông báo thành công
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            } else {
+                let errorMsg = 'Không rõ lỗi.';
+                if (data) {
+                    if (data.message) {
+                        errorMsg = data.message;
+                    } else if (data.detail) {
+                        errorMsg = typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail);
+                    } else {
+                        errorMsg = JSON.stringify(data);
+                    }
+                }
+                showAlert('danger', 'Lỗi đồng bộ hồ sơ: ' + errorMsg);
+            }
+        })
+        .catch(err => {
+            console.error('Fetch error:', err);
+            showAlert('danger', 'Lỗi hệ thống khi gửi dữ liệu: ' + err.message);
+        })
+        .finally(() => {
+            syncBtn.disabled = false;
+            syncBtn.innerHTML = '<i class="fa-solid fa-arrows-spin"></i> Cập nhật vào hồ sơ giải chạy';
+        });
+    });
+    
+    // --- HÀM TIỆN ÍCH HIỂN THỊ ALERT THÔNG BÁO ---
+    function showAlert(type, message) {
+        const alertEl = document.getElementById('statusAlert');
+        alertEl.className = `alert alert-${type}`;
+        alertEl.innerHTML = `<i class="fa-solid ${type === 'success' ? 'fa-circle-check' : 'fa-triangle-exclamation'}"></i> <div>${message}</div>`;
+        alertEl.style.display = 'flex';
+        // Tự cuộn nhẹ đến thông báo nếu ở dưới
+        alertEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+    
+    // --- XỬ LÝ ĐỔI GIẢI ĐẤU ---
+    document.getElementById('eventSelect').addEventListener('change', function() {
+        window.location.href = '/avatar?event_id=' + this.value;
+    });
+</script>
+{% endblock %}

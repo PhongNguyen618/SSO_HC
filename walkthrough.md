@@ -224,3 +224,11 @@ Dự án là web app Strava SSO_HC dùng FastAPI, SQLAlchemy và SQLite. Giao di
   - **Tối ưu hóa logic dọn dẹp:** Điều chỉnh hàm `update_configs` (khối xử lý `banner_file`). Khi tải lên ảnh banner mới cho giải đấu được chọn (`target_event`), hệ thống truy vấn và xóa ảnh banner cũ của riêng giải đấu đó (`target_event.banner_image`) thay vì truy vấn khóa `"rules_banner_image"` và xóa nhầm ảnh banner mặc định chung của hệ thống.
   - **Fallback an toàn:** Chỉ thực hiện xóa ảnh banner chung trong bảng `Config` khi không cấu hình cho giải đấu cụ thể nào. Giúp việc dọn dẹp tài nguyên ảnh banner hoạt động chính xác và an toàn.
 - **Kết quả kiểm thử (`scratch/test_banner_isolation.py`):** Chạy và xác minh thành công 100% logic tải ảnh banner mới cho giải đấu, đảm bảo ảnh banner chung hệ thống được bảo tồn nguyên vẹn và ảnh banner cũ của giải đấu được dọn dẹp sạch sẽ khỏi đĩa cứng.
+
+### 9. Kích hoạt & Sửa lỗi tính năng tách nền ảnh chân dung bằng AI (rembg)
+- **Files sửa đổi:** [requirements.txt](file:///c:/Users/PC/Desktop/SSO_HC/requirements.txt)
+- **Chi tiết sửa đổi:**
+  - **Khắc phục lỗi thiếu backend:** Cài đặt package `rembg[cpu]` chứa đầy đủ môi trường runtime `onnxruntime` cho CPU. Trước đó, API `/api/avatar/remove-bg` bị lỗi 500 khi import `rembg` do hệ thống thiếu backend ONNX, dẫn tới frontend luôn kích hoạt fallback dùng ảnh gốc (chưa tách nền).
+  - **Khởi chạy lại server:** Restart uvicorn server ở cổng 8000 để nhận diện được các package mới trong virtual environment.
+  - **Tải model u2net tự động:** Ở lần đầu tiên API `/api/avatar/remove-bg` được gọi, server tự động tải model tách nền AI `u2net.onnx` (~170MB) về cache của máy chủ.
+- **Kết quả kiểm thử (`scratch/test_remove_bg_api.py`):** Viết script gửi request thực tế lên API `/api/avatar/remove-bg`. Kết quả trả về thành công (HTTP 200), ảnh tách nền được lưu thành công dưới dạng PNG trong suốt (RGBA, kích thước 832x1248) với dung lượng giảm từ 1.16MB xuống 802KB, kiểm chứng thuật toán AI hoạt động hoàn toàn chính xác.

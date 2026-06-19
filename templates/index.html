@@ -484,7 +484,14 @@
                                 </span>
                             </span>
                         </td>
-                        <td>
+                        <td style="display: flex; align-items: center; gap: 0.8rem;">
+                            {% if ath.avatar_url %}
+                            <img src="{{ ath.avatar_url }}" alt="{{ ath.full_name }}" style="width: 36px; height: 36px; border-radius: 50%; object-fit: cover; border: 1px solid var(--border-color);">
+                            {% else %}
+                            <div style="width: 36px; height: 36px; border-radius: 50%; background: var(--primary-gradient); display: flex; align-items: center; justify-content: center; color: var(--text-dark); font-weight: bold; font-size: 0.9rem;">
+                                {{ ath.full_name[:1] }}
+                            </div>
+                            {% endif %}
                             <a href="/profile/{{ ath.id }}" style="color: var(--text-main); text-decoration: none; font-weight: 600;" class="hover-underline">
                                 {{ ath.full_name }}
                             </a>

@@ -9,3 +9,5 @@ requests
 python-multipart
 python-docx
 python-dotenv
+rembg[cpu]
+
