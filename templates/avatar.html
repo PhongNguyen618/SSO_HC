@@ -563,6 +563,7 @@
     
     // ID vận động viên được chọn
     let bgColor = '#181528';
+    let isUserBgRemoved = false;
     let selectedAthleteId = null;
     
     // --- HÀM VẼ CANVAS CHÍNH ---
@@ -585,17 +586,33 @@
         if (userImg) {
             ctx.save();
             
-            // Cắt clipping path hình tròn chính xác bằng kích thước lỗ đục để bo tròn ảnh người dùng
-            // Điều này giống hệt Canva: ảnh được crop gọn lịm trong lỗ đục, không bao giờ bị tràn hay đè lên họa tiết của frame
-            const clipRadius = (canvas.width * holeScale) / 2;
-            ctx.beginPath();
-            ctx.arc(holeCenterX, holeCenterY, clipRadius, 0, Math.PI * 2);
-            ctx.clip();
-            
-            // Vẽ màu nền đã chọn ở lớp dưới cùng (đằng sau người VĐV)
-            if (bgColor && bgColor !== 'transparent') {
-                ctx.fillStyle = bgColor;
-                ctx.fill();
+            if (isUserBgRemoved) {
+                // NẾU ĐÃ TÁCH NỀN: Cắt clipping path theo vòng tròn ngoài cùng của avatar (bán kính canvas.width / 2)
+                // giúp ảnh chân dung tự do hiển thị trong lỗ đục (giống Canva) nhưng không bị tràn ra ngoài viền tròn avatar
+                const clipRadius = canvas.width / 2;
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, clipRadius, 0, Math.PI * 2);
+                ctx.clip();
+                
+                // Vẽ màu nền đã chọn đằng sau người (trong phạm vi lỗ đục nhỏ)
+                if (bgColor && bgColor !== 'transparent') {
+                    ctx.fillStyle = bgColor;
+                    ctx.beginPath();
+                    ctx.arc(holeCenterX, holeCenterY, (canvas.width * holeScale) / 2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            } else {
+                // NẾU CHƯA TÁCH NỀN: Bắt buộc clip tròn theo lỗ đục nhỏ để giấu nền ảnh gốc không bị tràn ra ngoài
+                const clipRadius = (canvas.width * holeScale) / 2;
+                ctx.beginPath();
+                ctx.arc(holeCenterX, holeCenterY, clipRadius, 0, Math.PI * 2);
+                ctx.clip();
+                
+                // Vẽ màu nền đã chọn ở lớp dưới cùng (đằng sau người VĐV)
+                if (bgColor && bgColor !== 'transparent') {
+                    ctx.fillStyle = bgColor;
+                    ctx.fill();
+                }
             }
             
             // Tịnh tiến tọa độ vẽ về tâm lỗ đục mới để áp dụng Xoay và Phóng to
@@ -753,6 +770,7 @@
     function loadUserImage(src, isBgRemoved) {
         userImg = new Image();
         userImg.onload = function() {
+            isUserBgRemoved = isBgRemoved;
             // Reset các thanh trượt và toạ độ khi tải ảnh mới
             scale = 1.0;
             rotation = 0;
