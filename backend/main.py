@@ -1852,7 +1852,6 @@ async def update_configs(
     rules_general_text: str = Form(...),
     banner_file: UploadFile = File(None),
     group_qr_file: UploadFile = File(None),
-    global_avatar_frame: UploadFile = File(None),  # Nhận file frame toàn cục
     rules_banner_mode: str = Form("version"),
     rules_banner_reset_days: str = Form("1"),
     apply_to_event_id: str = Form("active"),
@@ -1993,41 +1992,7 @@ async def update_configs(
                 if target_event:
                     target_event.rules_group_qr = f"/static/uploads/{filename}"
                     
-        # Xử lý upload Khung viền Avatar chung (Global Avatar Frame)
-        if global_avatar_frame and global_avatar_frame.filename:
-            ext = os.path.splitext(global_avatar_frame.filename)[1].lower()
-            if ext in [".png", ".jpg", ".jpeg", ".webp", ".gif"]:
-                filename = f"frame_{int(time.time())}{ext}"
-                upload_dir = "static/uploads"
-                os.makedirs(upload_dir, exist_ok=True)
-                file_path = os.path.join(upload_dir, filename)
-                
-                # Lưu file ảnh mới
-                with open(file_path, "wb") as f:
-                    content = await global_avatar_frame.read()
-                    f.write(content)
-                
-                # Xóa file cũ của global_avatar_frame nếu có
-                old_frame = db.query(Config).filter(Config.key == "global_avatar_frame").first()
-                if old_frame and old_frame.value:
-                    old_path = old_frame.value.lstrip("/")
-                    if os.path.exists(old_path) and "static/uploads/" in old_path:
-                        try:
-                            if old_path != "static/uploads/frame.png":
-                                os.remove(old_path)
-                        except Exception as ex:
-                            print(f"Error removing old global frame file: {ex}")
-                
-                # Lưu đường dẫn mới vào database
-                new_frame_url = f"/static/uploads/{filename}"
-                update_config(db, "global_avatar_frame", new_frame_url)
-                
-                # Để tương thích ngược tốt nhất, đồng thời copy/ghi đè file này vào static/uploads/frame.png
-                try:
-                    import shutil
-                    shutil.copyfile(file_path, "static/uploads/frame.png")
-                except Exception as ex:
-                    print(f"Error copying to default frame.png: {ex}")
+        pass
         
         # Cập nhật quy tắc gian lận
         update_config(db, "rule_run_pace_min", rule_run_pace_min)
@@ -2060,6 +2025,63 @@ async def update_configs(
         return RedirectResponse("/admin?success=Cap nhat cau hinh thanh cong#tab-config", status_code=303)
     except Exception as e:
         return RedirectResponse(f"/admin?error=Loi khi luu cau hinh: {str(e)}#tab-config", status_code=303)
+
+@app.post("/admin/config/avatar-frame")
+async def update_avatar_frame(
+    request: Request,
+    global_avatar_frame: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    """API upload khung viền avatar chung hệ thống (nằm trên Form độc lập)."""
+    admin_session = get_admin_session(request, db)
+    if not admin_session:
+        return RedirectResponse("/admin?error=Chua dang nhap", status_code=303)
+        
+    if not global_avatar_frame or not global_avatar_frame.filename:
+        return RedirectResponse("/admin?error=Vui long chon file khung vien#tab-config", status_code=303)
+        
+    try:
+        ext = os.path.splitext(global_avatar_frame.filename)[1].lower()
+        if ext not in [".png", ".jpg", ".jpeg", ".webp"]:
+            return RedirectResponse("/admin?error=Dinh dang anh khong hop le (ho tro PNG, JPG, WEBP)#tab-config", status_code=303)
+            
+        filename = f"frame_{int(time.time())}{ext}"
+        upload_dir = "static/uploads"
+        os.makedirs(upload_dir, exist_ok=True)
+        file_path = os.path.join(upload_dir, filename)
+        
+        # Lưu file ảnh mới
+        with open(file_path, "wb") as f:
+            content = await global_avatar_frame.read()
+            f.write(content)
+            
+        # Xóa file cũ của global_avatar_frame nếu có
+        old_frame = db.query(Config).filter(Config.key == "global_avatar_frame").first()
+        if old_frame and old_frame.value:
+            old_path = old_frame.value.lstrip("/")
+            if os.path.exists(old_path) and "static/uploads/" in old_path:
+                try:
+                    if old_path != "static/uploads/frame.png":
+                        os.remove(old_path)
+                except Exception as ex:
+                    print(f"Error removing old global frame file: {ex}")
+                    
+        new_frame_url = f"/static/uploads/{filename}"
+        update_config(db, "global_avatar_frame", new_frame_url)
+        
+        # Để tương thích ngược tốt nhất, đồng thời copy/ghi đè file này vào static/uploads/frame.png
+        try:
+            import shutil
+            shutil.copyfile(file_path, "static/uploads/frame.png")
+        except Exception as ex:
+            print(f"Error copying to default frame.png: {ex}")
+            
+        db.commit()
+        return RedirectResponse("/admin?success=Cap nhat khung vien avatar thanh cong#tab-config", status_code=303)
+    except Exception as e:
+        db.rollback()
+        print(f"Error updating avatar frame: {e}")
+        return RedirectResponse(f"/admin?error=Loi khi luu khung vien: {str(e)}#tab-config", status_code=303)
 
 @app.get("/admin/api/competition-rules/{event_id}")
 def api_get_competition_rules(event_id: str, request: Request, db: Session = Depends(get_db)):
