@@ -307,6 +307,69 @@
         width: 100%;
         box-sizing: border-box;
     }
+
+    /* CSS Switch Toggle Premium */
+    .switch-container {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: rgba(255, 255, 255, 0.01);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        padding: 0.75rem 1rem;
+        border-radius: 10px;
+        margin-top: 1rem;
+        transition: all 0.2s ease;
+    }
+    
+    .switch-container:hover {
+        background: rgba(255, 255, 255, 0.03);
+        border-color: rgba(0, 173, 181, 0.2);
+    }
+
+    .theme-switch {
+        display: inline-block;
+        height: 24px;
+        position: relative;
+        width: 48px;
+    }
+
+    .theme-switch input {
+        display: none;
+    }
+
+    .slider-toggle {
+        background-color: rgba(255, 255, 255, 0.1);
+        bottom: 0;
+        cursor: pointer;
+        left: 0;
+        position: absolute;
+        right: 0;
+        top: 0;
+        transition: .3s;
+        border-radius: 34px;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .slider-toggle:before {
+        background-color: #fff;
+        bottom: 3px;
+        content: "";
+        height: 16px;
+        left: 4px;
+        position: absolute;
+        transition: .3s;
+        width: 16px;
+        border-radius: 50%;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    }
+
+    input:checked + .slider-toggle {
+        background: linear-gradient(135deg, #00ADB5, #007580);
+    }
+
+    input:checked + .slider-toggle:before {
+        transform: translateX(22px);
+    }
 </style>
 {% endblock %}
 
@@ -358,6 +421,21 @@
                     <i class="fa-solid fa-image"></i>
                     <h4>Kéo thả ảnh vào đây</h4>
                     <p>Hoặc click để duyệt tìm ảnh từ thiết bị</p>
+                </div>
+
+                <!-- Switch chọn tách nền AI -->
+                <div class="switch-container">
+                    <div style="display: flex; align-items: center; gap: 0.8rem;">
+                        <i class="fa-solid fa-wand-magic-sparkles" style="color: #00ADB5; font-size: 1.1rem;"></i>
+                        <div style="display: flex; flex-direction: column; text-align: left;">
+                            <span style="font-size: 0.85rem; font-weight: 600;">Tự động tách nền bằng AI</span>
+                            <span style="font-size: 0.72rem; color: var(--text-muted);">Xóa phông cảnh phía sau (Khuyên dùng)</span>
+                        </div>
+                    </div>
+                    <label class="theme-switch" for="toggleRemoveBg">
+                        <input type="checkbox" id="toggleRemoveBg" checked>
+                        <span class="slider-toggle"></span>
+                    </label>
                 </div>
             </div>
             
@@ -478,6 +556,11 @@
     
     // Ảnh người dùng tải lên
     let userImg = null;
+    
+    // Lưu trữ ảnh gốc và ảnh đã tách nền để chuyển đổi qua lại nhanh chóng
+    let originalImageSrc = null;
+    let noBgImageSrc = null;
+    let currentImageFile = null;
     
     // Các tham số biến đổi ảnh của người dùng
     let scale = 1.0;
@@ -628,10 +711,33 @@
             return;
         }
         
-        // Hiển thị thông báo đang xử lý tách nền
+        currentImageFile = file;
+        originalImageSrc = null;
+        noBgImageSrc = null;
+        
+        // 1. Đọc file ảnh gốc dưới dạng DataURL để lưu trữ trước
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            originalImageSrc = e.target.result;
+            
+            // 2. Kiểm tra trạng thái của switch Tách nền AI
+            const isRemoveBgEnabled = document.getElementById('toggleRemoveBg').checked;
+            if (isRemoveBgEnabled) {
+                // Tiến hành gọi API xóa nền
+                removeBgAndLoad(file);
+            } else {
+                // Không tách nền -> Load trực tiếp ảnh gốc
+                showAlert('info', 'Đã tải ảnh gốc lên thành công (Không tách nền).');
+                loadUserImage(originalImageSrc, false);
+            }
+        };
+        reader.readAsDataURL(file);
+    }
+    
+    // Gọi API xóa nền và hiển thị kết quả
+    function removeBgAndLoad(file) {
         showAlert('info', '<i class="fa-solid fa-spinner fa-spin"></i> Đang tự động tách nền ảnh chân dung bằng AI, vui lòng đợi trong giây lát...');
         
-        // Gửi file ảnh lên backend để xóa nền
         const formData = new FormData();
         formData.append('file', file);
         
@@ -646,22 +752,46 @@
             return res.blob();
         })
         .then(blob => {
-            // Tách nền thành công, tạo URL blob của ảnh PNG trong suốt
-            const imageUrl = URL.createObjectURL(blob);
-            loadUserImage(imageUrl, true);
+            // Tách nền thành công, tạo URL blob ảnh PNG trong suốt
+            noBgImageSrc = URL.createObjectURL(blob);
+            
+            // Kiểm tra xem lúc load xong người dùng có tắt switch giữa chừng không
+            if (document.getElementById('toggleRemoveBg').checked) {
+                loadUserImage(noBgImageSrc, true);
+            } else {
+                if (originalImageSrc) {
+                    loadUserImage(originalImageSrc, false);
+                }
+            }
         })
         .catch(err => {
             console.error('Lỗi xóa nền:', err);
             // Fallback: Sử dụng ảnh gốc nếu xóa nền bị lỗi
             showAlert('warning', '<i class="fa-solid fa-triangle-exclamation"></i> Không thể tách nền tự động (Lỗi: ' + err.message + '). Hệ thống sẽ chuyển sang sử dụng ảnh gốc của bạn.');
-            
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                loadUserImage(e.target.result, false);
-            };
-            reader.readAsDataURL(file);
+            if (originalImageSrc) {
+                loadUserImage(originalImageSrc, false);
+            }
         });
     }
+    
+    // Đăng ký sự kiện thay đổi trạng thái Switch Tách nền
+    document.getElementById('toggleRemoveBg').addEventListener('change', function() {
+        if (!currentImageFile) return;
+        
+        if (this.checked) {
+            // Chuyển sang BẬT tách nền
+            if (noBgImageSrc) {
+                loadUserImage(noBgImageSrc, true);
+            } else {
+                removeBgAndLoad(currentImageFile);
+            }
+        } else {
+            // Chuyển sang TẮT tách nền -> Sử dụng ảnh gốc
+            if (originalImageSrc) {
+                loadUserImage(originalImageSrc, false);
+            }
+        }
+    });
     
     // Hàm phụ để load ảnh vào đối tượng userImg
     function loadUserImage(src, isBgRemoved) {
