@@ -54,15 +54,90 @@
     /* Hero Showcase Layout */
     .hero-showcase {
         margin-bottom: 2.5rem;
-        display: grid;
-        grid-template-columns: 2.2fr 1fr;
+        display: flex;
+        flex-direction: column;
         gap: 1.5rem;
     }
     
-    @media (max-width: 900px) {
-        .hero-showcase {
-            grid-template-columns: 1fr;
+    .main-hero-banner {
+        min-height: 340px !important;
+    }
+    
+    @media (max-width: 768px) {
+        .main-hero-banner {
+            min-height: 250px !important;
         }
+    }
+    
+    /* CSS cho Carousel Sự kiện Quá khứ */
+    .carousel-wrapper::before,
+    .carousel-wrapper::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 30px;
+        z-index: 5;
+        pointer-events: none;
+        transition: opacity 0.3s ease;
+    }
+    .carousel-wrapper::before {
+        left: 0;
+        background: linear-gradient(to right, rgba(9, 6, 21, 0.9) 0%, rgba(9, 6, 21, 0) 100%);
+    }
+    .carousel-wrapper::after {
+        right: 0;
+        background: linear-gradient(to left, rgba(9, 6, 21, 0.9) 0%, rgba(9, 6, 21, 0) 100%);
+    }
+    .archived-event-card {
+        flex: 0 0 280px;
+        display: flex;
+        flex-direction: column;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid var(--border-color);
+        overflow: hidden;
+        text-decoration: none;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+    }
+    .archived-event-card:hover {
+        transform: translateY(-4px);
+        border-color: rgba(143, 205, 240, 0.3) !important;
+        box-shadow: 0 8px 25px rgba(143, 205, 240, 0.1) !important;
+    }
+    .archived-event-card:hover img {
+        transform: scale(1.04);
+    }
+    .carousel-nav-btn {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: rgba(10, 8, 20, 0.85);
+        border: 1px solid var(--border-color);
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    .carousel-nav-btn:hover {
+        background: var(--color-primary) !important;
+        color: #0a0814 !important;
+        border-color: var(--color-primary) !important;
+        box-shadow: 0 0 15px rgba(143, 205, 240, 0.4);
+    }
+    /* Ẩn scrollbar nhưng vẫn cho cuộn */
+    #pastEventsCarousel::-webkit-scrollbar {
+        height: 4px;
+    }
+    #pastEventsCarousel::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 4px;
+    }
+    #pastEventsCarousel::-webkit-scrollbar-thumb:hover {
+        background: rgba(255, 255, 255, 0.25);
     }
     
     .archived-event-item:hover {
@@ -171,30 +246,45 @@
         </div>
     </div>
 
-    <!-- Banner phụ (Các giải đấu quá khứ) -->
+    <!-- Banner phụ (Các giải đấu quá khứ - Carousel trượt ngang bên dưới) -->
+    {% if archived_events %}
     <div class="glass-card" style="margin-bottom: 0; padding: 1.5rem; display: flex; flex-direction: column;">
         <h4 style="font-family: 'Outfit', sans-serif; font-size: 1.1rem; color: var(--color-secondary); margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; display: flex; align-items: center; gap: 0.4rem;">
             <i class="fa-solid fa-history"></i> Sự Kiện Lịch Sử
         </h4>
-        <div style="flex: 1; display: flex; flex-direction: column; gap: 0.8rem; overflow-y: auto; max-height: 210px; padding-right: 0.3rem;" class="custom-scroll">
-            {% if archived_events %}
+        <div class="carousel-wrapper" style="position: relative; overflow: hidden; padding: 0.2rem 0;">
+            <!-- Nút Trượt Trái -->
+            <button class="carousel-nav-btn prev" onclick="scrollCarousel(-1)" style="position: absolute; left: 8px; top: 50%; transform: translateY(-50%); z-index: 10; display: none;">
+                <i class="fa-solid fa-chevron-left"></i>
+            </button>
+            
+            <!-- Khối Carousel chứa các card trượt ngang -->
+            <div id="pastEventsCarousel" style="display: flex; gap: 1.2rem; overflow-x: auto; scroll-behavior: smooth; padding: 0.4rem 0.5rem 0.6rem; -webkit-overflow-scrolling: touch;">
                 {% for ev in archived_events %}
-                <a href="/event/{{ ev.id }}" class="archived-event-item" style="display: flex; gap: 0.8rem; padding: 0.6rem; border-radius: 8px; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); cursor: pointer; transition: all 0.2s ease; text-decoration: none; align-items: center;">
-                    <img src="{{ ev.banner_image or '/branding/LOGO_A2.png' }}" alt="Event Banner" style="width: 70px; height: 50px; object-fit: cover; border-radius: 6px; border: 1px solid rgba(255,255,255,0.05);">
-                    <div style="flex: 1; display: flex; flex-direction: column; justify-content: center; min-width: 0;">
-                        <span style="font-size: 0.7rem; color: var(--color-primary); font-weight: 600; text-transform: uppercase;">GIẢI QUÁ KHỨ</span>
-                        <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block;" title="{{ ev.title }}">{{ ev.title }}</span>
+                <a href="/event/{{ ev.id }}" class="archived-event-card">
+                    <div style="position: relative; height: 110px; width: 100%; overflow: hidden; border-radius: 8px 8px 0 0;">
+                        <img src="{{ ev.banner_image or '/branding/LOGO_A2.png' }}" alt="Event Banner" style="width: 100%; height: 100%; object-fit: cover; transition: transform 0.3s ease; border-radius: 8px 8px 0 0;">
+                        <div style="position: absolute; top: 8px; left: 8px; background: rgba(10, 8, 20, 0.75); color: var(--text-muted); font-size: 0.65rem; padding: 0.2rem 0.5rem; border-radius: 20px; font-weight: 600; text-transform: uppercase; border: 1px solid rgba(255,255,255,0.1);">
+                            Đã kết thúc
+                        </div>
+                    </div>
+                    <div style="padding: 0.8rem; display: flex; flex-direction: column; gap: 0.3rem; justify-content: space-between; flex: 1;">
+                        <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-main); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: normal;" title="{{ ev.title }}">{{ ev.title }}</span>
+                        {% if ev.summary_text %}
+                        <p style="font-size: 0.72rem; color: var(--text-muted); margin: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.4; white-space: normal;">{{ ev.summary_text }}</p>
+                        {% endif %}
                     </div>
                 </a>
                 {% endfor %}
-            {% else %}
-                <div style="text-align: center; color: var(--text-muted); font-size: 0.85rem; padding: 2.5rem 0; flex: 1; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 0.5rem;">
-                    <i class="fa-solid fa-calendar-xmark" style="font-size: 1.5rem;"></i>
-                    Chưa có sự kiện cũ
-                </div>
-            {% endif %}
+            </div>
+            
+            <!-- Nút Trượt Phải -->
+            <button class="carousel-nav-btn next" onclick="scrollCarousel(1)" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); z-index: 10; display: none;">
+                <i class="fa-solid fa-chevron-right"></i>
+            </button>
         </div>
     </div>
+    {% endif %}
 </div>
 
 <!-- Search Box -->
@@ -594,6 +684,42 @@
 <!-- Chart.js CDN -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
+    // --- PAST EVENTS CAROUSEL SCROLLING LOGIC ---
+    function scrollCarousel(direction) {
+        const carousel = document.getElementById('pastEventsCarousel');
+        if (carousel) {
+            carousel.scrollBy({ left: direction * 300, behavior: 'smooth' });
+        }
+    }
+    
+    function checkCarouselScroll() {
+        const carousel = document.getElementById('pastEventsCarousel');
+        const prevBtn = document.querySelector('.carousel-nav-btn.prev');
+        const nextBtn = document.querySelector('.carousel-nav-btn.next');
+        if (carousel && prevBtn && nextBtn) {
+            const scrollLeft = carousel.scrollLeft;
+            const maxScrollLeft = carousel.scrollWidth - carousel.clientWidth;
+            
+            if (carousel.scrollWidth <= carousel.clientWidth) {
+                prevBtn.style.display = 'none';
+                nextBtn.style.display = 'none';
+                return;
+            }
+            
+            prevBtn.style.display = scrollLeft > 5 ? 'flex' : 'none';
+            nextBtn.style.display = scrollLeft < maxScrollLeft - 5 ? 'flex' : 'none';
+        }
+    }
+    
+    window.addEventListener('DOMContentLoaded', () => {
+        const carousel = document.getElementById('pastEventsCarousel');
+        if (carousel) {
+            carousel.addEventListener('scroll', checkCarouselScroll);
+            setTimeout(checkCarouselScroll, 300);
+            window.addEventListener('resize', checkCarouselScroll);
+        }
+    });
+
     // --- SEARCH AUTOCOMPLETE LOGIC ---
     const athletes = [
         {% for a in all_athletes %}
