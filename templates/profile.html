@@ -181,7 +181,7 @@
 <!-- Profile Header -->
 <div class="profile-header">
     {% if athlete.avatar_url %}
-    <img src="{{ athlete.avatar_url }}" alt="{{ athlete.full_name }}" class="profile-avatar" style="object-fit: cover; border: 2px solid var(--border-focus);">
+    <img src="{{ athlete.avatar_url }}" alt="{{ athlete.full_name }}" class="profile-avatar athlete-avatar-img" style="object-fit: cover; border: 2px solid var(--border-focus);">
     {% else %}
     <div class="profile-avatar">
         {{ athlete.full_name[:1] }}

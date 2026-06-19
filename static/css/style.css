@@ -607,6 +607,9 @@ h1, h2, h3, h4, h5, h6 {
     font-size: 2.2rem;
     color: var(--text-dark);
 }
+.athlete-avatar-img {
+    background: radial-gradient(circle, rgba(143, 205, 240, 0.2) 0%, rgba(24, 20, 42, 0.9) 80%), #110e20;
+}
 .profile-meta h2 {
     font-size: 2rem;
 }
