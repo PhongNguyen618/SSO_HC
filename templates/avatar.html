@@ -505,23 +505,18 @@
         const centerX = canvas.width / 2;
         const centerY = canvas.height / 2;
         
-        // 2. Vẽ khung viền (Frame) NGUYÊN BẢN làm lớp nền dưới cùng — KHÔNG đục lỗ
-        if (frameImg.complete) {
-            ctx.drawImage(frameImg, 0, 0, canvas.width, canvas.height);
-        }
-        
-        // 3. Vẽ ảnh người dùng (đã tách nền trong suốt) ĐÈ LÊN TRÊN frame
-        // Vì ảnh đã tách nền nên chỉ có phần người hiện lên,
-        // phần trong suốt sẽ tự động để lộ nền frame bên dưới → tự khớp màu
+        // 2. Vẽ ảnh người dùng (avatar) ở lớp dưới trước
         if (userImg) {
-            ctx.save();
+            ctx.save(); // [1] Lưu trạng thái để clip tròn
             
-            // Clip theo vòng tròn ngoài cùng để ảnh không tràn ra ngoài canvas
-            const clipRadius = canvas.width / 2;
+            // Cắt ảnh theo hình tròn trong lòng khung viền (chiếm khoảng 97% đường kính canvas)
+            // Bán kính clip = 0.485 * canvas.width giúp mép ảnh ẩn hoàn hảo bên dưới viền ngoài
+            const clipRadius = canvas.width * 0.485;
             ctx.beginPath();
             ctx.arc(centerX, centerY, clipRadius, 0, Math.PI * 2);
             ctx.clip();
             
+            ctx.save(); // [2] Lưu trạng thái để dịch chuyển/xoay/lật ảnh
             // Tịnh tiến tọa độ vẽ về tâm để áp dụng Xoay và Phóng to
             ctx.translate(centerX + offsetX, centerY + offsetY);
             ctx.rotate((rotation * Math.PI) / 180);
@@ -535,17 +530,14 @@
             ctx.filter = `brightness(${brightness}%) contrast(${contrast}%)`;
             
             // Tính toán kích thước hiển thị ảnh
-            // Sử dụng mặc định đường kính vẽ bằng 70% kích thước canvas (840px) làm chuẩn ban đầu
             const drawDiameter = canvas.width * 0.7;
             let drawWidth, drawHeight;
             const imgRatio = userImg.width / userImg.height;
             
             if (userImg.width > userImg.height) {
-                // Ảnh ngang
                 drawHeight = drawDiameter * scale;
                 drawWidth = drawHeight * imgRatio;
             } else {
-                // Ảnh dọc hoặc vuông
                 drawWidth = drawDiameter * scale;
                 drawHeight = drawWidth / imgRatio;
             }
@@ -557,11 +549,30 @@
                 drawWidth, drawHeight
             );
             
-            ctx.restore();
-            // Reset filter về mặc định
+            ctx.restore(); // [2] Khôi phục trạng thái translate, quay lại hệ tọa độ chuẩn nhưng vẫn giữ clip
             ctx.filter = 'none';
-        } else {
-            // Nếu chưa có ảnh, vẽ dòng chữ hướng dẫn ở giữa
+            
+            // Vẽ hiệu ứng bóng mờ viền trong (Inner Shadow) dọc theo mép cắt để tạo độ sâu "chìm dưới khung viền"
+            ctx.save(); // [3] Lưu trạng thái để vẽ bóng đổ
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, clipRadius + 5, 0, Math.PI * 2); // Vẽ rộng hơn clip 5px để bóng đổ hướng vào trong
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.45)';
+            ctx.lineWidth = 12;
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+            ctx.stroke();
+            ctx.restore(); // [3] Khôi phục trạng thái vẽ bóng đổ
+            
+            ctx.restore(); // [1] Giải phóng clip tròn
+        }
+        
+        // 3. Vẽ khung viền (Frame) ĐÈ LÊN PHÍA TRÊN CÙNG
+        if (frameImg.complete) {
+            ctx.drawImage(frameImg, 0, 0, canvas.width, canvas.height);
+        }
+        
+        // 4. Nếu chưa có ảnh người dùng, vẽ thông báo hướng dẫn đè lên trên cùng để dễ đọc
+        if (!userImg) {
             ctx.save();
             ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
             ctx.beginPath();
