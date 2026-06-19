@@ -2088,7 +2088,7 @@ async def update_avatar_frame(
             from PIL import Image
             img = Image.open(BytesIO(content))
             # Tự động đục lỗ tròn ở giữa nếu tâm ảnh không trong suốt
-            processed_img = duc_lo_frame_neu_duc(img, scale=0.85)
+            processed_img = duc_lo_frame_neu_duc(img, scale=0.72)
             
             out_buf = BytesIO()
             processed_img.save(out_buf, format="PNG")
