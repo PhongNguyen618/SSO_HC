@@ -199,3 +199,14 @@ Dự án là web app Strava SSO_HC dùng FastAPI, SQLAlchemy và SQLite. Giao di
     - Chỉ hiển thị nút điều hướng tương ứng với hướng có thể cuộn khi người dùng hover chuột vào vùng Carousel trên máy tính.
     - Tự động ẩn hoàn toàn các nút điều hướng trên thiết bị di động để nhường không gian cho thao tác vuốt chạm.
 - **Kết quả kiểm thử (`scratch/test_render_index.py`):** Kiểm thử render trang chủ tích hợp DB thực tế chạy thành công 100%, xác nhận không có lỗi cú pháp và các cấu trúc HTML/JS của Carousel hoạt động ổn định.
+
+### 6. Sửa lỗi mã QR nhóm Strava (Group QR) không cập nhật riêng theo giải đấu
+- **Files sửa đổi:** [database.py](file:///c:/Users/PC/Desktop/SSO_HC/backend/database.py) & [main.py](file:///c:/Users/PC/Desktop/SSO_HC/backend/main.py)
+- **Chi tiết sửa đổi:**
+  - **Database Schema:** Bổ sung cột `rules_group_qr` (String, nullable=True) vào model `CompetitionEvent`. Lập trình logic di trú cột tự động trong hàm `init_db()` để chạy câu lệnh `ALTER TABLE` thêm cột này vào SQLite DB thực tế một cách an toàn mà không ảnh hưởng tới dữ liệu cũ.
+  - **Cập nhật dữ liệu (POST `/admin/config`):** Khi Admin thay đổi hoặc upload ảnh QR code nhóm, hệ thống kiểm tra và lưu đường dẫn ảnh QR mới vào `target_event.rules_group_qr` của giải đấu đang cấu hình (đồng thời vẫn lưu bản sao vào cấu hình chung `Config` để làm giá trị mặc định). Tích hợp logic tự động xóa tệp tin ảnh QR cũ của giải đấu đó trên đĩa cứng để tránh rác dung lượng.
+  - **API lấy dữ liệu (GET `/admin/api/competition-rules/{event_id}`):** Trả về chính xác mã QR nhóm riêng biệt của giải đấu cụ thể (`comp.rules_group_qr`) hoặc fallback về cấu hình mặc định nếu giải đấu chưa có QR riêng.
+  - **Đồng bộ hóa giao diện trang chủ và quy chế:**
+    - Nạp đúng mã QR nhóm riêng biệt của giải đấu đang diễn ra (`active_event.rules_group_qr`) trong configs của trang chủ (`/`).
+    - Nạp đúng mã QR nhóm riêng biệt của giải đấu được chọn (`selected_event.rules_group_qr`) trong configs của trang quy chế (`/rules`).
+- **Kết quả kiểm thử (`scratch/test_rules_group_qr.py`):** Chạy và xác minh thành công 100% logic di trú, cô lập QR code theo giải đấu qua API và xóa dọn dẹp file cũ trên đĩa cứng.

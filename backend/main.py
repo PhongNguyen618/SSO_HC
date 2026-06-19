@@ -410,6 +410,8 @@ def index(
             configs["rules_general_text"] = active_event.rules_general_text
         if active_event.banner_image:
             configs["rules_banner_image"] = active_event.banner_image
+        if active_event.rules_group_qr:
+            configs["rules_group_qr"] = active_event.rules_group_qr
             
     import hashlib
     r_ver = configs.get("rules_version", "1.0")
@@ -731,6 +733,8 @@ def rules_page(
             configs["rules_banner_image"] = selected_event.banner_image
         if selected_event.strava_club_id:
             configs["strava_club_id"] = selected_event.strava_club_id
+        if selected_event.rules_group_qr:
+            configs["rules_group_qr"] = selected_event.rules_group_qr
             
     selected_event_id = selected_event.id if selected_event else None
     
@@ -1789,18 +1793,28 @@ async def update_configs(
                     content = await group_qr_file.read()
                     f.write(content)
                 
-                # Xóa file cũ để giải phóng dung lượng
-                old_qr = db.query(Config).filter(Config.key == "rules_group_qr").first()
-                if old_qr and old_qr.value:
-                    old_path = old_qr.value.lstrip("/")
+                # Xóa file cũ của target_event (nếu có) hoặc config chung để giải phóng dung lượng
+                if target_event and target_event.rules_group_qr:
+                    old_path = target_event.rules_group_qr.lstrip("/")
                     if os.path.exists(old_path) and "static/uploads/" in old_path:
                         try:
                             os.remove(old_path)
                         except Exception as ex:
-                            print(f"Error removing old QR file: {ex}")
+                            print(f"Error removing old event QR file: {ex}")
+                else:
+                    old_qr = db.query(Config).filter(Config.key == "rules_group_qr").first()
+                    if old_qr and old_qr.value:
+                        old_path = old_qr.value.lstrip("/")
+                        if os.path.exists(old_path) and "static/uploads/" in old_path:
+                            try:
+                                os.remove(old_path)
+                            except Exception as ex:
+                                print(f"Error removing old QR file: {ex}")
                 
                 # Lưu đường dẫn vào database
                 update_config(db, "rules_group_qr", f"/static/uploads/{filename}")
+                if target_event:
+                    target_event.rules_group_qr = f"/static/uploads/{filename}"
         
         # Cập nhật quy tắc gian lận
         update_config(db, "rule_run_pace_min", rule_run_pace_min)
@@ -1845,6 +1859,16 @@ def api_get_competition_rules(event_id: str, request: Request, db: Session = Dep
     
     # Nếu là giải đấu mặc định (đang hoạt động) hoặc "active"
     if event_id == "active":
+        # Ưu tiên lấy QR code từ giải đấu đang hoạt động
+        active_event = db.query(CompetitionEvent).filter(
+            CompetitionEvent.is_active == True,
+            CompetitionEvent.id != 1
+        ).order_by(CompetitionEvent.id.desc()).first()
+        
+        group_qr = configs.get("rules_group_qr", "")
+        if active_event and active_event.rules_group_qr:
+            group_qr = active_event.rules_group_qr
+            
         return JSONResponse(content={
             "title": configs.get("rules_title", ""),
             "rules_description": configs.get("rules_description", ""),
@@ -1854,7 +1878,7 @@ def api_get_competition_rules(event_id: str, request: Request, db: Session = Dep
             "rules_version": configs.get("rules_version", ""),
             "rules_banner_mode": configs.get("rules_banner_mode", "version"),
             "rules_banner_reset_days": configs.get("rules_banner_reset_days", "1"),
-            "rules_group_qr": configs.get("rules_group_qr", "")
+            "rules_group_qr": group_qr
         })
         
     try:
@@ -1872,7 +1896,7 @@ def api_get_competition_rules(event_id: str, request: Request, db: Session = Dep
             "rules_version": configs.get("rules_version", ""),
             "rules_banner_mode": configs.get("rules_banner_mode", "version"),
             "rules_banner_reset_days": configs.get("rules_banner_reset_days", "1"),
-            "rules_group_qr": configs.get("rules_group_qr", "")
+            "rules_group_qr": comp.rules_group_qr or configs.get("rules_group_qr", "")
         })
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})

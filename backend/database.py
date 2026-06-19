@@ -91,6 +91,7 @@ class CompetitionEvent(Base):
     department_members = Column(String, nullable=True) # Cấu hình sĩ số phòng ban dạng JSON string
     ranking_metric = Column(String, default="kcal", nullable=True) # "kcal" hoặc "distance"
     ranking_sports = Column(String, default="All", nullable=True) # Mặc định là tất cả bộ môn "All"
+    rules_group_qr = Column(String, nullable=True) # Đường dẫn QR code group Strava riêng của giải đấu
 
     activities = relationship("Activity", back_populates="event", cascade="all, delete-orphan")
 
@@ -255,6 +256,11 @@ def init_db(excel_filepath: str = "TDTT_SSO.xlsx"):
         print("Database Migration: Adding ranking_sports column to competition_events...")
         with engine.connect() as conn:
             conn.execute(text("ALTER TABLE competition_events ADD COLUMN ranking_sports VARCHAR DEFAULT 'All'"))
+            conn.commit()
+    if 'rules_group_qr' not in comp_columns:
+        print("Database Migration: Adding rules_group_qr column to competition_events...")
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE competition_events ADD COLUMN rules_group_qr VARCHAR"))
             conn.commit()
 
     # Phục hồi các giải đấu đang bị giới hạn về 4 môn mặc định hoặc NULL/rỗng trở lại thành 'All' để tính calo cho tất cả các môn như ban đầu
