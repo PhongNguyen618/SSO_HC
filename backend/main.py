@@ -1763,15 +1763,23 @@ async def update_configs(
                     content = await banner_file.read()
                     f.write(content)
                 
-                # Xóa file ảnh banner cũ để giải phóng dung lượng
-                old_banner = db.query(Config).filter(Config.key == "rules_banner_image").first()
-                if old_banner and old_banner.value:
-                    old_path = old_banner.value.lstrip("/")
+                # Xóa file cũ của target_event (nếu có) hoặc config chung để giải phóng dung lượng
+                if target_event and target_event.banner_image:
+                    old_path = target_event.banner_image.lstrip("/")
                     if os.path.exists(old_path) and "static/uploads/" in old_path:
                         try:
                             os.remove(old_path)
                         except Exception as ex:
-                            print(f"Error removing old banner file: {ex}")
+                            print(f"Error removing old event banner file: {ex}")
+                else:
+                    old_banner = db.query(Config).filter(Config.key == "rules_banner_image").first()
+                    if old_banner and old_banner.value:
+                        old_path = old_banner.value.lstrip("/")
+                        if os.path.exists(old_path) and "static/uploads/" in old_path:
+                            try:
+                                os.remove(old_path)
+                            except Exception as ex:
+                                print(f"Error removing old banner file: {ex}")
                 
                 # Lưu đường dẫn vào database
                 update_config(db, "rules_banner_image", f"/static/uploads/{filename}")

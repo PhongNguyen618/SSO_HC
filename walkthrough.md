@@ -217,3 +217,10 @@ Dự án là web app Strava SSO_HC dùng FastAPI, SQLAlchemy và SQLite. Giao di
   - **Tách biệt cấu hình:** Loại bỏ hoàn toàn logic tự động gán đè `target_event.strava_club_id = club_id_extracted` trong route POST `/admin/config` (`update_configs`).
   - **Giữ nguyên cấu hình cũ:** Việc lưu cài đặt API Strava chung giờ đây chỉ cập nhật vào bảng cấu hình hệ thống `Config`, tuyệt đối không tự ý ghi đè ID club của giải đấu đang được chọn cập nhật quy chế. Cấu hình ID club riêng của từng giải đấu được bảo toàn và chỉ được sửa đổi độc lập tại tab **Quản Lý Giải Đấu** (form Thêm/Sửa giải đấu) theo đúng luồng thiết kế.
 - **Kết quả kiểm thử (`scratch/test_club_id_isolation.py`):** Chạy và xác minh thành công 100% việc cập nhật cấu hình chung, đảm bảo ID club riêng của giải đấu cũ được cô lập và không bị ghi đè chéo khi thay đổi văn bản quy chế.
+
+### 8. Sửa lỗi xóa nhầm ảnh Banner mặc định của hệ thống khi cập nhật giải đấu cụ thể
+- **File sửa đổi:** [main.py](file:///c:/Users/PC/Desktop/SSO_HC/backend/main.py)
+- **Chi tiết sửa đổi:**
+  - **Tối ưu hóa logic dọn dẹp:** Điều chỉnh hàm `update_configs` (khối xử lý `banner_file`). Khi tải lên ảnh banner mới cho giải đấu được chọn (`target_event`), hệ thống truy vấn và xóa ảnh banner cũ của riêng giải đấu đó (`target_event.banner_image`) thay vì truy vấn khóa `"rules_banner_image"` và xóa nhầm ảnh banner mặc định chung của hệ thống.
+  - **Fallback an toàn:** Chỉ thực hiện xóa ảnh banner chung trong bảng `Config` khi không cấu hình cho giải đấu cụ thể nào. Giúp việc dọn dẹp tài nguyên ảnh banner hoạt động chính xác và an toàn.
+- **Kết quả kiểm thử (`scratch/test_banner_isolation.py`):** Chạy và xác minh thành công 100% logic tải ảnh banner mới cho giải đấu, đảm bảo ảnh banner chung hệ thống được bảo tồn nguyên vẹn và ảnh banner cũ của giải đấu được dọn dẹp sạch sẽ khỏi đĩa cứng.
