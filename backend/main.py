@@ -1726,8 +1726,7 @@ async def update_configs(
         update_config(db, "strava_client_secret", strava_client_secret)
         update_config(db, "strava_club_id", club_id_extracted)
         
-        if target_event:
-            target_event.strava_club_id = club_id_extracted
+        
         
         # Nếu thay đổi tần suất đồng bộ, cần cập nhật lại Scheduler
         old_interval = db.query(Config).filter(Config.key == "sync_interval_hours").first()

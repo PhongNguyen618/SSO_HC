@@ -210,3 +210,10 @@ Dự án là web app Strava SSO_HC dùng FastAPI, SQLAlchemy và SQLite. Giao di
     - Nạp đúng mã QR nhóm riêng biệt của giải đấu đang diễn ra (`active_event.rules_group_qr`) trong configs của trang chủ (`/`).
     - Nạp đúng mã QR nhóm riêng biệt của giải đấu được chọn (`selected_event.rules_group_qr`) trong configs của trang quy chế (`/rules`).
 - **Kết quả kiểm thử (`scratch/test_rules_group_qr.py`):** Chạy và xác minh thành công 100% logic di trú, cô lập QR code theo giải đấu qua API và xóa dọn dẹp file cũ trên đĩa cứng.
+
+### 7. Sửa lỗi ID Club của các giải đấu bị ghi đè lẫn nhau khi lưu Quy chế
+- **File sửa đổi:** [main.py](file:///c:/Users/PC/Desktop/SSO_HC/backend/main.py)
+- **Chi tiết sửa đổi:**
+  - **Tách biệt cấu hình:** Loại bỏ hoàn toàn logic tự động gán đè `target_event.strava_club_id = club_id_extracted` trong route POST `/admin/config` (`update_configs`).
+  - **Giữ nguyên cấu hình cũ:** Việc lưu cài đặt API Strava chung giờ đây chỉ cập nhật vào bảng cấu hình hệ thống `Config`, tuyệt đối không tự ý ghi đè ID club của giải đấu đang được chọn cập nhật quy chế. Cấu hình ID club riêng của từng giải đấu được bảo toàn và chỉ được sửa đổi độc lập tại tab **Quản Lý Giải Đấu** (form Thêm/Sửa giải đấu) theo đúng luồng thiết kế.
+- **Kết quả kiểm thử (`scratch/test_club_id_isolation.py`):** Chạy và xác minh thành công 100% việc cập nhật cấu hình chung, đảm bảo ID club riêng của giải đấu cũ được cô lập và không bị ghi đè chéo khi thay đổi văn bản quy chế.
