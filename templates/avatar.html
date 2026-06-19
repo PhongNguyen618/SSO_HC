@@ -443,6 +443,25 @@
                 </div>
             </div>
             
+            <!-- BỘ CHỌN MÀU NỀN AVATAR (BACKGROUND SELECTOR) -->
+            <div class="glass-card" style="margin: 0; padding: 1.2rem; background: rgba(255,255,255,0.01);">
+                <h3 style="font-size: 1.05rem; margin-bottom: 0.8rem; font-family: 'Outfit', sans-serif; display: flex; align-items: center; gap: 0.5rem; color: var(--color-primary);">
+                    <i class="fa-solid fa-palette"></i> Màu Nền Phía Sau (Khi Tách Nền)
+                </h3>
+                <p style="color: var(--text-muted); font-size: 0.78rem; margin-top: -0.4rem; margin-bottom: 1rem; line-height: 1.3;">
+                    Tự động đồng bộ màu nền sau lưng bạn để hòa quyện hoàn hảo với màu sắc chủ đạo của khung viền.
+                </p>
+                <div style="display: flex; gap: 0.8rem; align-items: center; flex-wrap: wrap;" id="bgSelectorContainer">
+                    <button class="bg-color-swatch active" data-color="#181528" style="background: #181528; width: 32px; height: 32px; border-radius: 50%; border: 2px solid #ffffff; cursor: pointer; transition: transform 0.2s; box-shadow: 0 0 10px rgba(143, 205, 240, 0.5); transform: scale(1.1);" title="Màu tối mặc định (#181528)"></button>
+                    <button class="bg-color-swatch" data-color="#110e20" style="background: #110e20; width: 32px; height: 32px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.2); cursor: pointer; transition: transform 0.2s;" title="Màu tím tối web (#110e20)"></button>
+                    <button class="bg-color-swatch" data-color="#0a2e5c" style="background: #0a2e5c; width: 32px; height: 32px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.2); cursor: pointer; transition: transform 0.2s;" title="Xanh đậm (#0a2e5c)"></button>
+                    <button class="bg-color-swatch" data-color="#4a0e17" style="background: #4a0e17; width: 32px; height: 32px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.2); cursor: pointer; transition: transform 0.2s;" title="Đỏ đậm (#4a0e17)"></button>
+                    <button class="bg-color-swatch" data-color="#0e3a1f" style="background: #0e3a1f; width: 32px; height: 32px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.2); cursor: pointer; transition: transform 0.2s;" title="Xanh lá tối (#0e3a1f)"></button>
+                    <button class="bg-color-swatch" data-color="#ffffff" style="background: #ffffff; width: 32px; height: 32px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.2); cursor: pointer; transition: transform 0.2s;" title="Màu trắng (#ffffff)"></button>
+                    <button class="bg-color-swatch" data-color="transparent" style="background: linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(-45deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(-45deg, transparent 75%, #ccc 75%); background-size: 8px 8px; background-color: #eee; width: 32px; height: 32px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.2); cursor: pointer; transition: transform 0.2s;" title="Trong suốt (Transparent)"></button>
+                </div>
+            </div>
+            
             <!-- BƯỚC 2: TẢI VỀ HOẶC CẬP NHẬT HỒ SƠ -->
             <div class="glass-card" style="margin: 0; padding: 1.5rem; background: rgba(255,255,255,0.01);">
                 <h3 style="font-size: 1.1rem; margin-bottom: 1rem; font-family: 'Outfit', sans-serif;">
@@ -543,6 +562,7 @@
     let startY = 0;
     
     // ID vận động viên được chọn
+    let bgColor = '#181528';
     let selectedAthleteId = null;
     
     // --- HÀM VẼ CANVAS CHÍNH ---
@@ -571,6 +591,12 @@
             ctx.beginPath();
             ctx.arc(holeCenterX, holeCenterY, clipRadius, 0, Math.PI * 2);
             ctx.clip();
+            
+            // Vẽ màu nền đã chọn ở lớp dưới cùng (đằng sau người VĐV)
+            if (bgColor && bgColor !== 'transparent') {
+                ctx.fillStyle = bgColor;
+                ctx.fill();
+            }
             
             // Tịnh tiến tọa độ vẽ về tâm lỗ đục mới để áp dụng Xoay và Phóng to
             ctx.translate(holeCenterX + offsetX, holeCenterY + offsetY);
@@ -921,6 +947,27 @@
         document.body.removeChild(link);
         
         showAlert('success', 'Đã xuất và tải ảnh ghép chất lượng cao về máy của bạn!');
+    });
+    
+    // --- XỬ LÝ SỰ KIỆN CHỌN MÀU NỀN ---
+    const swatches = document.querySelectorAll('.bg-color-swatch');
+    swatches.forEach(swatch => {
+        swatch.addEventListener('click', () => {
+            swatches.forEach(s => {
+                s.classList.remove('active');
+                s.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+                s.style.transform = 'none';
+                s.style.boxShadow = 'none';
+            });
+            
+            swatch.classList.add('active');
+            swatch.style.borderColor = '#ffffff';
+            swatch.style.transform = 'scale(1.1)';
+            swatch.style.boxShadow = '0 0 10px rgba(143, 205, 240, 0.5)';
+            
+            bgColor = swatch.getAttribute('data-color');
+            drawCanvas();
+        });
     });
     
     // --- XỬ LÝ SEARCHABLE SELECT DROP-DOWN VĐV ---
