@@ -321,24 +321,7 @@
     
     <div id="statusAlert" style="display: none;"></div>
     
-    <!-- LỰA CHỌN GIẢI ĐẤU -->
-    <div class="glass-card" style="margin: 0 0 2rem 0; padding: 1.2rem; background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-color);">
-        <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
-            <label style="font-weight: 600; font-size: 0.95rem; color: var(--color-primary); white-space: nowrap; margin: 0; display: flex; align-items: center; gap: 0.5rem;">
-                <i class="fa-solid fa-image"></i> CHỌN KHUNG VIỀN:
-            </label>
-            <select id="eventSelect" class="form-control" style="max-width: 400px; background: rgba(10, 8, 20, 0.8); cursor: pointer; border-radius: 8px; border: 1px solid var(--border-color); color: var(--text-color); padding: 0.4rem 0.8rem; font-family: inherit;">
-                {% for comp in active_competitions %}
-                <option value="{{ comp.id }}" {% if selected_event and selected_event.id == comp.id %}selected{% endif %}>
-                    {{ comp.title }}
-                </option>
-                {% endfor %}
-            </select>
-            <small style="color: var(--text-muted); font-size: 0.85rem;">
-                <i class="fa-solid fa-circle-info"></i> Chọn giải chạy để tải đúng khung viền. Avatar của bạn là duy nhất, dùng chung cho mọi giải.
-            </small>
-        </div>
-    </div>
+
     
     <div class="avatar-container">
         <!-- CỘT 1: EDITOR PREVIEW BÊN TRÁI (STICKY) -->
@@ -1017,9 +1000,6 @@
         alertEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
     
-    // --- XỬ LÝ ĐỔI GIẢI ĐẤU ---
-    document.getElementById('eventSelect').addEventListener('change', function() {
-        window.location.href = '/avatar?event_id=' + this.value;
-    });
+
 </script>
 {% endblock %}

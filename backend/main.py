@@ -811,26 +811,6 @@ def get_avatar_page(
     """Trang giao dien ghep frame avatar cho VDVs."""
     configs = get_config_dict(db)
     
-    # Lấy danh sách các giải đấu đang hoạt động để hiển thị trong dropdown
-    active_competitions = db.query(CompetitionEvent).filter(CompetitionEvent.is_active == True).order_by(CompetitionEvent.id.desc()).all()
-    
-    # Logic xác định giải đấu được chọn (mặc định là giải chạy ưu tiên)
-    selected_event = None
-    if event_id:
-        selected_event = db.query(CompetitionEvent).filter(CompetitionEvent.id == event_id).first()
-        
-    if not selected_event and active_competitions:
-        # Ưu tiên các giải chạy active khác giải trường kỳ (id != 1)
-        new_active = [c for c in active_competitions if c.id != 1]
-        if new_active:
-            selected_event = new_active[0] # Lấy giải mới nhất (ID lớn nhất)
-        else:
-            selected_event = active_competitions[0]
-            
-    if not selected_event:
-        # Fallback về giải đấu mới nhất trong toàn bộ DB nếu không có giải nào active
-        selected_event = db.query(CompetitionEvent).order_by(CompetitionEvent.id.desc()).first()
-        
     # Xác định đường dẫn khung viền avatar toàn cục
     global_frame = configs.get("global_avatar_frame")
     avatar_frame_url = "/static/uploads/frame.png"
@@ -855,8 +835,6 @@ def get_avatar_page(
             "request": request,
             "configs": configs,
             "all_athletes": all_athletes,
-            "active_competitions": active_competitions,
-            "selected_event": selected_event,
             "avatar_frame_url": avatar_frame_url
         }
     )
