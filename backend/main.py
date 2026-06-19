@@ -2055,6 +2055,7 @@ async def update_avatar_frame(
     request: Request,
     global_avatar_frame: UploadFile = File(...),
     frame_remove_bg: str = Form("false"),
+    frame_scale: float = Form(0.65),
     db: Session = Depends(get_db)
 ):
     """API upload khung viền avatar chung hệ thống (nằm trên Form độc lập)."""
@@ -2088,7 +2089,7 @@ async def update_avatar_frame(
             from PIL import Image
             img = Image.open(BytesIO(content))
             # Tự động đục lỗ tròn ở giữa nếu tâm ảnh không trong suốt
-            processed_img = duc_lo_frame_neu_duc(img, scale=0.72)
+            processed_img = duc_lo_frame_neu_duc(img, scale=frame_scale)
             
             out_buf = BytesIO()
             processed_img.save(out_buf, format="PNG")
