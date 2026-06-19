@@ -3227,16 +3227,18 @@ async def admin_add_event(
         if gallery_files:
             if not isinstance(gallery_files, list):
                 gallery_files = [gallery_files]
+            import random
             idx = 0
             for g_file in gallery_files:
                 if g_file.filename:
                     ext = os.path.splitext(g_file.filename)[1].lower()
                     if ext in [".png", ".jpg", ".jpeg", ".webp", ".gif"]:
-                        filename = f"event_gal_{int(time.time())}_{idx}{ext}"
+                        filename = f"event_gal_{int(time.time())}_{random.randint(100, 999)}_{idx}{ext}"
                         upload_dir = "static/uploads"
+                        os.makedirs(upload_dir, exist_ok=True)
                         file_path = os.path.join(upload_dir, filename)
+                        content = await g_file.read()
                         with open(file_path, "wb") as f:
-                            content = await g_file.read()
                             f.write(content)
                         gallery_paths.append(f"/static/uploads/{filename}")
                         idx += 1
@@ -3368,8 +3370,8 @@ async def admin_edit_event(
                         upload_dir = "static/uploads"
                         os.makedirs(upload_dir, exist_ok=True)
                         file_path = os.path.join(upload_dir, filename)
+                        content = await g_file.read()
                         with open(file_path, "wb") as f:
-                            content = await g_file.read()
                             f.write(content)
                         new_gallery_paths.append(f"/static/uploads/{filename}")
                         idx += 1
