@@ -554,8 +554,9 @@
 
     <!-- TAB: QUẢN LÝ THÀNH VIÊN -->
     <div id="tab-athletes" class="tab-pane">
-        <!-- Add New Athlete Form -->
-        <div class="glass-card" style="background: rgba(255,255,255,0.01);">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 1.5rem; margin-bottom: 1.5rem;">
+            <!-- Add New Athlete Form -->
+            <div class="glass-card" style="background: rgba(255,255,255,0.01); margin-bottom: 0;">
             <h3 class="admin-section-title">Thêm Thành Viên Mới Thủ Công</h3>
             <form action="/admin/athlete/add" method="POST" style="margin-top: 1rem;">
                 <div class="form-row">
@@ -604,6 +605,42 @@
                 </button>
             </form>
         </div>
+        
+        <!-- Bulk Update Department Form -->
+        <div class="glass-card" style="background: rgba(255,255,255,0.01); margin-bottom: 0; display: flex; flex-direction: column; justify-content: space-between;">
+            <div>
+                <h3 class="admin-section-title">Chuyển Phòng Ban Hàng Loạt</h3>
+                <p style="color: var(--text-muted); font-size: 0.82rem; margin-top: -0.5rem; margin-bottom: 1rem; line-height: 1.4;">
+                    {% if selected_event_id %}
+                        <i class="fa-solid fa-triangle-exclamation" style="color: var(--color-orange);"></i> Bạn đang lọc theo giải đấu cụ thể. Thao tác này <strong>chỉ áp dụng</strong> cho các thành viên đăng ký tham gia giải đấu hiện tại.
+                    {% else %}
+                        <i class="fa-solid fa-circle-xmark" style="color: #f44336;"></i> <strong style="color: #f44336;">Chức năng đang khóa:</strong> Vui lòng chọn một giải đấu cụ thể ở danh sách VĐV bên dưới để mở khóa chức năng này (tránh nhầm lẫn giữa các giải đấu).
+                    {% endif %}
+                </p>
+                <form action="/admin/athlete/bulk-update-department" method="POST">
+                    <input type="hidden" name="event_id" value="{{ selected_event_id or '' }}">
+                    <div class="form-row" style="gap: 1rem;">
+                        <div class="form-group" style="flex: 1;">
+                            <label for="bulk_old_dept">Chọn phòng ban cũ cần chuyển</label>
+                            <select id="bulk_old_dept" name="old_department" class="form-control" required style="height: 38px;" {% if not selected_event_id %}disabled{% endif %}>
+                                <option value="" disabled selected>-- Chọn phòng ban cũ --</option>
+                                {% for dept in departments %}
+                                <option value="{{ dept }}">{{ dept }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group" style="flex: 1;">
+                            <label for="bulk_new_dept">Nhập tên phòng ban mới</label>
+                            <input type="text" id="bulk_new_dept" name="new_department" list="dept-list" class="form-control" placeholder="Ví dụ: Phòng Marketing" required autocomplete="off" style="height: 38px;" {% if not selected_event_id %}disabled{% endif %}>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-secondary btn-sm" style="margin-top: 1.5rem; background: {% if selected_event_id %}rgba(0, 188, 212, 0.1){% else %}rgba(255, 255, 255, 0.05){% endif %}; color: {% if selected_event_id %}#00bcd4{% else %}var(--text-muted){% endif %}; border-color: {% if selected_event_id %}rgba(0, 188, 212, 0.2){% else %}rgba(255, 255, 255, 0.08){% endif %}; width: 100%; display: flex; align-items: center; justify-content: center; gap: 0.5rem;" {% if not selected_event_id %}disabled{% endif %} onclick="return confirm('Xác nhận: Bạn có chắc chắn muốn chuyển toàn bộ thành viên thuộc phòng ban đã chọn trong giải đấu hiện tại?')">
+                        <i class="fa-solid fa-arrows-spin"></i> Thực Hiện Chuyển Đổi Hàng Loạt
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
 
         <!-- Athletes List Table -->
         <div class="glass-card" style="background: rgba(255,255,255,0.01);">

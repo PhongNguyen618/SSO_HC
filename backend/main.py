@@ -2131,6 +2131,59 @@ def admin_delete_athlete(
         db.rollback()
         return RedirectResponse(f"/admin?error=Loi khi xoa: {str(e)}&event_id={event_id or ''}#tab-athletes", status_code=303)
 
+@app.post("/admin/athlete/bulk-update-department")
+def bulk_update_department(
+    request: Request,
+    old_department: str = Form(...),
+    new_department: str = Form(...),
+    event_id: Optional[str] = Form(None),
+    db: Session = Depends(get_db)
+):
+    admin = get_admin_session(request, db)
+    if not admin:
+        return RedirectResponse("/admin?error=Chua dang nhap", status_code=303)
+        
+    old_dept = old_department.strip()
+    new_dept = new_department.strip()
+    
+    if not old_dept or not new_dept:
+        return RedirectResponse(f"/admin?error=Phòng ban cũ và mới không được trống&event_id={event_id or ''}#tab-athletes", status_code=303)
+        
+    try:
+        query = db.query(Athlete)
+        
+        target_event_id = None
+        if event_id and event_id.strip():
+            try:
+                target_event_id = int(event_id.strip())
+            except ValueError:
+                pass
+                
+        if not target_event_id:
+            return RedirectResponse(f"/admin?error=Vui lòng chọn một giải đấu cụ thể để thực hiện chuyển phòng ban hàng loạt nhằm tránh ảnh hưởng đến các giải đấu khác&event_id={event_id or ''}#tab-athletes", status_code=303)
+            
+        # Lọc chính xác VĐV thuộc giải đấu và phòng ban được chọn
+        athletes = query.join(
+            CompetitionRegistration,
+            Athlete.id == CompetitionRegistration.athlete_id
+        ).filter(
+            CompetitionRegistration.event_id == target_event_id,
+            Athlete.department == old_dept
+        ).all()
+            
+        count = 0
+        for ath in athletes:
+            ath.department = new_dept
+            count += 1
+            
+        db.commit()
+        
+        event_info = f"trong giải đấu hiện tại" if target_event_id else "trên toàn hệ thống"
+        return RedirectResponse(f"/admin?success=Đã chuyển thành công {count} thành viên {event_info} từ phòng ban '{old_dept}' sang '{new_dept}'&event_id={event_id or ''}#tab-athletes", status_code=303)
+    except Exception as e:
+        db.rollback()
+        return RedirectResponse(f"/admin?error=Lỗi chuyển phòng ban hàng loạt: {str(e)}&event_id={event_id or ''}#tab-athletes", status_code=303)
+
 # --- QUẢN LÝ METS & GIẢI THƯỞNG TRÊN ADMIN ---
 
 from typing import Optional
