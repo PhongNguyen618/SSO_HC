@@ -861,15 +861,10 @@ def get_avatar_page(
         if os.path.exists("static/uploads/frame.png"):
             avatar_frame_url = f"/static/uploads/frame.png?t={int(time.time())}"
             
-    # Lấy danh sách VĐV đã đăng ký tham gia giải chạy được chọn để gán avatar đúng giải đấu
-    all_athletes = []
-    if selected_event:
-        all_athletes = db.query(Athlete).join(
-            CompetitionRegistration, Athlete.id == CompetitionRegistration.athlete_id
-        ).filter(
-            Athlete.is_active == True,
-            CompetitionRegistration.event_id == selected_event.id
-        ).order_by(Athlete.full_name).all()
+    # Lấy toàn bộ VĐV đang hoạt động (avatar là duy nhất cho mỗi người, không phụ thuộc giải đấu)
+    all_athletes = db.query(Athlete).filter(
+        Athlete.is_active == True
+    ).order_by(Athlete.full_name).all()
     
     return templates.TemplateResponse(
         request=request,

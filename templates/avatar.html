@@ -325,7 +325,7 @@
     <div class="glass-card" style="margin: 0 0 2rem 0; padding: 1.2rem; background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-color);">
         <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
             <label style="font-weight: 600; font-size: 0.95rem; color: var(--color-primary); white-space: nowrap; margin: 0; display: flex; align-items: center; gap: 0.5rem;">
-                <i class="fa-solid fa-trophy"></i> ĐANG GHÉP CHO GIẢI CHẠY:
+                <i class="fa-solid fa-image"></i> CHỌN KHUNG VIỀN:
             </label>
             <select id="eventSelect" class="form-control" style="max-width: 400px; background: rgba(10, 8, 20, 0.8); cursor: pointer; border-radius: 8px; border: 1px solid var(--border-color); color: var(--text-color); padding: 0.4rem 0.8rem; font-family: inherit;">
                 {% for comp in active_competitions %}
@@ -335,7 +335,7 @@
                 {% endfor %}
             </select>
             <small style="color: var(--text-muted); font-size: 0.85rem;">
-                <i class="fa-solid fa-circle-info"></i> Hãy chọn đúng giải chạy bạn tham gia để tải đúng khung viền và đồng bộ avatar phù hợp.
+                <i class="fa-solid fa-circle-info"></i> Chọn giải chạy để tải đúng khung viền. Avatar của bạn là duy nhất, dùng chung cho mọi giải.
             </small>
         </div>
     </div>
@@ -457,7 +457,7 @@
                     <!-- Form đồng bộ hồ sơ VĐV -->
                     <div id="athleteSelectSection" style="display: flex; flex-direction: column; gap: 0.8rem;">
                         <label style="font-size: 0.9rem; color: var(--text-muted); font-weight: 500;">
-                            Chọn tên của bạn trong danh sách giải chạy:
+                            Tìm và chọn tên của bạn:
                         </label>
                         
                         <!-- Badge hiển thị VĐV đã chọn -->
