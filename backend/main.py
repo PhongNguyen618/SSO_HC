@@ -3225,6 +3225,8 @@ async def admin_add_event(
         # 2. Lưu album ảnh gallery
         gallery_paths = []
         if gallery_files:
+            if not isinstance(gallery_files, list):
+                gallery_files = [gallery_files]
             idx = 0
             for g_file in gallery_files:
                 if g_file.filename:
@@ -3354,6 +3356,8 @@ async def admin_edit_event(
         # Upload các ảnh gallery mới
         new_gallery_paths = []
         if gallery_files:
+            if not isinstance(gallery_files, list):
+                gallery_files = [gallery_files]
             import random
             idx = 0
             for g_file in gallery_files:
