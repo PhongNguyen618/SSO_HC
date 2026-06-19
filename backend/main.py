@@ -63,10 +63,34 @@ def clean_name(name: str) -> str:
 
 def duc_lo_frame_neu_duc(frame_image, scale=0.72):
     """
-    Trả về nguyên bản ảnh gốc để client-side tự động đục lỗ động.
-    Điều này giúp tránh làm biến dạng hoặc giảm chất lượng thiết kế ban đầu của admin.
+    Tự động đục lỗ tròn ở giữa nếu ảnh khung viền là ảnh đặc (chưa có lỗ trong suốt ở tâm).
+    Nếu ảnh đã được đục lỗ sẵn (điểm ở tâm đã trong suốt), giữ nguyên để tránh làm hỏng thiết kế.
     """
-    return frame_image
+    try:
+        from PIL import Image, ImageDraw
+        img = frame_image.convert("RGBA")
+        width, height = img.size
+        
+        # Kiểm tra pixel ở chính tâm
+        center_pixel = img.getpixel((width // 2, height // 2))
+        # Nếu alpha = 0, tức là tâm đã trong suốt (đã được đục lỗ sẵn), trả về ảnh gốc
+        if center_pixel[3] == 0:
+            return frame_image
+            
+        # Ngược lại, tiến hành đục lỗ hình tròn ở tâm
+        empty = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+        mask = Image.new("L", (width, height), 0)
+        draw = ImageDraw.Draw(mask)
+        
+        r = int((min(width, height) * scale) / 2)
+        center_x, center_y = width // 2, height // 2
+        draw.ellipse((center_x - r, center_y - r, center_x + r, center_y + r), fill=255)
+        
+        img.paste(empty, (0, 0), mask=mask)
+        return img
+    except Exception as e:
+        print(f"Error in duc_lo_frame_neu_duc: {e}")
+        return frame_image
 
 def tao_frame_mau_neu_thieu(path_frame, size=1000):
     """
@@ -2049,16 +2073,29 @@ async def update_avatar_frame(
         # Đọc nội dung file ảnh tải lên
         content = await global_avatar_frame.read()
         
-        # Nếu được yêu cầu tự động tách nền / đục lỗ khung viền bằng AI
+        # Nếu được yêu cầu tự động tách nền bằng AI (rìa ngoài)
         if frame_remove_bg in ["on", "true"]:
             try:
                 from rembg import remove
                 content = remove(content)
-                # Tách nền bằng rembg luôn xuất ra ảnh PNG trong suốt
                 ext = ".png"
             except Exception as rembg_ex:
                 print(f"Error removing bg for frame: {rembg_ex}")
-                # Nếu lỗi AI, tiếp tục dùng file gốc
+                
+        # Luôn tự động đục lỗ lòng trong nếu ảnh bị đặc ở tâm để VĐV không bị che mất avatar
+        try:
+            from io import BytesIO
+            from PIL import Image
+            img = Image.open(BytesIO(content))
+            # Tự động đục lỗ tròn ở giữa nếu tâm ảnh không trong suốt
+            processed_img = duc_lo_frame_neu_duc(img, scale=0.85)
+            
+            out_buf = BytesIO()
+            processed_img.save(out_buf, format="PNG")
+            content = out_buf.getvalue()
+            ext = ".png" # Chuyển sang định dạng PNG để hỗ trợ kênh trong suốt
+        except Exception as img_ex:
+            print(f"Error checking/punching hole for global frame: {img_ex}")
                 
         filename = f"frame_{int(time.time())}{ext}"
         upload_dir = "static/uploads"
