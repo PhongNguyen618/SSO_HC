@@ -245,4 +245,15 @@ Dự án là web app Strava SSO_HC dùng FastAPI, SQLAlchemy và SQLite. Giao di
     - **Backend (`backend/main.py`):** Nhận các tham số `frame_scale`, `frame_offset_x`, `frame_offset_y` từ form và truyền vào hàm `duc_lo_frame_neu_duc` để xử lý đục lỗ linh hoạt theo kích thước và vị trí lệch tâm mong muốn của admin.
 - **Kết quả kiểm thử:**
   - Chạy script kiểm thử [test_upload_avatar_frame.py](file:///C:/Users/PC/.gemini/antigravity/brain/bd264055-d159-48f2-b24a-882bf20c1d44/scratch/test_upload_avatar_frame.py) thành công. File ảnh thật `frame.png` được đục lỗ và tách nền hoàn hảo với tỉ lệ `0.65`, lệch ngang `2.5%` và lệch dọc `-1.5%`, dung lượng giảm từ 329KB xuống 297KB.
-  - Kiểm tra pixel tâm ảnh và rìa ảnh bằng PIL trả về độ trong suốt hoàn hảo `(0, 0, 0, 0)` (alpha = 0), khắc phục triệt để lỗi ảnh khung viền đè mất chân dung VĐV.
+  - Kiểm tra pixel tâm ảnh và rìa ảnh bằng PIL trả về độ trong suốt hoàn hảo `(0, 0, 0, 0)` (alpha = 0), khắc phục triệt để lỗi ảnh khung viền đè mất chân dung VĐV.
+
+### 11. Tích hợp thanh trượt tịnh tiến X, Y và đồng bộ hai chiều trên giao diện Ghép Avatar VĐV
+- **File sửa đổi:** [templates/avatar.html](file:///c:/Users/PC/Desktop/SSO_HC/templates/avatar.html)
+- **Chi tiết sửa đổi:**
+  - **Bổ sung UI thanh trượt (Slider):** Thêm hai thanh trượt điều khiển **Dịch ngang (X Offset)** và **Dịch dọc (Y Offset)** vào Panel điều chỉnh ảnh chân dung (khoảng giá trị từ `-600px` đến `600px`, tương ứng với kích thước canvas thực tế `1200x1200px`, giá trị bước nhảy `1px`).
+  - **Cơ chế tương tác đồng bộ hai chiều (2-Way Sync):**
+    - *Chiều xuôi (Slider -> Canvas):* Khi người dùng kéo thanh trượt X hoặc Y, giá trị `offsetX` và `offsetY` của ảnh được cập nhật tương ứng và vẽ lại tức thì trên canvas.
+    - *Chiều ngược (Canvas -> Slider):* Khi người dùng dùng chuột hoặc ngón tay chạm kéo thả (drag) ảnh trực tiếp trên canvas, các thanh trượt X, Y tự động di chuyển theo vị trí tay kéo của người dùng, đảm bảo thông số trên bảng điều khiển luôn hiển thị chuẩn xác và nhất quán.
+  - **Khởi tạo và Reset:** Tích hợp logic reset giá trị của hai thanh trượt X, Y mới về `0` (và nhãn hiển thị về `0px`) khi tải ảnh mới lên hoặc khi nhấn nút **Reset (Đặt lại)**.
+- **Kết quả kiểm thử:**
+  - Chạy script kiểm thử [test_avatar_render.py](file:///C:/Users/PC/.gemini/antigravity/brain/bd264055-d159-48f2-b24a-882bf20c1d44/scratch/test_avatar_render.py) thành công 100%, không phát sinh bất kỳ lỗi cú pháp HTML/JS nào. Giao diện hoạt động trơn tru.

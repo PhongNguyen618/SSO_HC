@@ -465,6 +465,22 @@
 
                 <div class="control-group">
                     <div class="control-label">
+                        <span><i class="fa-solid fa-arrows-left-right"></i> Dịch ngang (X Offset)</span>
+                        <span id="offsetXVal">0px</span>
+                    </div>
+                    <input type="range" id="offsetXSlider" class="slider-input" min="-600" max="600" step="1" value="0">
+                </div>
+
+                <div class="control-group">
+                    <div class="control-label">
+                        <span><i class="fa-solid fa-arrows-up-down"></i> Dịch dọc (Y Offset)</span>
+                        <span id="offsetYVal">0px</span>
+                    </div>
+                    <input type="range" id="offsetYSlider" class="slider-input" min="-600" max="600" step="1" value="0">
+                </div>
+
+                <div class="control-group">
+                    <div class="control-label">
                         <span><i class="fa-solid fa-sun"></i> Độ sáng (Brightness)</span>
                         <span id="brightnessVal">100%</span>
                     </div>
@@ -811,6 +827,10 @@
             document.getElementById('zoomVal').innerText = '1.00x';
             document.getElementById('rotateSlider').value = 0;
             document.getElementById('rotateVal').innerText = '0°';
+            document.getElementById('offsetXSlider').value = 0;
+            document.getElementById('offsetXVal').innerText = '0px';
+            document.getElementById('offsetYSlider').value = 0;
+            document.getElementById('offsetYVal').innerText = '0px';
             document.getElementById('brightnessSlider').value = 100;
             document.getElementById('brightnessVal').innerText = '100%';
             document.getElementById('contrastSlider').value = 100;
@@ -853,6 +873,22 @@
         drawCanvas();
     });
 
+    const offsetXSlider = document.getElementById('offsetXSlider');
+    offsetXSlider.addEventListener('input', (e) => {
+        if (!userImg) return;
+        offsetX = parseInt(e.target.value);
+        document.getElementById('offsetXVal').innerText = offsetX + 'px';
+        drawCanvas();
+    });
+
+    const offsetYSlider = document.getElementById('offsetYSlider');
+    offsetYSlider.addEventListener('input', (e) => {
+        if (!userImg) return;
+        offsetY = parseInt(e.target.value);
+        document.getElementById('offsetYVal').innerText = offsetY + 'px';
+        drawCanvas();
+    });
+
     // --- NÚT HÀNH ĐỘNG NHANH ---
     // Nút Lật ảnh
     document.getElementById('flipBtn').addEventListener('click', () => {
@@ -880,6 +916,10 @@
         document.getElementById('zoomVal').innerText = '1.00x';
         document.getElementById('rotateSlider').value = 0;
         document.getElementById('rotateVal').innerText = '0°';
+        document.getElementById('offsetXSlider').value = 0;
+        document.getElementById('offsetXVal').innerText = '0px';
+        document.getElementById('offsetYSlider').value = 0;
+        document.getElementById('offsetYVal').innerText = '0px';
         document.getElementById('brightnessSlider').value = 100;
         document.getElementById('brightnessVal').innerText = '100%';
         document.getElementById('contrastSlider').value = 100;
@@ -917,6 +957,23 @@
         const coords = getEventCoords(e);
         offsetX = coords.x - startX;
         offsetY = coords.y - startY;
+        
+        // Giới hạn giá trị trong khoảng slider để hiển thị đồng bộ
+        offsetX = Math.max(-600, Math.min(600, offsetX));
+        offsetY = Math.max(-600, Math.min(600, offsetY));
+        
+        // Đồng bộ ngược lên giao diện slider
+        const oxSlider = document.getElementById('offsetXSlider');
+        if (oxSlider) {
+            oxSlider.value = Math.round(offsetX);
+            document.getElementById('offsetXVal').innerText = Math.round(offsetX) + 'px';
+        }
+        const oySlider = document.getElementById('offsetYSlider');
+        if (oySlider) {
+            oySlider.value = Math.round(offsetY);
+            document.getElementById('offsetYVal').innerText = Math.round(offsetY) + 'px';
+        }
+        
         drawCanvas();
         e.preventDefault();
     }
