@@ -139,6 +139,8 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
                 act_time_str = start_date_local[11:16]  # Định dạng HH:MM
         else:
             act_date_str = today_str
+            # Tự động áp giờ chạy mặc định là giờ local hiện tại (GMT+7)
+            act_time_str = (datetime.utcnow() + timedelta(hours=7)).strftime("%H:%M")
 
         # Tạo mã định danh duy nhất bao gồm event_id và ngày hoạt động thực tế để chống trùng lặp
         unique_str = f"{athlete_name_raw}_{act_date_str}_{name}_{act_type}_{distance_km}_{moving_time_min}_{elapsed_time_min}_{elevation_gain_m}_{event_id}"
