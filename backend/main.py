@@ -852,6 +852,20 @@ def get_avatar_page(
             
     # Thêm timestamp để tránh cache ảnh cũ của trình duyệt
     avatar_frame_url = f"{avatar_frame_url}?t={int(time.time())}"
+    
+    # Lấy đường dẫn khung viền raw chưa đục lỗ
+    global_frame_raw = configs.get("global_avatar_frame_raw")
+    avatar_frame_raw_url = "/static/uploads/frame_raw.png"
+    
+    if global_frame_raw:
+        clean_path_raw = global_frame_raw.lstrip("/")
+        if os.path.exists(clean_path_raw):
+            avatar_frame_raw_url = global_frame_raw
+    else:
+        # Fallback dùng global_frame đã đục lỗ nếu không có file raw
+        avatar_frame_raw_url = global_frame if global_frame else "/static/uploads/frame.png"
+        
+    avatar_frame_raw_url = f"{avatar_frame_raw_url}?t={int(time.time())}"
             
     # Lấy toàn bộ VĐV đang hoạt động (avatar là duy nhất cho mỗi người, không phụ thuộc giải đấu)
     all_athletes = db.query(Athlete).filter(
@@ -865,7 +879,8 @@ def get_avatar_page(
             "request": request,
             "configs": configs,
             "all_athletes": all_athletes,
-            "avatar_frame_url": avatar_frame_url
+            "avatar_frame_url": avatar_frame_url,
+            "avatar_frame_raw_url": avatar_frame_raw_url
         }
     )
 
@@ -2061,9 +2076,6 @@ async def update_avatar_frame(
     request: Request,
     global_avatar_frame: UploadFile = File(...),
     frame_remove_bg: str = Form("false"),
-    frame_scale: float = Form(0.65),
-    frame_offset_x: float = Form(0.0),
-    frame_offset_y: float = Form(0.0),
     db: Session = Depends(get_db)
 ):
     """API upload khung viền avatar chung hệ thống (nằm trên Form độc lập)."""
@@ -2091,36 +2103,63 @@ async def update_avatar_frame(
             except Exception as rembg_ex:
                 print(f"Error removing bg for frame: {rembg_ex}")
                 
-        # Luôn tự động đục lỗ lòng trong nếu ảnh bị đặc ở tâm để VĐV không bị che mất avatar
+        # 1. Lưu file ảnh gốc chưa đục lỗ lòng trong (Raw) trước để dùng cho đục lỗ động ở client
+        timestamp = int(time.time())
+        filename_raw = f"frame_raw_{timestamp}{ext}"
+        upload_dir = "static/uploads"
+        os.makedirs(upload_dir, exist_ok=True)
+        file_path_raw = os.path.join(upload_dir, filename_raw)
+        
+        with open(file_path_raw, "wb") as f:
+            f.write(content)
+            
+        # Xóa file raw cũ nếu có
+        old_frame_raw = db.query(Config).filter(Config.key == "global_avatar_frame_raw").first()
+        if old_frame_raw and old_frame_raw.value:
+            old_path_raw = old_frame_raw.value.lstrip("/")
+            if os.path.exists(old_path_raw) and "static/uploads/" in old_path_raw:
+                try:
+                    if old_path_raw != "static/uploads/frame_raw.png":
+                        os.remove(old_path_raw)
+                except Exception as ex:
+                    print(f"Error removing old global raw frame file: {ex}")
+                    
+        new_frame_raw_url = f"/static/uploads/{filename_raw}"
+        update_config(db, "global_avatar_frame_raw", new_frame_raw_url)
+        
+        # Đồng thời copy đè vào static/uploads/frame_raw.png làm mặc định
+        try:
+            import shutil
+            shutil.copyfile(file_path_raw, "static/uploads/frame_raw.png")
+        except Exception as ex:
+            print(f"Error copying to default frame_raw.png: {ex}")
+
+        # 2. Đục lỗ lòng trong tĩnh mặc định (scale=0.65) làm fallback tương thích ngược
+        content_punched = content
         try:
             from io import BytesIO
             from PIL import Image
             img = Image.open(BytesIO(content))
-            # Tự động đục lỗ tròn ở vị trí tùy chỉnh nếu tâm ảnh không trong suốt
             processed_img = duc_lo_frame_neu_duc(
                 img, 
-                scale=frame_scale, 
-                offset_x=frame_offset_x / 100.0, 
-                offset_y=frame_offset_y / 100.0
+                scale=0.65, 
+                offset_x=0.0, 
+                offset_y=0.0
             )
-            
             out_buf = BytesIO()
             processed_img.save(out_buf, format="PNG")
-            content = out_buf.getvalue()
-            ext = ".png" # Chuyển sang định dạng PNG để hỗ trợ kênh trong suốt
+            content_punched = out_buf.getvalue()
+            ext = ".png" # Định dạng PNG hỗ trợ kênh trong suốt
         except Exception as img_ex:
-            print(f"Error checking/punching hole for global frame: {img_ex}")
-                
-        filename = f"frame_{int(time.time())}{ext}"
-        upload_dir = "static/uploads"
-        os.makedirs(upload_dir, exist_ok=True)
-        file_path = os.path.join(upload_dir, filename)
-        
-        # Lưu file ảnh mới
-        with open(file_path, "wb") as f:
-            f.write(content)
+            print(f"Error checking/punching hole for fallback frame: {img_ex}")
             
-        # Xóa file cũ của global_avatar_frame nếu có
+        filename_punched = f"frame_{timestamp}{ext}"
+        file_path_punched = os.path.join(upload_dir, filename_punched)
+        
+        with open(file_path_punched, "wb") as f:
+            f.write(content_punched)
+            
+        # Xóa file đục lỗ cũ nếu có
         old_frame = db.query(Config).filter(Config.key == "global_avatar_frame").first()
         if old_frame and old_frame.value:
             old_path = old_frame.value.lstrip("/")
@@ -2131,13 +2170,12 @@ async def update_avatar_frame(
                 except Exception as ex:
                     print(f"Error removing old global frame file: {ex}")
                     
-        new_frame_url = f"/static/uploads/{filename}"
+        new_frame_url = f"/static/uploads/{filename_punched}"
         update_config(db, "global_avatar_frame", new_frame_url)
         
-        # Để tương thích ngược tốt nhất, đồng thời copy/ghi đè file này vào static/uploads/frame.png
+        # Đồng thời copy đè vào static/uploads/frame.png
         try:
-            import shutil
-            shutil.copyfile(file_path, "static/uploads/frame.png")
+            shutil.copyfile(file_path_punched, "static/uploads/frame.png")
         except Exception as ex:
             print(f"Error copying to default frame.png: {ex}")
             

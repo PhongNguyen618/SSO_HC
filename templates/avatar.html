@@ -449,7 +449,7 @@
                 
                 <div class="control-group">
                     <div class="control-label">
-                        <span><i class="fa-solid fa-magnifying-glass-plus"></i> Thu phóng (Zoom)</span>
+                        <span><i class="fa-solid fa-magnifying-glass-plus"></i> Thu phóng ảnh (Zoom)</span>
                         <span id="zoomVal">1.00x</span>
                     </div>
                     <input type="range" id="zoomSlider" class="slider-input" min="0.1" max="3.0" step="0.01" value="1.0">
@@ -463,20 +463,36 @@
                     <input type="range" id="rotateSlider" class="slider-input" min="0" max="360" step="1" value="0">
                 </div>
 
-                <div class="control-group">
-                    <div class="control-label">
-                        <span><i class="fa-solid fa-arrows-left-right"></i> Dịch ngang (X Offset)</span>
-                        <span id="offsetXVal">0px</span>
+                <div class="control-group" style="border-top: 1px dashed rgba(255, 255, 255, 0.08); padding-top: 0.8rem; margin-top: 0.5rem;">
+                    <div class="control-label" style="color: var(--color-primary);">
+                        <span><i class="fa-solid fa-circle-dot"></i> Tỉ lệ lỗ đục (Hole Scale)</span>
+                        <span id="holeScaleVal">65%</span>
                     </div>
-                    <input type="range" id="offsetXSlider" class="slider-input" min="-600" max="600" step="1" value="0">
+                    <input type="range" id="holeScaleSlider" class="slider-input" min="0.4" max="0.85" step="0.01" value="0.65">
                 </div>
 
                 <div class="control-group">
-                    <div class="control-label">
-                        <span><i class="fa-solid fa-arrows-up-down"></i> Dịch dọc (Y Offset)</span>
-                        <span id="offsetYVal">0px</span>
+                    <div class="control-label" style="color: var(--color-primary);">
+                        <span><i class="fa-solid fa-arrows-left-right"></i> Lệch ngang lỗ (Hole X)</span>
+                        <span id="holeOffsetXVal">0px</span>
                     </div>
-                    <input type="range" id="offsetYSlider" class="slider-input" min="-600" max="600" step="1" value="0">
+                    <input type="range" id="holeOffsetXSlider" class="slider-input" min="-300" max="300" step="1" value="0">
+                </div>
+
+                <div class="control-group">
+                    <div class="control-label" style="color: var(--color-primary);">
+                        <span><i class="fa-solid fa-arrows-up-down"></i> Lệch dọc lỗ (Hole Y)</span>
+                        <span id="holeOffsetYVal">0px</span>
+                    </div>
+                    <input type="range" id="holeOffsetYSlider" class="slider-input" min="-300" max="300" step="1" value="0">
+                </div>
+
+                <div class="control-group">
+                    <div class="control-label" style="color: var(--color-primary);">
+                        <span><i class="fa-solid fa-eye-dropper"></i> Độ mờ viền lỗ (Feather)</span>
+                        <span id="holeFeatherVal">40px</span>
+                    </div>
+                    <input type="range" id="holeFeatherSlider" class="slider-input" min="0" max="100" step="1" value="40">
                 </div>
 
                 <div class="control-group">
@@ -565,10 +581,24 @@
     const canvas = document.getElementById('avatarCanvas');
     const ctx = canvas.getContext('2d');
     
-    // Khung viền mặc định tải từ Server
+    // Tạo canvas phụ trong bộ nhớ để phục vụ đục lỗ động ở client
+    const offCanvas = document.createElement('canvas');
+    offCanvas.width = canvas.width;
+    offCanvas.height = canvas.height;
+    const offCtx = offCanvas.getContext('2d');
+    
+    // Khung viền mặc định tải từ Server (ưu tiên ảnh thô raw chưa đục lỗ để đục lỗ động ở client)
     const frameImg = new Image();
     frameImg.crossOrigin = "anonymous";
-    frameImg.src = "{{ avatar_frame_url }}"; // Tải file frame kỷ niệm từ server
+    frameImg.src = "{{ avatar_frame_raw_url }}";
+    
+    // Fallback nếu ảnh raw bị lỗi (chưa có file thô raw do nâng cấp hệ thống cũ)
+    frameImg.onerror = function() {
+        if (frameImg.src.indexOf('frame_raw.png') !== -1) {
+            console.log("Không tìm thấy file frame_raw.png, tự động chuyển về fallback dùng file frame.png đã đục sẵn ở tâm.");
+            frameImg.src = "{{ avatar_frame_url }}";
+        }
+    };
     
     // Ảnh người dùng tải lên
     let userImg = null;
@@ -578,7 +608,7 @@
     let noBgImageSrc = null;
     let currentImageFile = null;
     
-    // Các tham số biến đổi ảnh của người dùng
+    // Các tham số biến đổi ảnh của người dùng (avatar)
     let scale = 1.0;
     let rotation = 0; // Độ (0 - 360)
     let offsetX = 0;  // Dịch chuyển X so với tâm
@@ -586,6 +616,12 @@
     let brightness = 100; // Độ sáng (%)
     let contrast = 100;   // Độ tương phản (%)
     let isFlipped = false; // Trạng thái lật ngang
+    
+    // Các tham số hình tròn đục lỗ của khung viền (lớp trên)
+    let holeScale = 0.65;
+    let holeOffsetX = 0;
+    let holeOffsetY = 0;
+    let holeFeather = 40;
     
     // Trạng thái kéo thả ảnh (Pan) trên canvas
     let isDragging = false;
@@ -598,25 +634,32 @@
     
     // --- HÀM VẼ CANVAS CHÍNH ---
     function drawCanvas() {
-        // 1. Xóa sạch canvas
+        // 1. Xóa sạch canvas chính
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         
         const centerX = canvas.width / 2;
         const centerY = canvas.height / 2;
         
-        // 2. Vẽ ảnh người dùng (avatar) ở lớp dưới trước
+        // Tính toán vị trí và bán kính của hình tròn đục lỗ động
+        const holeX = centerX + holeOffsetX;
+        const holeY = centerY + holeOffsetY;
+        const holeRadius = (canvas.width / 2) * holeScale;
+        
+        // Độ rộng vùng làm mờ viền (feather) lấy từ biến toàn cục holeFeather
+        const feather = holeFeather;
+        
+        // 2. Vẽ ảnh người dùng (avatar) ở lớp dưới trước (chỉ vẽ và clip sát rìa ngoài khung viền tròn)
         if (userImg) {
-            ctx.save(); // [1] Lưu trạng thái để clip tròn
+            ctx.save(); // [1] Lưu trạng thái để clip tròn ngoài
             
-            // Cắt ảnh theo hình tròn trong lòng khung viền (chiếm khoảng 97% đường kính canvas)
-            // Bán kính clip = 0.485 * canvas.width giúp mép ảnh ẩn hoàn hảo bên dưới viền ngoài
+            // Clip sát rìa canvas để tránh avatar bị thò ra ngoài 4 góc của khung viền tròn
             const clipRadius = canvas.width * 0.485;
             ctx.beginPath();
             ctx.arc(centerX, centerY, clipRadius, 0, Math.PI * 2);
             ctx.clip();
             
-            ctx.save(); // [2] Lưu trạng thái để dịch chuyển/xoay/lật ảnh
-            // Tịnh tiến tọa độ vẽ về tâm để áp dụng Xoay và Phóng to
+            ctx.save(); // [2] Lưu trạng thái để dịch chuyển/xoay/lật avatar của người dùng
+            // Tịnh tiến tọa độ vẽ theo vị trí kéo thả của avatar (offsetX, offsetY)
             ctx.translate(centerX + offsetX, centerY + offsetY);
             ctx.rotate((rotation * Math.PI) / 180);
             
@@ -648,26 +691,45 @@
                 drawWidth, drawHeight
             );
             
-            ctx.restore(); // [2] Khôi phục trạng thái translate, quay lại hệ tọa độ chuẩn nhưng vẫn giữ clip
+            ctx.restore(); // [2] Giải phóng dịch chuyển/xoay/lật
             ctx.filter = 'none';
             
-            // Vẽ hiệu ứng bóng mờ viền trong (Inner Shadow) dọc theo mép cắt để tạo độ sâu "chìm dưới khung viền"
-            ctx.save(); // [3] Lưu trạng thái để vẽ bóng đổ
-            ctx.beginPath();
-            ctx.arc(centerX, centerY, clipRadius + 5, 0, Math.PI * 2); // Vẽ rộng hơn clip 5px để bóng đổ hướng vào trong
-            ctx.strokeStyle = 'rgba(0, 0, 0, 0.45)';
-            ctx.lineWidth = 12;
-            ctx.shadowBlur = 15;
-            ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
-            ctx.stroke();
-            ctx.restore(); // [3] Khôi phục trạng thái vẽ bóng đổ
+            // ĐÃ LOẠI BỎ: Đường stroke đen Inner Shadow thô kệch làm hỏng sự liền mạch.
+            // Hai lớp ảnh avatar và frame giờ đây sẽ tự động hòa quyện trực tiếp và mượt mà.
             
-            ctx.restore(); // [1] Giải phóng clip tròn
+            ctx.restore(); // [1] Giải phóng clip tròn ngoài
         }
         
-        // 3. Vẽ khung viền (Frame) ĐÈ LÊN PHÍA TRÊN CÙNG
+        // 3. Vẽ khung viền (Frame) ĐÈ LÊN PHÍA TRÊN CÙNG bằng Canvas phụ đã được đục lỗ mờ viền (feather)
         if (frameImg.complete) {
-            ctx.drawImage(frameImg, 0, 0, canvas.width, canvas.height);
+            // Xóa sạch canvas phụ
+            offCtx.clearRect(0, 0, offCanvas.width, offCanvas.height);
+            // Vẽ khung viền thô lên canvas phụ
+            offCtx.drawImage(frameImg, 0, 0, offCanvas.width, offCanvas.height);
+            
+            // Đảm bảo bán kính trong của Radial Gradient không bao giờ âm
+            const innerRadius = Math.max(0, holeRadius - feather);
+            const outerRadius = holeRadius + feather;
+            
+            // Tạo Radial Gradient để đục lỗ mờ viền
+            const grad = offCtx.createRadialGradient(
+                holeX, holeY, innerRadius,
+                holeX, holeY, outerRadius
+            );
+            grad.addColorStop(0, 'rgba(0, 0, 0, 1.0)'); // Đục thủng hoàn toàn ở lòng trong
+            grad.addColorStop(1, 'rgba(0, 0, 0, 0.0)'); // Giữ nguyên khung viền ở ngoài
+            
+            // Đục lỗ bằng destination-out. Vẽ một hình chữ nhật phủ toàn canvas phụ để tránh hiện tượng răng cưa anti-aliasing.
+            offCtx.save();
+            offCtx.globalCompositeOperation = 'destination-out';
+            offCtx.fillStyle = grad;
+            offCtx.beginPath();
+            offCtx.rect(0, 0, offCanvas.width, offCanvas.height);
+            offCtx.fill();
+            offCtx.restore();
+            
+            // Vẽ canvas phụ đã đục lỗ đè lên canvas chính
+            ctx.drawImage(offCanvas, 0, 0);
         }
         
         // 4. Nếu chưa có ảnh người dùng, vẽ thông báo hướng dẫn đè lên trên cùng để dễ đọc
@@ -675,15 +737,15 @@
             ctx.save();
             ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
             ctx.beginPath();
-            ctx.arc(centerX, centerY, (canvas.width * 0.3), 0, Math.PI * 2);
+            ctx.arc(holeX, holeY, holeRadius * 0.9, 0, Math.PI * 2);
             ctx.fill();
             
             ctx.fillStyle = '#ffffff';
             ctx.font = 'bold 36px Be Vietnam Pro, Inter, sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText('TẢI ẢNH CỦA BẠN', centerX, centerY - 15);
+            ctx.fillText('TẢI ẢNH CỦA BẠN', holeX, holeY - 15);
             ctx.font = '24px Be Vietnam Pro, Inter, sans-serif';
-            ctx.fillText('Ảnh sẽ hiển thị trên khung này', centerX, centerY + 30);
+            ctx.fillText('Ảnh sẽ hiển thị trên khung này', holeX, holeY + 30);
             ctx.restore();
         }
     }
@@ -823,18 +885,29 @@
             contrast = 100;
             isFlipped = false;
             
+            // Reset các cấu hình lỗ đục động về mặc định
+            holeScale = 0.65;
+            holeOffsetX = 0;
+            holeOffsetY = 0;
+            holeFeather = 40;
+            
             document.getElementById('zoomSlider').value = 1.0;
             document.getElementById('zoomVal').innerText = '1.00x';
             document.getElementById('rotateSlider').value = 0;
             document.getElementById('rotateVal').innerText = '0°';
-            document.getElementById('offsetXSlider').value = 0;
-            document.getElementById('offsetXVal').innerText = '0px';
-            document.getElementById('offsetYSlider').value = 0;
-            document.getElementById('offsetYVal').innerText = '0px';
             document.getElementById('brightnessSlider').value = 100;
             document.getElementById('brightnessVal').innerText = '100%';
             document.getElementById('contrastSlider').value = 100;
             document.getElementById('contrastVal').innerText = '100%';
+            
+            document.getElementById('holeScaleSlider').value = 0.65;
+            document.getElementById('holeScaleVal').innerText = '65%';
+            document.getElementById('holeOffsetXSlider').value = 0;
+            document.getElementById('holeOffsetXVal').innerText = '0px';
+            document.getElementById('holeOffsetYSlider').value = 0;
+            document.getElementById('holeOffsetYVal').innerText = '0px';
+            document.getElementById('holeFeatherSlider').value = 40;
+            document.getElementById('holeFeatherVal').innerText = '40px';
             
             drawCanvas();
             if (isBgRemoved) {
@@ -873,19 +946,32 @@
         drawCanvas();
     });
 
-    const offsetXSlider = document.getElementById('offsetXSlider');
-    offsetXSlider.addEventListener('input', (e) => {
-        if (!userImg) return;
-        offsetX = parseInt(e.target.value);
-        document.getElementById('offsetXVal').innerText = offsetX + 'px';
+    // Các sự kiện cho slider Lỗ Đục động
+    const holeScaleSlider = document.getElementById('holeScaleSlider');
+    holeScaleSlider.addEventListener('input', (e) => {
+        holeScale = parseFloat(e.target.value);
+        document.getElementById('holeScaleVal').innerText = Math.round(holeScale * 100) + '%';
         drawCanvas();
     });
 
-    const offsetYSlider = document.getElementById('offsetYSlider');
-    offsetYSlider.addEventListener('input', (e) => {
-        if (!userImg) return;
-        offsetY = parseInt(e.target.value);
-        document.getElementById('offsetYVal').innerText = offsetY + 'px';
+    const holeOffsetXSlider = document.getElementById('holeOffsetXSlider');
+    holeOffsetXSlider.addEventListener('input', (e) => {
+        holeOffsetX = parseInt(e.target.value);
+        document.getElementById('holeOffsetXVal').innerText = holeOffsetX + 'px';
+        drawCanvas();
+    });
+
+    const holeOffsetYSlider = document.getElementById('holeOffsetYSlider');
+    holeOffsetYSlider.addEventListener('input', (e) => {
+        holeOffsetY = parseInt(e.target.value);
+        document.getElementById('holeOffsetYVal').innerText = holeOffsetY + 'px';
+        drawCanvas();
+    });
+
+    const holeFeatherSlider = document.getElementById('holeFeatherSlider');
+    holeFeatherSlider.addEventListener('input', (e) => {
+        holeFeather = parseInt(e.target.value);
+        document.getElementById('holeFeatherVal').innerText = holeFeather + 'px';
         drawCanvas();
     });
 
@@ -912,18 +998,28 @@
         contrast = 100;
         isFlipped = false;
         
+        holeScale = 0.65;
+        holeOffsetX = 0;
+        holeOffsetY = 0;
+        holeFeather = 40;
+        
         document.getElementById('zoomSlider').value = 1.0;
         document.getElementById('zoomVal').innerText = '1.00x';
         document.getElementById('rotateSlider').value = 0;
         document.getElementById('rotateVal').innerText = '0°';
-        document.getElementById('offsetXSlider').value = 0;
-        document.getElementById('offsetXVal').innerText = '0px';
-        document.getElementById('offsetYSlider').value = 0;
-        document.getElementById('offsetYVal').innerText = '0px';
         document.getElementById('brightnessSlider').value = 100;
         document.getElementById('brightnessVal').innerText = '100%';
         document.getElementById('contrastSlider').value = 100;
         document.getElementById('contrastVal').innerText = '100%';
+        
+        document.getElementById('holeScaleSlider').value = 0.65;
+        document.getElementById('holeScaleVal').innerText = '65%';
+        document.getElementById('holeOffsetXSlider').value = 0;
+        document.getElementById('holeOffsetXVal').innerText = '0px';
+        document.getElementById('holeOffsetYSlider').value = 0;
+        document.getElementById('holeOffsetYVal').innerText = '0px';
+        document.getElementById('holeFeatherSlider').value = 40;
+        document.getElementById('holeFeatherVal').innerText = '40px';
         
         drawCanvas();
         showAlert('success', 'Đã khôi phục các thông số chỉnh ảnh về mặc định.');
@@ -958,21 +1054,9 @@
         offsetX = coords.x - startX;
         offsetY = coords.y - startY;
         
-        // Giới hạn giá trị trong khoảng slider để hiển thị đồng bộ
-        offsetX = Math.max(-600, Math.min(600, offsetX));
-        offsetY = Math.max(-600, Math.min(600, offsetY));
-        
-        // Đồng bộ ngược lên giao diện slider
-        const oxSlider = document.getElementById('offsetXSlider');
-        if (oxSlider) {
-            oxSlider.value = Math.round(offsetX);
-            document.getElementById('offsetXVal').innerText = Math.round(offsetX) + 'px';
-        }
-        const oySlider = document.getElementById('offsetYSlider');
-        if (oySlider) {
-            oySlider.value = Math.round(offsetY);
-            document.getElementById('offsetYVal').innerText = Math.round(offsetY) + 'px';
-        }
+        // Giới hạn giá trị tịnh tiến của avatar
+        offsetX = Math.max(-800, Math.min(800, offsetX));
+        offsetY = Math.max(-800, Math.min(800, offsetY));
         
         drawCanvas();
         e.preventDefault();
