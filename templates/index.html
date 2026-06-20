@@ -264,9 +264,9 @@
         <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(to top, rgba(9, 6, 21, 0.98) 0%, rgba(9, 6, 21, 0.5) 50%, rgba(9, 6, 21, 0.1) 100%); z-index: 2;"></div>
         
         <div class="hero-banner-content">
-            <span style="background: rgba(255, 94, 54, 0.2); color: #ff5e36; padding: 0.35rem 0.8rem; border-radius: 20px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; display: inline-flex; align-items: center; gap: 0.3rem; margin-bottom: 0.8rem; border: 1px solid rgba(255, 94, 54, 0.3);">
-                <span style="display: inline-block; width: 6px; height: 6px; background: #ff5e36; border-radius: 50%; animation: pulse 1.5s infinite;"></span>
-                ĐANG DIỄN RA
+            <span id="eventStatusBadge" style="background: rgba(255, 94, 54, 0.2); color: #ff5e36; padding: 0.35rem 0.8rem; border-radius: 20px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; display: inline-flex; align-items: center; gap: 0.3rem; margin-bottom: 0.8rem; border: 1px solid rgba(255, 94, 54, 0.3); transition: all 0.3s ease;">
+                <span id="eventStatusPulse" style="display: inline-block; width: 6px; height: 6px; background: #ff5e36; border-radius: 50%; animation: pulse 1.5s infinite; transition: all 0.3s ease;"></span>
+                <span id="eventStatusText">ĐANG DIỄN RA</span>
             </span>
             <h1 style="font-family: 'Outfit', sans-serif; font-size: 2.6rem; font-weight: 800; margin-bottom: 0.6rem; text-shadow: 0 2px 12px rgba(0,0,0,0.75); line-height: 1.15; color: #fff;">
                 {% if selected_event %}{{ selected_event.title }}{% else %}{{ app_configs.rules_title }}{% endif %}
@@ -274,6 +274,52 @@
             <p style="color: rgba(243, 242, 250, 0.9); font-size: 0.95rem; margin-bottom: 1.5rem; text-shadow: 0 1px 6px rgba(0,0,0,0.75); max-width: 680px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.5;">
                 {% if selected_event and selected_event.description %}{{ selected_event.description }}{% else %}{{ app_configs.rules_description }}{% endif %}
             </p>
+
+            <!-- Đồng hồ đếm ngược giải đấu động -->
+            {% if selected_event and selected_event.start_date and selected_event.end_date %}
+            <div id="event-countdown" 
+                 data-start="{{ selected_event.start_date }}" 
+                 data-end="{{ selected_event.end_date }}"
+                 style="display: none; align-items: center; gap: 0.8rem; margin-top: -0.5rem; margin-bottom: 1.5rem; flex-wrap: wrap; z-index: 3; position: relative;">
+                 
+                <span id="countdown-label" style="font-size: 0.82rem; font-weight: 700; letter-spacing: 0.5px; color: rgba(255,255,255,0.7); display: inline-flex; align-items: center; gap: 0.4rem; text-transform: uppercase;">
+                    <i class="fa-solid fa-hourglass-half"></i> Thời gian còn lại:
+                </span>
+                
+                <div style="display: flex; gap: 0.4rem; align-items: center;">
+                    <!-- Days -->
+                    <div style="background: rgba(9, 6, 21, 0.65); border: 1px solid rgba(255, 255, 255, 0.12); backdrop-filter: blur(5px); border-radius: 8px; min-width: 52px; padding: 0.5rem 0.4rem; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.4);">
+                        <div id="countdown-days" style="font-family: 'Outfit', sans-serif; font-size: 1.3rem; font-weight: 800; color: #00ADB5; line-height: 1;">00</div>
+                        <div style="font-size: 0.6rem; color: rgba(255,255,255,0.4); text-transform: uppercase; margin-top: 3px; font-weight: 700; letter-spacing: 0.3px;">Ngày</div>
+                    </div>
+                    
+                    <span style="color: rgba(255,255,255,0.4); font-weight: bold; font-size: 1.3rem; margin: 0 1px;">:</span>
+                    
+                    <!-- Hours -->
+                    <div style="background: rgba(9, 6, 21, 0.65); border: 1px solid rgba(255, 255, 255, 0.12); backdrop-filter: blur(5px); border-radius: 8px; min-width: 52px; padding: 0.5rem 0.4rem; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.4);">
+                        <div id="countdown-hours" style="font-family: 'Outfit', sans-serif; font-size: 1.3rem; font-weight: 800; color: #00ADB5; line-height: 1;">00</div>
+                        <div style="font-size: 0.6rem; color: rgba(255,255,255,0.4); text-transform: uppercase; margin-top: 3px; font-weight: 700; letter-spacing: 0.3px;">Giờ</div>
+                    </div>
+                    
+                    <span style="color: rgba(255,255,255,0.4); font-weight: bold; font-size: 1.3rem; margin: 0 1px;">:</span>
+                    
+                    <!-- Minutes -->
+                    <div style="background: rgba(9, 6, 21, 0.65); border: 1px solid rgba(255, 255, 255, 0.12); backdrop-filter: blur(5px); border-radius: 8px; min-width: 52px; padding: 0.5rem 0.4rem; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.4);">
+                        <div id="countdown-minutes" style="font-family: 'Outfit', sans-serif; font-size: 1.3rem; font-weight: 800; color: #00ADB5; line-height: 1;">00</div>
+                        <div style="font-size: 0.6rem; color: rgba(255,255,255,0.4); text-transform: uppercase; margin-top: 3px; font-weight: 700; letter-spacing: 0.3px;">Phút</div>
+                    </div>
+                    
+                    <span style="color: rgba(255,255,255,0.4); font-weight: bold; font-size: 1.3rem; margin: 0 1px;">:</span>
+                    
+                    <!-- Seconds -->
+                    <div style="background: rgba(9, 6, 21, 0.65); border: 1px solid rgba(255, 255, 255, 0.12); backdrop-filter: blur(5px); border-radius: 8px; min-width: 52px; padding: 0.5rem 0.4rem; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.4);">
+                        <div id="countdown-seconds" style="font-family: 'Outfit', sans-serif; font-size: 1.3rem; font-weight: 800; color: #ff5e36; line-height: 1; transition: color 0.3s;">00</div>
+                        <div style="font-size: 0.6rem; color: rgba(255,255,255,0.4); text-transform: uppercase; margin-top: 3px; font-weight: 700; letter-spacing: 0.3px;">Giây</div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
             <a href="/rules" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 0.5rem; text-decoration: none; padding: 0.6rem 1.4rem; font-weight: 600; border-radius: 8px;">
                 <i class="fa-solid fa-circle-info"></i> Xem Quy Chế & Hệ Số Quy Đổi
             </a>
@@ -1312,6 +1358,113 @@
         const initialMetric = "{{ selected_metric }}";
         changeLeaderboardSort(initialMetric || 'kcal');
     });
+
+    // --- DỰNG LOGIC ĐẾM NGƯỢC GIẢI ĐẤU ĐỘNG ---
+    (function() {
+        const countdownEl = document.getElementById('event-countdown');
+        if (!countdownEl) return;
+        
+        const startDateStr = countdownEl.getAttribute('data-start');
+        const endDateStr = countdownEl.getAttribute('data-end');
+        if (!startDateStr || !endDateStr) return;
+        
+        // Quy đổi ngày bắt đầu và kết thúc sang mốc thời gian JS
+        const startTime = new Date(startDateStr + 'T00:00:00').getTime();
+        const endTime = new Date(endDateStr + 'T23:59:59').getTime();
+        
+        const labelEl = document.getElementById('countdown-label');
+        const daysEl = document.getElementById('countdown-days');
+        const hoursEl = document.getElementById('countdown-hours');
+        const minutesEl = document.getElementById('countdown-minutes');
+        const secondsEl = document.getElementById('countdown-seconds');
+        
+        const badgeEl = document.getElementById('eventStatusBadge');
+        const pulseEl = document.getElementById('eventStatusPulse');
+        const textEl = document.getElementById('eventStatusText');
+        
+        function updateTimer() {
+            const now = new Date().getTime();
+            let targetTime = 0;
+            let status = ''; // 'not_started', 'running', 'ended'
+            
+            if (now < startTime) {
+                targetTime = startTime;
+                status = 'not_started';
+            } else if (now >= startTime && now <= endTime) {
+                targetTime = endTime;
+                status = 'running';
+            } else {
+                status = 'ended';
+            }
+            
+            // 1. Cập nhật nhãn trạng thái giải chạy động (Status Badge)
+            if (badgeEl && textEl) {
+                if (status === 'not_started') {
+                    badgeEl.style.background = 'rgba(251, 191, 36, 0.2)';
+                    badgeEl.style.color = '#fbbf24';
+                    badgeEl.style.borderColor = 'rgba(251, 191, 36, 0.3)';
+                    textEl.innerText = 'SẮP DIỄN RA';
+                    if (pulseEl) {
+                        pulseEl.style.background = '#fbbf24';
+                        pulseEl.style.display = 'inline-block';
+                    }
+                } else if (status === 'running') {
+                    badgeEl.style.background = 'rgba(74, 222, 128, 0.2)';
+                    badgeEl.style.color = '#4ade80';
+                    badgeEl.style.borderColor = 'rgba(74, 222, 128, 0.3)';
+                    textEl.innerText = 'ĐANG DIỄN RA';
+                    if (pulseEl) {
+                        pulseEl.style.background = '#4ade80';
+                        pulseEl.style.display = 'inline-block';
+                    }
+                } else {
+                    badgeEl.style.background = 'rgba(255, 255, 255, 0.08)';
+                    badgeEl.style.color = 'rgba(255, 255, 255, 0.4)';
+                    badgeEl.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+                    textEl.innerText = 'ĐÃ KẾT THÚC';
+                    if (pulseEl) {
+                        pulseEl.style.display = 'none'; // Ẩn nút nháy khi đã kết thúc
+                    }
+                }
+            }
+            
+            // 2. Cập nhật đồng hồ đếm ngược
+            if (status === 'ended') {
+                countdownEl.style.display = 'flex';
+                labelEl.innerHTML = '<i class="fa-solid fa-circle-check" style="color: rgba(255,255,255,0.4);"></i> Giải đấu đã kết thúc';
+                daysEl.innerText = '00';
+                hoursEl.innerText = '00';
+                minutesEl.innerText = '00';
+                secondsEl.innerText = '00';
+                secondsEl.style.color = 'rgba(255,255,255,0.4)';
+                return;
+            }
+            
+            const diff = targetTime - now;
+            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+            
+            if (status === 'not_started') {
+                labelEl.innerHTML = '<i class="fa-solid fa-hourglass-start" style="color: #fbbf24;"></i> Giải bắt đầu sau:';
+                secondsEl.style.color = '#fbbf24';
+            } else {
+                labelEl.innerHTML = '<i class="fa-solid fa-stopwatch" style="color: #ff5e36;"></i> Thời gian còn lại:';
+                secondsEl.style.color = '#ff5e36';
+            }
+            
+            daysEl.innerText = String(days).padStart(2, '0');
+            hoursEl.innerText = String(hours).padStart(2, '0');
+            minutesEl.innerText = String(minutes).padStart(2, '0');
+            secondsEl.innerText = String(seconds).padStart(2, '0');
+            
+            countdownEl.style.display = 'flex';
+        }
+        
+        updateTimer();
+        setInterval(updateTimer, 1000);
+    })();
 
     // --- ARCHIVED EVENT DETAIL MODAL LOGIC ---
 
