@@ -2591,9 +2591,39 @@ def admin_delete_athlete(
         return RedirectResponse("/admin?error=Khong tim thay thanh vien", status_code=303)
         
     try:
-        # Hủy liên kết các hoạt động trước khi xóa
-        db.query(Activity).filter(Activity.athlete_id == athlete.id).update({Activity.athlete_id: None})
-        db.delete(athlete)
+        parsed_event_id = None
+        if event_id and event_id.strip():
+            try:
+                parsed_event_id = int(event_id)
+            except ValueError:
+                pass
+                
+        if parsed_event_id:
+            # 1. Hủy liên kết hoạt động của VĐV trong GIẢI ĐẤU NÀY
+            db.query(Activity).filter(
+                Activity.athlete_id == athlete_id,
+                Activity.event_id == parsed_event_id
+            ).update({Activity.athlete_id: None})
+            
+            # 2. Xóa bản ghi đăng ký của VĐV trong giải đấu này
+            db.query(CompetitionRegistration).filter(
+                CompetitionRegistration.athlete_id == athlete_id,
+                CompetitionRegistration.event_id == parsed_event_id
+            ).delete()
+            
+            # 3. Kiểm tra xem VĐV có còn đăng ký giải đấu nào khác không
+            remaining_regs = db.query(CompetitionRegistration).filter(
+                CompetitionRegistration.athlete_id == athlete_id
+            ).count()
+            
+            # Nếu không còn đăng ký giải đấu nào khác, xóa hoàn toàn tài khoản VĐV
+            if remaining_regs == 0:
+                db.delete(athlete)
+        else:
+            # Xóa toàn bộ (toàn cục) khi không có giải đấu cụ thể được chọn
+            db.query(Activity).filter(Activity.athlete_id == athlete_id).update({Activity.athlete_id: None})
+            db.delete(athlete)
+            
         db.commit()
         return RedirectResponse(f"/admin?success=Da xoa thanh vien khoi giai chay&event_id={event_id or ''}#tab-athletes", status_code=303)
     except Exception as e:
