@@ -1,7 +1,7 @@
 import time
 import requests
 import hashlib
-from datetime import datetime
+from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from fastapi import UploadFile
 from backend.database import SessionLocal, Config, Athlete, Activity, CompetitionEvent
@@ -94,7 +94,7 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
     print(f"Sync Engine: Downloaded {len(all_activities)} activities from Strava for event '{event.title}'.")
     
     new_count = 0
-    today_str = datetime.now().strftime("%Y-%m-%d")
+    today_str = (datetime.utcnow() + timedelta(hours=7)).strftime("%Y-%m-%d")
     seen_ids = set()
 
     # Cache danh sách vận động viên để đối khớp tốc độ cao (hỗ trợ nhiều tên cách nhau bằng dấu phẩy)
@@ -239,7 +239,7 @@ def sync_club_activities(event_id: int = None) -> dict:
     result = {"status": "idle", "new_activities": 0, "error": None, "details": []}
     try:
         # 1. Tự động đóng các giải đấu đã hết hạn trước tiên
-        today_str = datetime.now().strftime("%Y-%m-%d")
+        today_str = (datetime.utcnow() + timedelta(hours=7)).strftime("%Y-%m-%d")
         if not event_id:
             expired_events = db.query(CompetitionEvent).filter(
                 CompetitionEvent.is_active == True,
@@ -319,7 +319,8 @@ def sync_club_activities(event_id: int = None) -> dict:
     finally:
         try:
             if "status" in result and result["status"] != "idle":
-                now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                gmt7_now = datetime.utcnow() + timedelta(hours=7)
+                now_str = gmt7_now.strftime("%Y-%m-%d %H:%M:%S")
                 update_config(db, "last_sync_time", now_str)
                 update_config(db, "last_sync_status", result["status"])
                 update_config(db, "last_sync_new_count", str(result.get("new_activities", 0)))
@@ -476,9 +477,9 @@ async def import_excel_files(files: list[UploadFile], db: Session, event_id: int
                         if match:
                             activity_date = datetime.strptime(match.group(), "%d-%m-%Y").strftime("%Y-%m-%d")
                         else:
-                            activity_date = datetime.now().strftime("%Y-%m-%d")
+                            activity_date = (datetime.utcnow() + timedelta(hours=7)).strftime("%Y-%m-%d")
                     except Exception:
-                        activity_date = datetime.now().strftime("%Y-%m-%d")
+                        activity_date = (datetime.utcnow() + timedelta(hours=7)).strftime("%Y-%m-%d")
                 
                 # Nghi vấn gian lận
                 susp_val = row.get(col_map.get("Nghi_ngo_Gian_lan"))
