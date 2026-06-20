@@ -285,9 +285,10 @@ def run_background_sync():
 def run_auto_db_backup():
     """Tự động sao lưu file SQLite DB định kỳ hàng ngày, giữ tối đa 5 bản gần nhất."""
     print("Auto Backup: Starting database backup...")
-    db_path = "SSO_HC.db"
+    db_url = os.getenv("DATABASE_URL", "sqlite:///SSO_HC.db")
+    db_path = db_url.replace("sqlite:///", "") if db_url.startswith("sqlite:///") else "SSO_HC.db"
     if not os.path.exists(db_path):
-        print("Auto Backup: Main DB file not found. Skip.")
+        print(f"Auto Backup: Main DB file not found at {db_path}. Skip.")
         return
         
     backup_dir = "static/uploads/backups"
@@ -2424,9 +2425,10 @@ def download_db_backup(request: Request, db: Session = Depends(get_db)):
     if not admin_session:
         return RedirectResponse("/admin?error=Chua dang nhap", status_code=303)
         
-    db_path = "SSO_HC.db"
+    db_url = os.getenv("DATABASE_URL", "sqlite:///SSO_HC.db")
+    db_path = db_url.replace("sqlite:///", "") if db_url.startswith("sqlite:///") else "SSO_HC.db"
     if not os.path.exists(db_path):
-        raise HTTPException(status_code=404, detail="File co so du lieu khong ton tai")
+        raise HTTPException(status_code=404, detail=f"File co so du lieu khong ton tai tai {db_path}")
         
     import shutil
     os.makedirs("static/uploads", exist_ok=True)
