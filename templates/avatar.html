@@ -1219,14 +1219,16 @@
         // Lấy ảnh dạng Base64 từ Canvas định dạng PNG nền trong suốt
         const dataUrl = canvas.toDataURL('image/png');
         
-        // Sử dụng Form Data gửi lên FastAPI
-        const formData = new FormData();
-        formData.append('athlete_id', selectedAthleteId);
-        formData.append('image_data', dataUrl);
-        
+        // Gửi dữ liệu dưới dạng JSON payload thay vì Form Data để tránh giới hạn kích thước 1024KB của multipart
         fetch('/api/avatar/sync-profile', {
             method: 'POST',
-            body: formData
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                athlete_id: parseInt(selectedAthleteId),
+                image_data: dataUrl
+            })
         })
         .then(res => {
             if (!res.ok) {

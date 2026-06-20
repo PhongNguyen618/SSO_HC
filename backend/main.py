@@ -282,6 +282,40 @@ def run_background_sync():
     finally:
         db.close()
 
+def run_auto_db_backup():
+    """Tự động sao lưu file SQLite DB định kỳ hàng ngày, giữ tối đa 5 bản gần nhất."""
+    print("Auto Backup: Starting database backup...")
+    db_path = "SSO_HC.db"
+    if not os.path.exists(db_path):
+        print("Auto Backup: Main DB file not found. Skip.")
+        return
+        
+    backup_dir = "static/uploads/backups"
+    os.makedirs(backup_dir, exist_ok=True)
+    
+    import shutil
+    time_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_filename = f"SSO_HC_auto_{time_str}.db"
+    backup_path = os.path.join(backup_dir, backup_filename)
+    
+    try:
+        shutil.copyfile(db_path, backup_path)
+        print(f"Auto Backup: Successfully created backup at {backup_path}")
+        
+        # Xoay vòng (rotate): Chỉ giữ lại 5 bản backup tự động gần nhất
+        backups = [os.path.join(backup_dir, f) for f in os.listdir(backup_dir) if f.startswith("SSO_HC_auto_") and f.endswith(".db")]
+        backups.sort(key=os.path.getmtime) # xếp từ cũ đến mới
+        
+        while len(backups) > 5:
+            oldest = backups.pop(0)
+            try:
+                os.remove(oldest)
+                print(f"Auto Backup: Removed old backup file to free disk space: {oldest}")
+            except Exception as rm_ex:
+                print(f"Auto Backup: Failed to remove oldest backup: {rm_ex}")
+    except Exception as e:
+        print(f"Auto Backup: Error during database backup: {e}")
+
 def start_scheduler():
     db = SessionLocal()
     try:
@@ -303,6 +337,18 @@ def start_scheduler():
         id="strava_sync_job",
         replace_existing=True
     )
+    
+    # Đăng ký job tự động backup DB mỗi 24 giờ
+    if scheduler.get_job("db_auto_backup_job"):
+        scheduler.remove_job("db_auto_backup_job")
+    scheduler.add_job(
+        run_auto_db_backup,
+        "interval",
+        hours=24,
+        id="db_auto_backup_job",
+        replace_existing=True
+    )
+    
     if not scheduler.running:
         scheduler.start()
     print(f"Scheduler: Started periodic background sync every {interval} hours.")
@@ -321,6 +367,7 @@ def startup_event():
     # Đồng bộ lần đầu khi chạy ứng dụng (chạy bất đồng bộ để tránh block startup)
     import threading
     threading.Thread(target=run_background_sync, daemon=True).start()
+    threading.Thread(target=run_auto_db_backup, daemon=True).start()
 
 @app.on_event("shutdown")
 def shutdown_event():
@@ -885,13 +932,19 @@ def get_avatar_page(
     )
 
 @app.post("/api/avatar/sync-profile")
-def sync_profile_avatar(
-    athlete_id: int = Form(...),
-    image_data: str = Form(...),
+async def sync_profile_avatar(
+    request: Request,
     db: Session = Depends(get_db)
 ):
     """API luu tru avatar da ghep va dong bo vao CSDL cho VDV."""
     try:
+        data = await request.json()
+        athlete_id = data.get("athlete_id")
+        image_data = data.get("image_data")
+        
+        if not athlete_id or not image_data:
+            return JSONResponse(status_code=400, content={"status": "error", "message": "Thieu du lieu athlete_id hoac image_data"})
+            
         athlete = db.query(Athlete).filter(Athlete.id == athlete_id).first()
         if not athlete:
             return JSONResponse(status_code=404, content={"status": "error", "message": "Khong tim thay van dong vien"})
@@ -930,6 +983,52 @@ def sync_profile_avatar(
         db.commit()
         
         return {"status": "success", "message": "Cap nhat anh dai dien thanh cong", "avatar_url": avatar_url}
+    except Exception as e:
+        db.rollback()
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(status_code=500, content={"status": "error", "message": f"Loi he thong: {str(e)}"})
+
+@app.post("/api/avatar/upload-direct")
+async def upload_direct_avatar(
+    athlete_id: int = Form(...),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    """API cho phep VDV tai anh dai dien tho len truc tiep tu thiet bi (khong qua trang ghep frame)."""
+    try:
+        athlete = db.query(Athlete).filter(Athlete.id == athlete_id).first()
+        if not athlete:
+            return JSONResponse(status_code=404, content={"status": "error", "message": "Khong tim thay van dong vien"})
+            
+        ext = os.path.splitext(file.filename)[1].lower()
+        if ext not in [".png", ".jpg", ".jpeg", ".webp"]:
+            return JSONResponse(status_code=400, content={"status": "error", "message": "Dinh dang anh khong hop le (ho tro PNG, JPG, WEBP)"})
+            
+        content = await file.read()
+        
+        os.makedirs("static/uploads/avatars", exist_ok=True)
+        
+        # Xoa file anh cu neu co
+        if athlete.avatar_url:
+            old_path = athlete.avatar_url.lstrip("/")
+            if os.path.exists(old_path) and "default" not in old_path:
+                try:
+                    os.remove(old_path)
+                except Exception:
+                    pass
+                    
+        timestamp = int(time.time())
+        file_name = f"athlete_direct_{athlete_id}_{timestamp}{ext}"
+        file_path = os.path.join("static/uploads/avatars", file_name)
+        with open(file_path, "wb") as f:
+            f.write(content)
+            
+        avatar_url = f"/static/uploads/avatars/{file_name}"
+        athlete.avatar_url = avatar_url
+        db.commit()
+        
+        return {"status": "success", "message": "Cap nhat anh dai dien truc tiep thanh cong", "avatar_url": avatar_url}
     except Exception as e:
         db.rollback()
         import traceback
@@ -2317,6 +2416,31 @@ def trigger_sync(request: Request, db: Session = Depends(get_db)):
             print(f"Manual Sync: Error during auto deduplication: {e}")
             
     return JSONResponse(content=res)
+
+@app.get("/admin/db/backup/download")
+def download_db_backup(request: Request, db: Session = Depends(get_db)):
+    """API tải bản sao lưu CSDL hiện tại dành cho Admin."""
+    admin_session = get_admin_session(request, db)
+    if not admin_session:
+        return RedirectResponse("/admin?error=Chua dang nhap", status_code=303)
+        
+    db_path = "SSO_HC.db"
+    if not os.path.exists(db_path):
+        raise HTTPException(status_code=404, detail="File co so du lieu khong ton tai")
+        
+    import shutil
+    os.makedirs("static/uploads", exist_ok=True)
+    backup_temp_path = "static/uploads/SSO_HC_temp_backup.db"
+    try:
+        shutil.copyfile(db_path, backup_temp_path)
+        from fastapi.responses import FileResponse
+        return FileResponse(
+            path=backup_temp_path,
+            filename=f"SSO_HC_backup_{int(time.time())}.db",
+            media_type="application/octet-stream"
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Loi khi tao ban sao luu: {str(e)}")
 
 # --- QUẢN LÝ VẬN ĐỘNG VIÊN TRÊN ADMIN ---
 

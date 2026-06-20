@@ -69,11 +69,41 @@
 
     <!-- Quick Manual Sync Status Bar -->
     <div class="glass-card" style="padding: 1.5rem; border-color: rgba(0, 242, 254, 0.2); background: rgba(0, 242, 254, 0.02); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem;">
-        <div>
+        <div style="flex: 1; min-width: 280px;">
             <h4 style="font-family:'Outfit', sans-serif;"><i class="fa-solid fa-rotate"></i> Đồng bộ hoạt động từ Strava</h4>
             <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.2rem;">Hệ thống tự động đồng bộ ngầm định kỳ. Bạn cũng có thể kích hoạt đồng bộ thủ công ngay lập tức ở đây.</p>
+            
+            <!-- Trạng thái đồng bộ tự động gần nhất -->
+            <div id="syncStatusIndicator" style="margin-top: 0.8rem; font-size: 0.82rem; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; text-align: left;">
+                <span style="color: var(--text-muted);"><i class="fa-solid fa-clock-rotate-left"></i> Đồng bộ gần nhất:</span>
+                {% if configs.get("last_sync_time") %}
+                    {% set sync_status = configs.get("last_sync_status", "success") %}
+                    {% if sync_status == "success" %}
+                        <span class="badge" style="background: rgba(74, 222, 128, 0.1); color: #4ade80; border: 1px solid rgba(74, 222, 128, 0.2); padding: 0.2rem 0.6rem; border-radius: 4px; font-weight: 600;">
+                            <i class="fa-solid fa-circle-check"></i> Thành công (+{{ configs.get("last_sync_new_count", "0") }} hoạt động)
+                        </span>
+                    {% elif sync_status == "partial" %}
+                        <span class="badge" style="background: rgba(251, 191, 36, 0.1); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.2); padding: 0.2rem 0.6rem; border-radius: 4px; font-weight: 600;">
+                            <i class="fa-solid fa-triangle-exclamation"></i> Đồng bộ một phần
+                        </span>
+                    {% else %}
+                        <span class="badge" style="background: rgba(239, 68, 68, 0.1); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.2); padding: 0.2rem 0.6rem; border-radius: 4px; font-weight: 600;">
+                            <i class="fa-solid fa-circle-xmark"></i> Thất bại (Lỗi)
+                        </span>
+                    {% endif %}
+                    <span style="color: var(--text-muted); font-size: 0.78rem;">lúc <strong>{{ configs.get("last_sync_time") }}</strong></span>
+                    
+                    {% if configs.get("last_sync_error") %}
+                        <div style="width: 100%; color: #f87171; font-size: 0.78rem; font-family: 'Be Vietnam Pro', sans-serif; background: rgba(239, 68, 68, 0.05); padding: 0.5rem 0.8rem; border-radius: 6px; border-left: 3px solid #ef4444; margin-top: 0.5rem; word-break: break-all; text-align: left; line-height: 1.4;">
+                            <strong>Chi tiết lỗi:</strong> {{ configs.get("last_sync_error") }}
+                        </div>
+                    {% endif %}
+                {% else %}
+                    <span style="color: var(--text-muted); font-style: italic;">Chưa có dữ liệu lịch sử đồng bộ.</span>
+                {% endif %}
+            </div>
         </div>
-        <button id="btnManualSync" class="btn btn-primary btn-sm">
+        <button id="btnManualSync" class="btn btn-primary btn-sm" style="height: 38px;">
             <i class="fa-solid fa-cloud-arrow-down"></i> Đồng Bộ Thủ Công Ngay
         </button>
     </div>
@@ -192,7 +222,7 @@
             <i class="fa-solid fa-calendar-check"></i> Sự Kiện Lịch Sử
         </button>
         <button class="tab-btn" onclick="switchAdminTab(event, 'tab-security')">
-            <i class="fa-solid fa-shield-halved"></i> Bảo mật
+            <i class="fa-solid fa-shield-halved"></i> Bảo mật & Sao lưu
         </button>
     </div>
 
@@ -1829,6 +1859,24 @@
                 </button>
             </form>
         </div>
+
+        <div class="glass-card" style="max-width: 550px; margin: 2rem auto 0 auto; border-color: rgba(60, 186, 146, 0.2); background: rgba(60, 186, 146, 0.01);">
+            <h3 class="admin-section-title" style="color: var(--color-green);"><i class="fa-solid fa-database"></i> Sao Lưu Dữ Liệu Hệ Thống</h3>
+            <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.5rem; line-height: 1.5; text-align: left;">
+                Toàn bộ dữ liệu của giải chạy (vận động viên, thành tích hoạt động, quy chế, phần thưởng) được lưu trữ trong tệp cơ sở dữ liệu SQLite cục bộ trên máy chủ VPS.
+            </p>
+            
+            <a href="/admin/db/backup/download" class="btn btn-primary" style="width: 100%; margin-top: 1.2rem; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; background: var(--color-green); border-color: var(--color-green); text-decoration: none; font-weight: bold; font-family: 'Outfit', sans-serif;">
+                <i class="fa-solid fa-file-arrow-down"></i> Tải Bản Sao Lưu (.db) Về Máy
+            </a>
+            
+            <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 8px; padding: 0.8rem; margin-top: 1.2rem; font-size: 0.78rem; color: var(--text-muted); line-height: 1.5; text-align: left;">
+                <strong><i class="fa-solid fa-triangle-exclamation" style="color: var(--color-orange);"></i> Cơ chế tự động & Cách khôi phục:</strong>
+                <br>• <strong>Sao lưu tự động:</strong> Hệ thống tự động sao lưu dữ liệu ngầm mỗi 24 giờ và lưu trữ xoay vòng 5 bản gần nhất trên ổ đĩa VPS để dọn dẹp dung lượng.
+                <br>• <strong>Đề phòng VPS hỏng:</strong> Hãy chủ động tải bản sao lưu <code>.db</code> về máy tính cá nhân của bạn định kỳ để cất giữ ở một nơi an toàn.
+                <br>• <strong>Cách khôi phục:</strong> Nếu VPS cũ bị hỏng hoàn toàn, bạn chỉ cần thiết lập VPS mới, sao chép file sao lưu <code>.db</code> đã tải về này vào thư mục gốc của dự án trên VPS mới, đổi tên file thành <code>SSO_HC.db</code> và khởi chạy ứng dụng. Toàn bộ dữ liệu sẽ được khôi phục nguyên vẹn 100%!
+            </div>
+        </div>
     </div>
 
     {% endif %}
@@ -2473,6 +2521,7 @@
                     window.location.reload(); // Tải lại trang để cập nhật giao diện
                 } else {
                     alert(`Lỗi đồng bộ: ${data.error || 'Lỗi không xác định'}`);
+                    window.location.reload(); // Tải lại trang để cập nhật log lỗi trên giao diện
                 }
             })
             .catch(err => {

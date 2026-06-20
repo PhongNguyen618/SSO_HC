@@ -195,7 +195,7 @@
             {{ athlete.full_name[:1] }}
         </div>
         {% endif %}
-        <a href="/avatar?athlete_id={{ athlete.id }}" class="avatar-edit-btn" title="Cập nhật ảnh đại diện" style="position: absolute; bottom: -2px; right: -2px; background: #00ADB5; width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; border: 2px solid #0d0b18; cursor: pointer; transition: all 0.2s ease-in-out; text-decoration: none;">
+        <a href="javascript:void(0)" onclick="openAvatarModal()" class="avatar-edit-btn" title="Cập nhật ảnh đại diện" style="position: absolute; bottom: -2px; right: -2px; background: #00ADB5; width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; border: 2px solid #0d0b18; cursor: pointer; transition: all 0.2s ease-in-out; text-decoration: none;">
             <i class="fa-solid fa-camera" style="font-size: 0.7rem;"></i>
         </a>
     </div>
@@ -534,6 +534,37 @@
     </div>
     {% endif %}
 </div>
+
+<!-- Modal cập nhật Avatar -->
+<div id="avatarModal" class="modal-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(10, 8, 22, 0.75); backdrop-filter: blur(10px); z-index: 1000; align-items: center; justify-content: center; transition: all 0.3s ease;">
+    <div class="glass-card" style="width: 380px; padding: 2rem; border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.08); text-align: center; display: flex; flex-direction: column; gap: 1.2rem; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6); margin: 1rem; box-sizing: border-box;">
+        <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.2rem; color: #fff; margin: 0; display: flex; align-items: center; justify-content: center; gap: 0.5rem; font-weight: 700;">
+            <i class="fa-solid fa-user-circle" style="color: var(--color-primary);"></i> CẬP NHẬT ẢNH ĐẠI DIỆN
+        </h3>
+        <p style="color: var(--text-muted); font-size: 0.82rem; margin: 0; line-height: 1.5;">
+            Hãy chọn phương thức bạn muốn sử dụng để thay đổi ảnh đại diện của mình:
+        </p>
+        
+        <div style="display: flex; flex-direction: column; gap: 0.8rem; margin-top: 0.5rem;">
+            <!-- Tùy chọn 1: Upload trực tiếp -->
+            <button onclick="triggerDirectUpload()" class="btn btn-primary" style="width: 100%; padding: 0.8rem; font-weight: bold; font-size: 0.88rem; display: flex; align-items: center; justify-content: center; gap: 0.5rem; font-family: 'Outfit', sans-serif;">
+                <i class="fa-solid fa-cloud-arrow-up"></i> Tải ảnh trực tiếp lên
+            </button>
+            <input type="file" id="directAvatarInput" accept="image/*" style="display: none;" onchange="handleDirectUpload(event)">
+            
+            <!-- Tùy chọn 2: Ghép khung viền kỷ niệm -->
+            <a href="/avatar?athlete_id={{ athlete.id }}" class="btn btn-secondary" style="width: 100%; padding: 0.8rem; font-weight: bold; font-size: 0.88rem; text-decoration: none; border-color: rgba(143, 205, 240, 0.3); display: flex; align-items: center; justify-content: center; gap: 0.5rem; box-sizing: border-box; font-family: 'Outfit', sans-serif;">
+                <i class="fa-solid fa-wand-magic-sparkles" style="color: #00ADB5;"></i> Ghép khung viền kỷ niệm
+            </a>
+        </div>
+        
+        <div style="border-top: 1px dashed rgba(255, 255, 255, 0.08); padding-top: 0.8rem; margin-top: 0.5rem;">
+            <button onclick="closeAvatarModal()" class="btn-action" style="background: rgba(255, 255, 255, 0.03); color: var(--text-muted); border: 1px solid rgba(255, 255, 255, 0.08); padding: 0.4rem 1.5rem; font-size: 0.78rem; border-radius: 20px; cursor: pointer; transition: all 0.2s;">
+                Đóng
+            </button>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -672,6 +703,54 @@
         })
         .catch(err => {
             alert("Lỗi hệ thống: " + err.message);
+        });
+    }
+
+    // --- LOGIC MODAL CẬP NHẬT AVATAR ---
+    function openAvatarModal() {
+        document.getElementById('avatarModal').style.display = 'flex';
+    }
+
+    function closeAvatarModal() {
+        document.getElementById('avatarModal').style.display = 'none';
+    }
+
+    function triggerDirectUpload() {
+        document.getElementById('directAvatarInput').click();
+    }
+
+    function handleDirectUpload(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        
+        if (!file.type.startsWith('image/')) {
+            alert('Vui lòng chọn file ảnh hợp lệ (PNG, JPG, JPEG, WEBP).');
+            return;
+        }
+        
+        // Đóng modal và báo hiệu đang xử lý
+        closeAvatarModal();
+        
+        const formData = new FormData();
+        formData.append('athlete_id', "{{ athlete.id }}");
+        formData.append('file', file);
+        
+        // Gọi API tải ảnh trực tiếp
+        fetch('/api/avatar/upload-direct', {
+            method: 'POST',
+            body: formData
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data && data.status === 'success') {
+                alert('🎉 Cập nhật ảnh đại diện trực tiếp thành công!');
+                window.location.reload();
+            } else {
+                alert('Lỗi cập nhật ảnh đại diện: ' + (data ? data.message : 'Không rõ nguyên nhân'));
+            }
+        })
+        .catch(err => {
+            alert('Lỗi hệ thống: ' + err.message);
         });
     }
 </script>

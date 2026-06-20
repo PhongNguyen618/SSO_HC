@@ -308,7 +308,8 @@ def sync_club_activities(event_id: int = None) -> dict:
         result["status"] = "success" if all_success else "partial"
         result["new_activities"] = total_new
         if not all_success:
-            result["error"] = "Một số giải đấu đồng bộ thất bại. Vui lòng kiểm tra chi tiết."
+            errs = [detail.get("error") for detail in result.get("details", []) if detail.get("error")]
+            result["error"] = "Loi giai chay: " + "; ".join(errs) if errs else "Một số giải đấu đồng bộ thất bại. Vui lòng kiểm tra chi tiết."
         
     except Exception as e:
         db.rollback()
@@ -316,6 +317,16 @@ def sync_club_activities(event_id: int = None) -> dict:
         result["status"] = "error"
         result["error"] = str(e)
     finally:
+        try:
+            if "status" in result and result["status"] != "idle":
+                now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                update_config(db, "last_sync_time", now_str)
+                update_config(db, "last_sync_status", result["status"])
+                update_config(db, "last_sync_new_count", str(result.get("new_activities", 0)))
+                update_config(db, "last_sync_error", result.get("error") or "")
+                db.commit()
+        except Exception as log_ex:
+            print(f"Sync Engine: Error saving finally sync log: {log_ex}")
         db.close()
         
     return result
