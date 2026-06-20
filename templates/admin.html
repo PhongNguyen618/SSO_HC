@@ -901,6 +901,10 @@
                         <label for="edit-act-date">Ngày Hoạt Động</label>
                         <input type="date" id="edit-act-date" name="activity_date" class="form-control" required style="height: 38px; line-height: 1.5;">
                     </div>
+                    <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                        <label for="edit-act-time">Giờ Hoạt Động (HH:MM)</label>
+                        <input type="time" id="edit-act-time" name="activity_time" class="form-control" style="height: 38px; line-height: 1.5;" onclick="this.showPicker()">
+                    </div>
                 </div>
                 <div class="form-row" style="display: flex; gap: 1rem; margin-bottom: 1rem;">
                     <div class="form-group" style="flex: 1; margin-bottom: 0;">
@@ -2166,7 +2170,10 @@
                         </div>
                     ` : ''}
                 </td>
-                <td style="text-align: center;">${act.activity_date || ''}</td>
+                <td style="text-align: center;">
+                    ${act.activity_date || ''}
+                    ${act.activity_time ? `<div style="font-size: 0.78rem; color: #00bcd4; margin-top: 2px;"><i class="fa-regular fa-clock"></i> ${act.activity_time}</div>` : ''}
+                </td>
                 <td style="text-align: center;">${statusBadge}</td>
                 <td style="text-align: center;">
                     <div style="display: flex; gap: 0.3rem; justify-content: center;">
@@ -2223,6 +2230,7 @@
         document.getElementById('edit-act-name').value = act.name;
         document.getElementById('edit-act-sport-type').value = act.sport_type;
         document.getElementById('edit-act-date').value = act.activity_date;
+        document.getElementById('edit-act-time').value = act.activity_time || '';
         document.getElementById('edit-act-dist').value = act.distance_km;
         document.getElementById('edit-act-mov-time').value = act.moving_time_min;
         document.getElementById('edit-act-ela-time').value = act.elapsed_time_min;

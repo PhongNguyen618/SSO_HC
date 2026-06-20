@@ -3319,6 +3319,7 @@ def edit_activity(
     elapsed_time_min: float = Form(...),
     elevation_gain_m: float = Form(...),
     activity_date: str = Form(...),
+    activity_time: str = Form(None),
     kcal_burned: float = Form(None),
     db: Session = Depends(get_db)
 ):
@@ -3339,6 +3340,7 @@ def edit_activity(
         activity.elapsed_time_min = elapsed_time_min
         activity.elevation_gain_m = elevation_gain_m
         activity.activity_date = activity_date.strip()
+        activity.activity_time = activity_time.strip() if activity_time else None
         
         # Tính lại METs & KCAL dựa trên cân nặng của vận động viên
         athlete = db.query(Athlete).filter(Athlete.id == activity.athlete_id).first()
