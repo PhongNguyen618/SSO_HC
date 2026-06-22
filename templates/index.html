@@ -434,7 +434,7 @@
             <i class="fa-solid fa-road"></i>
         </div>
         <div class="kpi-info">
-            <div class="kpi-val">{{ "{:,}".format(total_dist).replace(",", ".") }} km</div>
+            <div class="kpi-val">{{ "{:,}".format(total_dist).replace(".", "_").replace(",", ".").replace("_", ",") }} km</div>
             <div class="kpi-label">Tổng Quãng Đường</div>
         </div>
     </div>
