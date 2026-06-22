@@ -199,7 +199,7 @@ def deduplicate_activities_logic(db: Session) -> dict:
                     if act1.sport_type != act2.sport_type:
                         continue
                         
-                    # 3. Chênh lệch ngày không quá 1 ngày
+                    # 3. Chênh lệch ngày không quá 2 ngày (để xử lý lệch múi giờ sâu hoặc đồng bộ trễ)
                     date_diff_days = 999
                     if act1.activity_date and act2.activity_date:
                         try:
@@ -209,7 +209,7 @@ def deduplicate_activities_logic(db: Session) -> dict:
                         except Exception:
                             pass
                             
-                    if date_diff_days > 1:
+                    if date_diff_days > 2:
                         continue
                         
                     # 4. Quy tắc về tên hoạt động: để tránh xóa nhầm hai hoạt động thực tế khác nhau tự đặt tên riêng
