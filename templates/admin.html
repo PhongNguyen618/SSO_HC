@@ -596,14 +596,19 @@
                 </div>
             </div>
 
-            <div class="kpi-card" style="padding: 1.2rem; border-radius: 12px; background: rgba(233, 30, 99, 0.05); border: 1px solid rgba(233, 30, 99, 0.15); display: flex; align-items: center; gap: 1rem;">
-                <div style="width: 50px; height: 50px; border-radius: 50%; background: rgba(233, 30, 99, 0.15); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; color: #e91e63;">
-                    <i class="fa-solid fa-money-bill-wave"></i>
+            <div class="kpi-card" style="padding: 1.2rem; border-radius: 12px; background: rgba(233, 30, 99, 0.05); border: 1px solid rgba(233, 30, 99, 0.15); display: flex; align-items: center; gap: 1rem; justify-content: space-between; flex-wrap: wrap;">
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                    <div style="width: 50px; height: 50px; border-radius: 50%; background: rgba(233, 30, 99, 0.15); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; color: #e91e63;">
+                        <i class="fa-solid fa-money-bill-wave"></i>
+                    </div>
+                    <div>
+                        <span style="display: block; font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Tổng Chi Phí Giải Thưởng</span>
+                        <span style="font-size: 1.6rem; font-weight: 700; color: #e91e63;">{{ "{:,.0f}".format(stats_data.kpis.total_reward) if stats_data and stats_data.kpis.total_reward is defined else 0 }} <span style="font-size:0.8rem; font-weight:400; color: var(--text-muted);">VNĐ</span></span>
+                    </div>
                 </div>
-                <div>
-                    <span style="display: block; font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Tổng Chi Phí Giải Thưởng</span>
-                    <span style="font-size: 1.6rem; font-weight: 700; color: #e91e63;">{{ "{:,.0f}".format(stats_data.kpis.total_reward) if stats_data and stats_data.kpis.total_reward is defined else 0 }} <span style="font-size:0.8rem; font-weight:400; color: var(--text-muted);">VNĐ</span></span>
-                </div>
+                <button onclick="downloadRewardExcelReport()" class="btn btn-sm" style="background: rgba(233, 30, 99, 0.1); border: 1px solid rgba(233, 30, 99, 0.2); color: #e91e63; display: inline-flex; align-items: center; gap: 0.4rem; height: 32px; padding: 0 0.8rem; font-size: 0.78rem; border-radius: 6px; font-weight: bold; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='rgba(233, 30, 99, 0.2)'" onmouseout="this.style.background='rgba(233, 30, 99, 0.1)'" title="Tải danh sách chi tiết nhận thưởng cho Kế toán">
+                    <i class="fa-solid fa-file-excel"></i> Tải Chi Tiết Excel
+                </button>
             </div>
         </div>
 
@@ -2734,7 +2739,15 @@
             alert("Vui lòng chọn đầy đủ ngày bắt đầu và ngày kết thúc!");
             return;
         }
-        window.location.href = `/admin/export-excel?start_date=${start}&end_date=${end}`;
+        const urlParams = new URLSearchParams(window.location.search);
+        const eventId = urlParams.get('event_id') || '';
+        window.location.href = `/admin/export-excel?start_date=${start}&end_date=${end}&event_id=${eventId}`;
+    }
+
+    function downloadRewardExcelReport() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const eventId = urlParams.get('event_id') || '';
+        window.location.href = `/admin/export-rewards-excel?event_id=${eventId}`;
     }
 
     // --- ADMIN ANALYTICS VISUALIZATION LOGIC ---

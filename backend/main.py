@@ -3792,6 +3792,130 @@ def export_excel(
         headers={'Content-Disposition': f'attachment; filename={filename}'}
     )
 
+@app.get("/admin/export-rewards-excel")
+def export_rewards_excel(
+    request: Request,
+    event_id: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """
+    API xuất báo cáo chi tiết giải thưởng của VĐV phục vụ kế toán chi trả.
+    """
+    admin_session = get_admin_session(request, db)
+    if not admin_session:
+        return RedirectResponse("/admin?error=Chua dang nhap", status_code=303)
+
+    import io
+    import time
+    import pandas as pd
+    from fastapi.responses import StreamingResponse
+    from backend.calculations import get_award_info
+
+    parsed_event_id = None
+    if event_id is not None and str(event_id).strip():
+        try:
+            parsed_event_id = int(str(event_id).strip())
+        except ValueError:
+            pass
+    event_id = parsed_event_id
+
+    # 1. Lấy thông tin giải đấu
+    selected_event = None
+    if event_id:
+        selected_event = db.query(CompetitionEvent).filter(CompetitionEvent.id == event_id).first()
+
+    # Lấy các bộ môn được cấu hình cho giải đấu
+    allowed_sports = None
+    if selected_event:
+        allowed_sports = [s.strip() for s in (selected_event.ranking_sports or "All").split(",") if s.strip()]
+
+    is_distance = selected_event and getattr(selected_event, "ranking_metric", "kcal") == "distance"
+    metric_unit = "KM" if is_distance else "KCAL"
+    event_title = selected_event.title if selected_event else "Tat_Ca_Giai_Dau"
+
+    # 2. Lấy danh sách VĐV
+    if event_id:
+        athletes = db.query(Athlete).join(
+            CompetitionRegistration,
+            Athlete.id == CompetitionRegistration.athlete_id
+        ).filter(CompetitionRegistration.event_id == event_id, Athlete.is_active == True).all()
+    else:
+        athletes = db.query(Athlete).filter(Athlete.is_active == True).all()
+
+    # 3. Tính toán thành tích và giải thưởng
+    data = []
+    for ath in athletes:
+        act_query = db.query(Activity).filter(Activity.athlete_id == ath.id)
+        if event_id:
+            act_query = act_query.filter(Activity.event_id == event_id)
+            if allowed_sports and "All" not in allowed_sports:
+                act_query = act_query.filter(Activity.sport_type.in_(allowed_sports))
+                
+        activities = act_query.all()
+        
+        total_kcal = sum(a.kcal_burned for a in activities) or 0.0
+        total_dist = sum(a.distance_km for a in activities) or 0.0
+        
+        metric_value = total_dist if is_distance else total_kcal
+        
+        award_info = get_award_info(ath.gender, metric_value, db, event_id=event_id)
+        
+        data.append({
+            "Mã VĐV": ath.id,
+            "Họ và Tên": ath.full_name,
+            "Phòng ban": ath.department or "Chưa phân phòng",
+            "Giới tính": ath.gender or "Khác",
+            f"Tổng thành tích ({metric_unit})": round(metric_value, 2),
+            "Số tiền thưởng (VND)": int(award_info.get("reward_amount", 0.0)),
+            "Trạng thái": "Có giải thưởng" if award_info.get("reward_amount", 0.0) > 0 else "Chưa đạt mốc"
+        })
+
+    # Sắp xếp danh sách nhận thưởng giảm dần theo Số tiền thưởng và Thành tích
+    data = sorted(data, key=lambda x: (x["Số tiền thưởng (VND)"], x[f"Tổng thành tích ({metric_unit})"]), reverse=True)
+
+    # Thêm cột Hạng
+    for rank, item in enumerate(data, 1):
+        item["Hạng"] = rank
+
+    # Sắp xếp lại cột cho đẹp
+    columns = ["Hạng", "Mã VĐV", "Họ và Tên", "Phòng ban", "Giới tính", f"Tổng thành tích ({metric_unit})", "Số tiền thưởng (VND)", "Trạng thái"]
+    df = pd.DataFrame(data)
+    if not df.empty:
+        df = df[columns]
+    else:
+        df = pd.DataFrame(columns=columns)
+
+    # Xuất ra file Excel dùng pandas BytesIO
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name="Báo cáo giải thưởng")
+        
+        # Tự động căn chỉnh độ rộng cột
+        worksheet = writer.sheets["Báo cáo giải thưởng"]
+        for col in worksheet.columns:
+            max_len = max(len(str(cell.value or '')) for cell in col)
+            col_letter = col[0].column_letter
+            worksheet.column_dimensions[col_letter].width = max(max_len + 3, 12)
+            
+    output.seek(0)
+
+    filename_safe = "".join(c for c in event_title if c.isalnum() or c in (' ', '_', '-')).rstrip()
+    filename_safe = filename_safe.replace(' ', '_')
+    
+    import urllib.parse
+    filename = f"Bao_cao_chi_phi_giai_thuong_{filename_safe}_{int(time.time())}.xlsx"
+    encoded_filename = urllib.parse.quote(filename)
+
+    headers = {
+        'Content-Disposition': f"attachment; filename*=UTF-8''{encoded_filename}"
+    }
+
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers=headers
+    )
+
 @app.get("/strava/webhook")
 def strava_webhook_verification(request: Request):
     """
