@@ -138,9 +138,42 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
             if len(start_date_local) >= 16:
                 act_time_str = start_date_local[11:16]  # Định dạng HH:MM
         else:
+            gmt7_now = datetime.utcnow() + timedelta(hours=7)
             act_date_str = today_str
             # Tự động áp giờ chạy mặc định là giờ local hiện tại (GMT+7)
-            act_time_str = (datetime.utcnow() + timedelta(hours=7)).strftime("%H:%M")
+            act_time_str = gmt7_now.strftime("%H:%M")
+
+            # Cấu hình giờ ân hạn đồng bộ, mặc định là 12 giờ trưa
+            grace_hours = 12
+            grace_config = configs.get("sync_grace_period_hours")
+            if grace_config:
+                try:
+                    grace_hours = int(grace_config)
+                except ValueError:
+                    pass
+
+            # Chỉ lùi ngày nếu quét trước giờ ân hạn (ví dụ trước 12:00 trưa)
+            if gmt7_now.hour < grace_hours:
+                # Kiểm tra tên hoạt động có chứa từ khóa buổi trưa/chiều/tối hay không
+                # để tránh gán nhầm người chạy sáng Thứ Hai thật (thường tên là Morning Run / Chạy buổi sáng)
+                name_lower = (name or "").lower()
+                time_keywords = ["afternoon", "evening", "night", "lunch", "sunset", "dusk", "chiều", "tối", "trưa"]
+                has_time_keyword = any(kw in name_lower for kw in time_keywords)
+
+                if has_time_keyword:
+                    yesterday = gmt7_now - timedelta(days=1)
+                    yesterday_str = yesterday.strftime("%Y-%m-%d")
+
+                    # Tra cứu hệ số nhân của ngày quét và ngày hôm trước
+                    mult_today = get_multiplier_for_date(act_date_str, event_id, db)
+                    mult_yesterday = get_multiplier_for_date(yesterday_str, event_id, db)
+
+                    # Nếu ngày hôm trước có hệ số nhân lớn hơn ngày hiện tại, lùi ngày hoạt động
+                    if mult_yesterday > mult_today:
+                        act_date_str = yesterday_str
+                        act_time_str = "23:59"  # Đánh dấu chạy muộn ngày hôm trước
+                        print(f"Sync Engine: Tu dong lui ngay hoat dong cua {athlete_name_raw} ('{name}') tu {gmt7_now.strftime('%Y-%m-%d')} ve {yesterday_str} "
+                              f"do ten co tu khoa buoi chieu/toi, ngay hom truoc co he so nhan cao hon ({mult_yesterday} > {mult_today}) va quet truoc {grace_hours}h.")
 
         # Tạo mã định danh duy nhất bao gồm event_id và ngày hoạt động thực tế để chống trùng lặp
         unique_str = f"{athlete_name_raw}_{act_date_str}_{name}_{act_type}_{distance_km}_{moving_time_min}_{elapsed_time_min}_{elevation_gain_m}_{event_id}"

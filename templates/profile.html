@@ -444,7 +444,14 @@
                             {{ act.sport_type }}
                         </span>
                     </td>
-                    <td style="text-align: right; font-weight: 600;">{{ act.distance_km }} km</td>
+                    <td style="text-align: right; font-weight: 600;">
+                        {{ act.distance_km }} km
+                        {% if act.multiplier and act.multiplier > 1.0 %}
+                        <div style="font-size: 0.75rem; color: #ffc107; margin-top: 2px;" title="Hệ số nhân: x{{ act.multiplier }} (Quãng đường gốc: {{ act.distance_km_raw if act.distance_km_raw else (act.distance_km / act.multiplier) | round(2) }} km)">
+                            <i class="fa-solid fa-bolt" style="color: #ffc107;"></i> x{{ act.multiplier }}
+                        </div>
+                        {% endif %}
+                    </td>
                     <td style="text-align: right; color: var(--text-muted);">{{ act.moving_time_min }} phút</td>
                     <td style="text-align: right; font-family: monospace;">{{ act.pace_min_km }} min/km</td>
                     <td style="text-align: right; color: var(--text-muted);">{{ act.elevation_gain_m }} m</td>
