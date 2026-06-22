@@ -78,7 +78,7 @@
                     <!-- Các slide chứa ảnh -->
                     <div id="gallerySlider" style="width: 100%; height: 100%; position: relative;">
                         {% for img in images %}
-                        <div class="gallery-slide {% if loop.first %}active{% endif %}" onclick="openLightbox('{{ img }}')" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; transition: opacity 0.5s ease-in-out; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 1;">
+                        <div class="gallery-slide {% if loop.first %}active{% endif %}" onclick="openLightbox({{ loop.index0 }})" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; transition: opacity 0.5s ease-in-out; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 1;">
                             <img src="{{ img }}" alt="Gallery Image" style="width: 100%; height: 100%; object-fit: cover;">
                         </div>
                         {% endfor %}
@@ -109,8 +109,18 @@
 
 <!-- Modal xem ảnh lớn (Lightbox) -->
 <div id="imageLightbox" class="event-modal-overlay" style="z-index: 1002; background: rgba(0,0,0,0.95); display: none; align-items: center; justify-content: center; position: fixed; top: 0; left: 0; width: 100%; height: 100%;" onclick="closeLightbox()">
-    <button class="rules-modal-close" style="position: absolute; top: 1.5rem; right: 1.5rem; color: #fff; font-size: 2.5rem; background: none; border: none; cursor: pointer;" onclick="closeLightbox()">&times;</button>
-    <img id="lightboxImage" src="" alt="Full Image" style="max-width: 90%; max-height: 85vh; object-fit: contain; border-radius: 4px; box-shadow: 0 0 30px rgba(0,0,0,0.8);" onclick="event.stopPropagation()">
+    <button class="rules-modal-close" style="position: absolute; top: 1.5rem; right: 1.5rem; color: #fff; font-size: 2.5rem; background: none; border: none; cursor: pointer; z-index: 1010;" onclick="closeLightbox()">&times;</button>
+    
+    {% if images|length > 1 %}
+    <button class="lightbox-nav-btn prev" onclick="changeLightboxImage(-1, event)" style="position: absolute; left: 2rem; top: 50%; transform: translateY(-50%); z-index: 1010; width: 48px; height: 48px; border-radius: 50%; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2); color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s ease; font-size: 1.2rem;">
+        <i class="fa-solid fa-chevron-left"></i>
+    </button>
+    <button class="lightbox-nav-btn next" onclick="changeLightboxImage(1, event)" style="position: absolute; right: 2rem; top: 50%; transform: translateY(-50%); z-index: 1010; width: 48px; height: 48px; border-radius: 50%; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2); color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s ease; font-size: 1.2rem;">
+        <i class="fa-solid fa-chevron-right"></i>
+    </button>
+    {% endif %}
+    
+    <img id="lightboxImage" src="" alt="Full Image" style="max-width: 85%; max-height: 85vh; object-fit: contain; border-radius: 4px; box-shadow: 0 0 30px rgba(0,0,0,0.8); z-index: 1005;" onclick="event.stopPropagation()">
 </div>
 
 <style>
@@ -132,6 +142,12 @@
         border-color: var(--color-primary) !important;
         box-shadow: 0 0 10px rgba(143, 205, 240, 0.4);
     }
+    .lightbox-nav-btn:hover {
+        background: var(--color-primary) !important;
+        color: #0a0814 !important;
+        border-color: var(--color-primary) !important;
+        box-shadow: 0 0 12px rgba(143, 205, 240, 0.5);
+    }
     .slider-dot.active {
         background: var(--color-primary) !important;
         transform: scale(1.2);
@@ -143,14 +159,38 @@
 {% block scripts %}
 <script>
     // Lightbox handlers
-    function openLightbox(imgUrl) {
+    const galleryImages = {{ images | tojson if images else [] }};
+    let currentLightboxIndex = 0;
+
+    function openLightbox(index) {
+        currentLightboxIndex = index;
+        updateLightboxImage();
+        
         const lightbox = document.getElementById('imageLightbox');
-        const lightboxImg = document.getElementById('lightboxImage');
-        if (lightbox && lightboxImg) {
-            lightboxImg.src = imgUrl;
+        if (lightbox) {
             lightbox.style.display = 'flex';
             document.body.style.overflow = 'hidden';
         }
+    }
+
+    function updateLightboxImage() {
+        const lightboxImg = document.getElementById('lightboxImage');
+        if (lightboxImg && galleryImages[currentLightboxIndex]) {
+            lightboxImg.src = galleryImages[currentLightboxIndex];
+        }
+    }
+
+    function changeLightboxImage(direction, event) {
+        if (event) {
+            event.stopPropagation();
+        }
+        currentLightboxIndex += direction;
+        if (currentLightboxIndex >= galleryImages.length) {
+            currentLightboxIndex = 0;
+        } else if (currentLightboxIndex < 0) {
+            currentLightboxIndex = galleryImages.length - 1;
+        }
+        updateLightboxImage();
     }
 
     function closeLightbox() {
@@ -161,10 +201,20 @@
         }
     }
     
-    // Đóng bằng phím ESC
+    // Đóng bằng phím ESC và chuyển ảnh bằng phím mũi tên
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
             closeLightbox();
+        } else if (e.key === 'ArrowRight') {
+            const lightbox = document.getElementById('imageLightbox');
+            if (lightbox && lightbox.style.display === 'flex') {
+                changeLightboxImage(1);
+            }
+        } else if (e.key === 'ArrowLeft') {
+            const lightbox = document.getElementById('imageLightbox');
+            if (lightbox && lightbox.style.display === 'flex') {
+                changeLightboxImage(-1);
+            }
         }
     });
     
