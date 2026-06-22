@@ -3417,35 +3417,50 @@ def edit_activity(
         activity.activity_date = activity_date.strip()
         activity.activity_time = activity_time.strip() if activity_time else None
         
-        # Tính lại METs & KCAL dựa trên cân nặng của vận động viên
+        # Xác định cự ly gốc (distance_km_raw) trước khi tính toán lại hệ số nhân
+        # Nếu cự ly gửi lên khác cự ly hiển thị hiện tại trong DB, nghĩa là Admin đã sửa cự ly.
+        # Ta cần tính toán lại cự ly gốc bằng cách chia cho multiplier hiện tại.
+        old_multiplier = activity.multiplier if (activity.multiplier and activity.multiplier > 0) else 1.0
+        
+        if distance_km != activity.distance_km:
+            distance_km_raw = distance_km / old_multiplier
+        else:
+            distance_km_raw = activity.distance_km_raw if activity.distance_km_raw is not None else (distance_km / old_multiplier)
+
+        # Tính toán lại hệ số nhân của ngày mới
+        from backend.calculations import get_mets_value, calculate_kcal, get_multiplier_for_date
+        new_mult = get_multiplier_for_date(activity_date.strip(), activity.event_id, db)
+
+        # Tính lại METs dựa trên cự ly gốc để tốc độ (speed_kmh) chính xác
         athlete = db.query(Athlete).filter(Athlete.id == activity.athlete_id).first()
         weight = athlete.weight if athlete else 60.0
         
-        speed_kmh = distance_km / (moving_time_min / 60.0) if moving_time_min > 0 else 0.0
+        speed_kmh = distance_km_raw / (moving_time_min / 60.0) if moving_time_min > 0 else 0.0
         actual_time_min = elapsed_time_min if moving_time_min < 1.0 else moving_time_min
         
-        from backend.calculations import get_mets_value, calculate_kcal, get_multiplier_for_date
-        mets_val = get_mets_value(sport_type.strip(), speed_kmh, db, distance_km, elevation_gain_m, event_id=activity.event_id)
+        mets_val = get_mets_value(sport_type.strip(), speed_kmh, db, distance_km_raw, elevation_gain_m, event_id=activity.event_id)
         activity.mets_value = mets_val
         
-        if kcal_burned is not None:
-            activity.kcal_burned = kcal_burned
-            activity.kcal_burned_raw = kcal_burned
+        # Nếu Admin sửa trực tiếp Calo trên form (calo gửi lên khác calo hiển thị hiện tại trong DB)
+        if kcal_burned is not None and kcal_burned != activity.kcal_burned:
+            # Ép hệ số nhân về 1.0 và lưu trực tiếp giá trị Admin sửa
             activity.multiplier = 1.0
             activity.distance_km = distance_km
             activity.distance_km_raw = distance_km
+            activity.kcal_burned = kcal_burned
+            activity.kcal_burned_raw = kcal_burned
         else:
-            mult = get_multiplier_for_date(activity_date.strip(), activity.event_id, db)
+            # Tự động tính toán lại quãng đường và calo theo hệ số nhân mới của ngày mới
             kcal_raw = calculate_kcal(mets_val, weight, actual_time_min, elevation_gain_m, sport_type.strip())
             activity.kcal_burned_raw = kcal_raw
-            activity.kcal_burned = round(kcal_raw * mult)
-            activity.multiplier = mult
-            activity.distance_km = round(distance_km * mult, 2)
-            activity.distance_km_raw = distance_km
+            activity.kcal_burned = round(kcal_raw * new_mult)
+            activity.multiplier = new_mult
+            activity.distance_km = round(distance_km_raw * new_mult, 2)
+            activity.distance_km_raw = distance_km_raw
             
-        # Tính lại pace
-        if distance_km > 0:
-            activity.pace_min_km = round(moving_time_min / distance_km, 2)
+        # Tính lại pace dựa trên cự ly gốc để thông tin chính xác
+        if distance_km_raw > 0:
+            activity.pace_min_km = round(moving_time_min / distance_km_raw, 2)
         else:
             activity.pace_min_km = 0.0
             
