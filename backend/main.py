@@ -744,6 +744,49 @@ def index(
         for sport in grouped:
             for rank, ath in enumerate(grouped[sport], 1):
                 ath["rank"] = rank
+
+        # --- BỔ SUNG: Xếp hạng gộp Chạy & Đi bộ (Walk + Run) ---
+        run_walk_query = db.query(
+            Athlete.id,
+            Athlete.full_name,
+            func.sum(Activity.kcal_burned).label("total_kcal"),
+            func.sum(Activity.distance_km).label("total_dist"),
+            func.sum(Activity.moving_time_min).label("total_time")
+        ).join(Activity, Athlete.id == Activity.athlete_id)\
+         .filter(Activity.sport_type.in_(["Run", "Walk"]))
+
+        if event_id:
+            run_walk_query = run_walk_query.join(
+                CompetitionRegistration,
+                (Athlete.id == CompetitionRegistration.athlete_id) & (CompetitionRegistration.event_id == event_id)
+            )
+
+        if is_distance:
+            run_walk_stats = run_walk_query.filter(Athlete.is_active == True, Athlete.gender == gender, *base_filters)\
+             .group_by(Athlete.id)\
+             .order_by(func.sum(Activity.distance_km).desc()).all()
+        else:
+            run_walk_stats = run_walk_query.filter(Athlete.is_active == True, Athlete.gender == gender, *base_filters)\
+             .group_by(Athlete.id)\
+             .order_by(func.sum(Activity.kcal_burned).desc()).all()
+
+        run_walk_list = []
+        for item in run_walk_stats:
+            run_walk_list.append({
+                "id": item.id,
+                "full_name": item.full_name,
+                "total_kcal": int(item.total_kcal or 0),
+                "total_dist": round(item.total_dist or 0, 1),
+                "total_time": round((item.total_time or 0) / 60.0, 1)
+            })
+
+        for rank, ath in enumerate(run_walk_list, 1):
+            ath["rank"] = rank
+
+        if run_walk_list:
+            grouped["Chạy & Đi bộ"] = run_walk_list
+        # --- KẾT THÚC BỔ SUNG ---
+        
         return grouped
 
     sport_rank_male = get_sport_ranking("Nam")
