@@ -2146,24 +2146,51 @@
             return;
         }
         
-        // Quét để phát hiện các hoạt động trùng lặp in-memory trong danh sách hiện tại
-        const dupCounts = {};
-        currentActivitiesList.forEach(act => {
-            const mult = act.multiplier && act.multiplier > 0 ? act.multiplier : 1.0;
-            const distRaw = act.distance_km_raw !== null && act.distance_km_raw !== undefined ? act.distance_km_raw : (act.distance_km / mult);
-            const distRound = Math.round(distRaw * 100) / 100;
-            const timeRound = Math.round((act.moving_time_min || 0) * 10) / 10;
-            const key = `${(act.athlete_name_raw || '').toLowerCase()}_${act.activity_date}_${distRound}_${timeRound}_${(act.sport_type || '').toLowerCase()}`;
-            dupCounts[key] = (dupCounts[key] || 0) + 1;
-        });
+        // Quét để phát hiện các hoạt động trùng lặp bằng thuật toán so khớp chéo (cho phép lệch ngày chạy tối đa 2 ngày)
+        const dupFlags = new Array(currentActivitiesList.length).fill(false);
+        for (let i = 0; i < currentActivitiesList.length; i++) {
+            const act1 = currentActivitiesList[i];
+            const mult1 = act1.multiplier && act1.multiplier > 0 ? act1.multiplier : 1.0;
+            const distRaw1 = act1.distance_km_raw !== null && act1.distance_km_raw !== undefined ? act1.distance_km_raw : (act1.distance_km / mult1);
+            
+            for (let j = i + 1; j < currentActivitiesList.length; j++) {
+                const act2 = currentActivitiesList[j];
+                
+                // 1. Phải cùng VĐV
+                if ((act1.athlete_name_raw || '').toLowerCase().trim() !== (act2.athlete_name_raw || '').toLowerCase().trim()) continue;
+                
+                // 2. Phải cùng loại thể thao
+                if ((act1.sport_type || '').toLowerCase().trim() !== (act2.sport_type || '').toLowerCase().trim()) continue;
+                
+                // 3. Cự ly lệch cực nhỏ (<= 0.05 km)
+                const mult2 = act2.multiplier && act2.multiplier > 0 ? act2.multiplier : 1.0;
+                const distRaw2 = act2.distance_km_raw !== null && act2.distance_km_raw !== undefined ? act2.distance_km_raw : (act2.distance_km / mult2);
+                const distDiff = Math.abs(distRaw1 - distRaw2);
+                if (distDiff > 0.05) continue;
+                
+                // 4. Thời gian di chuyển lệch cực nhỏ (<= 1.0 phút)
+                const timeDiff = Math.abs((act1.moving_time_min || 0) - (act2.moving_time_min || 0));
+                if (timeDiff > 1.0) continue;
+                
+                // 5. Khoảng cách ngày chạy lệch không quá 2 ngày (xử lý lệch múi giờ/đồng bộ trễ)
+                let dateDiff = 999;
+                if (act1.activity_date && act2.activity_date) {
+                    try {
+                        const d1 = new Date(act1.activity_date);
+                        const d2 = new Date(act2.activity_date);
+                        dateDiff = Math.abs((d1 - d2) / (1000 * 60 * 60 * 24));
+                    } catch (e) {}
+                }
+                if (dateDiff > 2) continue;
+                
+                // Đạt điều kiện -> Đánh dấu trùng lặp cả hai
+                dupFlags[i] = true;
+                dupFlags[j] = true;
+            }
+        }
         
         currentActivitiesList.forEach((act, index) => {
-            const mult = act.multiplier && act.multiplier > 0 ? act.multiplier : 1.0;
-            const distRaw = act.distance_km_raw !== null && act.distance_km_raw !== undefined ? act.distance_km_raw : (act.distance_km / mult);
-            const distRound = Math.round(distRaw * 100) / 100;
-            const timeRound = Math.round((act.moving_time_min || 0) * 10) / 10;
-            const key = `${(act.athlete_name_raw || '').toLowerCase()}_${act.activity_date}_${distRound}_${timeRound}_${(act.sport_type || '').toLowerCase()}`;
-            const isDup = dupCounts[key] > 1;
+            const isDup = dupFlags[index];
 
             const tr = document.createElement('tr');
             if (isDup) {
