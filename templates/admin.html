@@ -595,6 +595,16 @@
                     <span style="font-size: 1.6rem; font-weight: 700; color: #20c997;">{{ "{:,.1f}".format(stats_data.kpis.total_hours) if stats_data else 0 }} <span style="font-size:0.8rem; font-weight:400; color: var(--text-muted);">giờ</span></span>
                 </div>
             </div>
+
+            <div class="kpi-card" style="padding: 1.2rem; border-radius: 12px; background: rgba(233, 30, 99, 0.05); border: 1px solid rgba(233, 30, 99, 0.15); display: flex; align-items: center; gap: 1rem;">
+                <div style="width: 50px; height: 50px; border-radius: 50%; background: rgba(233, 30, 99, 0.15); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; color: #e91e63;">
+                    <i class="fa-solid fa-money-bill-wave"></i>
+                </div>
+                <div>
+                    <span style="display: block; font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Tổng Chi Phí Giải Thưởng</span>
+                    <span style="font-size: 1.6rem; font-weight: 700; color: #e91e63;">{{ "{:,.0f}".format(stats_data.kpis.total_reward) if stats_data and stats_data.kpis.total_reward is defined else 0 }} <span style="font-size:0.8rem; font-weight:400; color: var(--text-muted);">VNĐ</span></span>
+                </div>
+            </div>
         </div>
 
         <!-- Khối Đồ thị -->

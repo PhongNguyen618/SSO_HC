@@ -1823,6 +1823,39 @@ def admin_dashboard(
         
     total_hours = total_moving_time_min / 60.0
 
+    # Tính tổng chi phí giải thưởng (Tổng số tiền thưởng cần chi)
+    total_reward = 0.0
+    from backend.calculations import get_award_info
+    
+    # Lấy danh sách VĐV tương ứng
+    if selected_event_id:
+        athletes_for_reward = db.query(Athlete).join(
+            CompetitionRegistration,
+            Athlete.id == CompetitionRegistration.athlete_id
+        ).filter(CompetitionRegistration.event_id == selected_event_id, Athlete.is_active == True).all()
+    else:
+        athletes_for_reward = db.query(Athlete).filter(Athlete.is_active == True).all()
+
+    # Tính giải thưởng cho từng VĐV
+    for ath in athletes_for_reward:
+        act_ath_query = db.query(Activity).filter(Activity.athlete_id == ath.id)
+        if selected_event_id:
+            act_ath_query = act_ath_query.filter(Activity.event_id == selected_event_id)
+            if allowed_sports and "All" not in allowed_sports:
+                act_ath_query = act_ath_query.filter(Activity.sport_type.in_(allowed_sports))
+        
+        ath_activities = act_ath_query.all()
+        
+        # Tính metric_value (Kcal hoặc Km) của VĐV
+        ath_kcal = sum(a.kcal_burned for a in ath_activities) or 0.0
+        ath_dist = sum(a.distance_km for a in ath_activities) or 0.0
+        
+        is_distance = selected_event and getattr(selected_event, "ranking_metric", "kcal") == "distance"
+        metric_value = ath_dist if is_distance else ath_kcal
+        
+        award_info = get_award_info(ath.gender, metric_value, db, event_id=selected_event_id)
+        total_reward += award_info.get("reward_amount", 0.0)
+
     # 2. Thống kê Calo/Km theo tuần (12 tuần gần nhất) và tháng (6 tháng gần nhất)
     import datetime
     max_date_str_db = db.query(func.max(Activity.activity_date)).scalar()
@@ -1946,7 +1979,8 @@ def admin_dashboard(
             "total_activities": total_valid_activities,
             "total_kcal": round(total_kcal_burned, 1),
             "total_dist": round(total_distance, 1),
-            "total_hours": round(total_hours, 1)
+            "total_hours": round(total_hours, 1),
+            "total_reward": total_reward
         },
         "weekly": {
             "labels": weekly_labels,
