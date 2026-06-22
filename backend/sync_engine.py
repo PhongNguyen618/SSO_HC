@@ -154,13 +154,16 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
 
             # Chỉ lùi ngày nếu quét trước giờ ân hạn (ví dụ trước 12:00 trưa)
             if gmt7_now.hour < grace_hours:
-                # Kiểm tra tên hoạt động có chứa từ khóa buổi trưa/chiều/tối hay không
-                # để tránh gán nhầm người chạy sáng Thứ Hai thật (thường tên là Morning Run / Chạy buổi sáng)
+                # Nếu quét vào rạng sáng (trước 5:00 sáng), chắc chắn bất kỳ hoạt động nào (kể cả Morning Run)
+                # cũng đều là hoạt động của ngày hôm trước vì sáng hôm nay chưa thể diễn ra.
+                # Ngược lại, nếu từ 5:00 sáng đến 12:00 trưa, chỉ lùi các hoạt động có từ khóa trưa/chiều/tối.
+                is_early_morning = gmt7_now.hour < 5
+                
                 name_lower = (name or "").lower()
                 time_keywords = ["afternoon", "evening", "night", "lunch", "sunset", "dusk", "chiều", "tối", "trưa"]
                 has_time_keyword = any(kw in name_lower for kw in time_keywords)
 
-                if has_time_keyword:
+                if is_early_morning or has_time_keyword:
                     yesterday = gmt7_now - timedelta(days=1)
                     yesterday_str = yesterday.strftime("%Y-%m-%d")
 
@@ -172,8 +175,9 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
                     if mult_yesterday > mult_today:
                         act_date_str = yesterday_str
                         act_time_str = "23:59"  # Đánh dấu chạy muộn ngày hôm trước
+                        reason = "quet vao rang sang" if is_early_morning else "ten co tu khoa buoi chieu/toi"
                         print(f"Sync Engine: Tu dong lui ngay hoat dong cua {athlete_name_raw} ('{name}') tu {gmt7_now.strftime('%Y-%m-%d')} ve {yesterday_str} "
-                              f"do ten co tu khoa buoi chieu/toi, ngay hom truoc co he so nhan cao hon ({mult_yesterday} > {mult_today}) va quet truoc {grace_hours}h.")
+                              f"do {reason}, ngay hom truoc co he so nhan cao hon ({mult_yesterday} > {mult_today}) va quet truoc {grace_hours}h.")
 
         # Tạo mã định danh duy nhất bao gồm event_id và ngày hoạt động thực tế để chống trùng lặp
         unique_str = f"{athlete_name_raw}_{act_date_str}_{name}_{act_type}_{distance_km}_{moving_time_min}_{elapsed_time_min}_{elevation_gain_m}_{event_id}"
