@@ -455,6 +455,9 @@
         <button class="tab-btn active" onclick="switchTab(event, 'overall')">
             <i class="fa-solid fa-ranking-star"></i> Xếp Hạng Cá Nhân
         </button>
+        <button class="tab-btn" onclick="switchTab(event, 'run-walk-combined')">
+            <i class="fa-solid fa-person-walking-running"></i> Chạy & Đi Bộ
+        </button>
         <button class="tab-btn" onclick="switchTab(event, 'departments')">
             <i class="fa-solid fa-building"></i> Xếp Hạng Phòng Ban
         </button>
@@ -585,6 +588,101 @@
         </div>
     </div>
 
+    <!-- TAB RUN-WALK-COMBINED: RUN & WALK ONLY LEADERBOARD -->
+    <div id="run-walk-combined" class="tab-pane">
+        <h3 style="margin-bottom: 0.5rem; color: var(--color-primary);">Bảng Xếp Hạng Chạy & Đi Bộ</h3>
+        <p style="color: var(--text-muted); margin-bottom: 1.5rem; font-size: 0.9rem; display: flex; align-items: center; gap: 0.4rem;">
+            <i class="fa-solid fa-circle-info" style="color: var(--color-primary);"></i>
+            <em>Bảng xếp hạng dành riêng cho các cá nhân tham gia bộ môn Đi bộ và Chạy bộ (thành tích được cộng dồn). Có giải thưởng riêng cho bảng xếp hạng này.</em>
+        </p>
+        
+        <div class="rules-container" style="grid-template-columns: 1fr 1fr; gap: 2rem;">
+            <!-- CỘT NAM -->
+            <div>
+                <h4 style="margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; color: #00adb5; display: flex; align-items: center; gap: 0.5rem;">
+                    <i class="fa-solid fa-mars"></i> Vận Động Viên Nam
+                </h4>
+                {% set male_run_walk = sport_rank_male.get("Chạy & Đi bộ", []) %}
+                {% if male_run_walk %}
+                <div class="table-responsive">
+                    <table class="custom-table" style="font-size: 0.85rem;">
+                       <thead>
+                           <tr>
+                               <th style="width: 50px; text-align: center;">Hạng</th>
+                               <th>Họ và Tên</th>
+                               <th style="text-align: right;">Quãng đường</th>
+                               <th style="text-align: right;">Thời gian</th>
+                               <th style="text-align: right;">KCAL</th>
+                           </tr>
+                       </thead>
+                       <tbody class="sport-tbody">
+                           {% for ath in male_run_walk %}
+                           <tr class="sport-row" data-kcal="{{ ath.total_kcal }}" data-dist="{{ ath.total_dist }}" data-time="{{ ath.total_time }}" data-athlete-id="{{ ath.id }}">
+                               <td class="sport-rank-col" style="text-align: center;">
+                                   <span class="rank-badge-container">
+                                       <span class="rank-badge {% if ath.rank == 1 %}rank-1{% elif ath.rank == 2 %}rank-2{% elif ath.rank == 3 %}rank-3{% else %}rank-other{% endif %}" style="width: 24px; height: 24px; font-size: 0.75rem; line-height: 24px; margin: 0 auto;">
+                                           {{ ath.rank }}
+                                       </span>
+                                   </span>
+                               </td>
+                               <td><a href="/profile/{{ ath.id }}" style="color: var(--text-main); font-weight: 600; text-decoration: none;">{{ ath.full_name }}</a></td>
+                               <td style="text-align: right;" class="col-sport-dist">{{ ath.total_dist }} km</td>
+                               <td style="text-align: right; color: var(--text-muted);" class="col-sport-time">{{ ath.total_time }} giờ</td>
+                               <td style="text-align: right; color: var(--color-orange); font-weight: 600;" class="col-sport-kcal">{{ "{:,}".format(ath.total_kcal).replace(".", "_").replace(",", ".").replace("_", ",") }}</td>
+                           </tr>
+                           {% endfor %}
+                       </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p style="color: var(--text-muted); font-size: 0.9rem;">Chưa có dữ liệu nam.</p>
+                {% endif %}
+            </div>
+
+            <!-- CỘT NỮ -->
+            <div>
+                <h4 style="margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; color: #e074fc; display: flex; align-items: center; gap: 0.5rem;">
+                    <i class="fa-solid fa-venus"></i> Vận Động Viên Nữ
+                </h4>
+                {% set female_run_walk = sport_rank_female.get("Chạy & Đi bộ", []) %}
+                {% if female_run_walk %}
+                <div class="table-responsive">
+                    <table class="custom-table" style="font-size: 0.85rem;">
+                       <thead>
+                           <tr>
+                               <th style="width: 50px; text-align: center;">Hạng</th>
+                               <th>Họ và Tên</th>
+                               <th style="text-align: right;">Quãng đường</th>
+                               <th style="text-align: right;">Thời gian</th>
+                               <th style="text-align: right;">KCAL</th>
+                           </tr>
+                       </thead>
+                       <tbody class="sport-tbody">
+                           {% for ath in female_run_walk %}
+                           <tr class="sport-row" data-kcal="{{ ath.total_kcal }}" data-dist="{{ ath.total_dist }}" data-time="{{ ath.total_time }}" data-athlete-id="{{ ath.id }}">
+                               <td class="sport-rank-col" style="text-align: center;">
+                                   <span class="rank-badge-container">
+                                       <span class="rank-badge {% if ath.rank == 1 %}rank-1{% elif ath.rank == 2 %}rank-2{% elif ath.rank == 3 %}rank-3{% else %}rank-other{% endif %}" style="width: 24px; height: 24px; font-size: 0.75rem; line-height: 24px; margin: 0 auto;">
+                                           {{ ath.rank }}
+                                       </span>
+                                   </span>
+                               </td>
+                               <td><a href="/profile/{{ ath.id }}" style="color: var(--text-main); font-weight: 600; text-decoration: none;">{{ ath.full_name }}</a></td>
+                               <td style="text-align: right;" class="col-sport-dist">{{ ath.total_dist }} km</td>
+                               <td style="text-align: right; color: var(--text-muted);" class="col-sport-time">{{ ath.total_time }} giờ</td>
+                               <td style="text-align: right; color: var(--color-orange); font-weight: 600;" class="col-sport-kcal">{{ "{:,}".format(ath.total_kcal).replace(".", "_").replace(",", ".").replace("_", ",") }}</td>
+                           </tr>
+                           {% endfor %}
+                       </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p style="color: var(--text-muted); font-size: 0.9rem;">Chưa có dữ liệu nữ.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
     <!-- TAB 2: DEPARTMENT LEADERBOARD -->
     <div id="departments" class="tab-pane">
         <h3 style="margin-bottom: 0.5rem; color: var(--color-primary);">Hiệu Suất Theo Phòng Ban</h3>
@@ -652,6 +750,7 @@
                     <i class="fa-solid fa-mars"></i> Vận Động Viên Nam
                 </h4>
                 {% for sport, athletes in sport_rank_male.items() %}
+                {% if sport != "Chạy & Đi bộ" %}
                 <div style="margin-bottom: 2rem;">
                     <h5 style="color: var(--color-gold); font-size: 1.1rem; margin-bottom: 0.6rem;">
                         <i class="fa-solid fa-person-running"></i> {{ sport }}
@@ -687,6 +786,7 @@
                         </table>
                     </div>
                 </div>
+                {% endif %}
                 {% else %}
                 <p style="color: var(--text-muted); font-size: 0.9rem;">Chưa có dữ liệu nam.</p>
                 {% endfor %}
@@ -698,6 +798,7 @@
                     <i class="fa-solid fa-venus"></i> Vận Động Viên Nữ
                 </h4>
                 {% for sport, athletes in sport_rank_female.items() %}
+                {% if sport != "Chạy & Đi bộ" %}
                 <div style="margin-bottom: 2rem;">
                     <h5 style="color: var(--color-gold); font-size: 1.1rem; margin-bottom: 0.6rem;">
                         <i class="fa-solid fa-person-running"></i> {{ sport }}
@@ -733,6 +834,7 @@
                         </table>
                     </div>
                 </div>
+                {% endif %}
                 {% else %}
                 <p style="color: var(--text-muted); font-size: 0.9rem;">Chưa có dữ liệu nữ.</p>
                 {% endfor %}
