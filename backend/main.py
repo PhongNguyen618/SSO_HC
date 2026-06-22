@@ -137,7 +137,9 @@ os.makedirs("static/js", exist_ok=True)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/branding", StaticFiles(directory="branding"), name="branding")
+APP_VERSION = "v1.4.0"
 templates = Jinja2Templates(directory="templates")
+templates.env.globals["APP_VERSION"] = APP_VERSION
 
 scheduler = BackgroundScheduler()
 
@@ -296,7 +298,7 @@ def run_auto_db_backup():
     
     import shutil
     time_str = datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup_filename = f"SSO_HC_auto_{time_str}.db"
+    backup_filename = f"SSO_HC_auto_{APP_VERSION}_{time_str}.db"
     backup_path = os.path.join(backup_dir, backup_filename)
     
     try:
@@ -2481,7 +2483,7 @@ def download_db_backup(request: Request, db: Session = Depends(get_db)):
         from fastapi.responses import FileResponse
         return FileResponse(
             path=backup_temp_path,
-            filename=f"SSO_HC_backup_{int(time.time())}.db",
+            filename=f"SSO_HC_backup_{APP_VERSION}_{int(time.time())}.db",
             media_type="application/octet-stream"
         )
     except Exception as e:
