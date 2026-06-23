@@ -2005,6 +2005,26 @@ def admin_dashboard(
         "PHÒNG KINH DOANH", "PHÒNG TÀI CHÍNH KẾ TOÁN", "PHÒNG KHAI THÁC", "PHÒNG VẬN HÀNH"
     ]
 
+    # Phát hiện các trường hợp trùng tên hiển thị Strava
+    from collections import defaultdict
+    strava_name_to_athletes = defaultdict(list)
+    active_athletes = db.query(Athlete).filter(Athlete.is_active == True).all()
+    for ath in active_athletes:
+        if ath.strava_name:
+            for part in ath.strava_name.split(","):
+                cleaned = part.strip().lower()
+                if cleaned:
+                    if ath not in strava_name_to_athletes[cleaned]:
+                        strava_name_to_athletes[cleaned].append(ath)
+                        
+    dup_strava_alerts = []
+    for name, aths in strava_name_to_athletes.items():
+        if len(aths) > 1:
+            dup_strava_alerts.append({
+                "strava_name": name,
+                "athletes": [{"id": a.id, "full_name": a.full_name, "department": a.department or "Chưa phân phòng", "strava_name_raw": a.strava_name} for a in aths]
+            })
+
     return templates.TemplateResponse(
         request=request,
         name="admin.html",
@@ -2024,7 +2044,8 @@ def admin_dashboard(
             "departments": departments,
             "all_competitions": all_competitions,
             "selected_event_id": selected_event_id,
-            "time_stamp": int(time.time())
+            "time_stamp": int(time.time()),
+            "dup_strava_alerts": dup_strava_alerts
         }
     )
 
