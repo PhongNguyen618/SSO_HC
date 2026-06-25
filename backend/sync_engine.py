@@ -201,7 +201,6 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
         # Chặn trùng lặp nâng cao (Pre-sync Deduplication) trước khi chèn
         # Tìm trong DB xem có hoạt động nào của VĐV này trùng khớp cự ly và thời gian gần đây không
         if athlete_id:
-            from datetime import timedelta
             # GMT+7 now được lấy ở dòng 141 (gmt7_now)
             limit_date = (gmt7_now - timedelta(days=4)).strftime("%Y-%m-%d")
             existing_similar = db.query(Activity).filter(
