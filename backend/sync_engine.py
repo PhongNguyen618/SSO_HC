@@ -195,9 +195,53 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
             
         seen_ids.add(act_id)
             
-        # Khớp vận động viên đã đăng ký
         athlete = athlete_map.get(athlete_name_raw.lower())
         athlete_id = athlete.id if athlete else None
+
+        # Chặn trùng lặp nâng cao (Pre-sync Deduplication) trước khi chèn
+        # Tìm trong DB xem có hoạt động nào của VĐV này trùng khớp cự ly và thời gian gần đây không
+        if athlete_id:
+            from datetime import timedelta
+            # GMT+7 now được lấy ở dòng 141 (gmt7_now)
+            limit_date = (gmt7_now - timedelta(days=4)).strftime("%Y-%m-%d")
+            existing_similar = db.query(Activity).filter(
+                Activity.athlete_id == athlete_id,
+                Activity.sport_type == sport_type,
+                Activity.activity_date >= limit_date
+            ).all()
+            
+            is_dup_pre = False
+            for ext in existing_similar:
+                dist_ext = ext.distance_km_raw if ext.distance_km_raw is not None else ext.distance_km
+                dist_diff = abs((dist_ext or 0.0) - distance_km)
+                time_diff = abs((ext.moving_time_min or 0.0) - moving_time_min)
+                elev_diff = abs((ext.elevation_gain_m or 0.0) - elevation_gain_m)
+                
+                # So sánh tên hoạt động
+                name1_clean = (ext.name or "").strip().lower()
+                name2_clean = (name or "").strip().lower()
+                
+                generic_keywords = [
+                    "activity", "hoạt động strava", "hoạt động", "workout", "run", "walk", "ride",
+                    "morning run", "afternoon run", "evening run", "night run",
+                    "morning walk", "afternoon walk", "evening walk", "night walk",
+                    "morning ride", "afternoon ride", "evening ride", "night ride",
+                    "lunch run", "lunch walk", "lunch ride"
+                ]
+                is_generic1 = any(k in name1_clean for k in generic_keywords) or name1_clean == ""
+                is_generic2 = any(k in name2_clean for k in generic_keywords) or name2_clean == ""
+                
+                name_match = True
+                if name1_clean != name2_clean and not is_generic1 and not is_generic2:
+                    name_match = False
+                    
+                if name_match and dist_diff <= 0.05 and time_diff <= 1.0 and elev_diff <= 10.0:
+                    is_dup_pre = True
+                    break
+                    
+            if is_dup_pre:
+                # Hoạt động đã được đồng bộ trước đó (có thể với ngày quét khác), bỏ qua không lưu trùng
+                continue
         
         # Tính toán METs & KCAL
         mets_value = 0.0
