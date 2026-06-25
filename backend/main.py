@@ -138,8 +138,18 @@ os.makedirs("static/js", exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/branding", StaticFiles(directory="branding"), name="branding")
 APP_VERSION = "v1.4.0"
+# Lấy thời gian deploy tự động từ ngày sửa đổi file main.py
+try:
+    main_path = os.path.abspath(__file__)
+    mtime = os.path.getmtime(main_path)
+    deploy_dt = datetime.fromtimestamp(mtime)
+    DEPLOY_TIME = deploy_dt.strftime("%d/%m/%Y %H:%M:%S")
+except Exception:
+    DEPLOY_TIME = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+
 templates = Jinja2Templates(directory="templates")
 templates.env.globals["APP_VERSION"] = APP_VERSION
+templates.env.globals["DEPLOY_TIME"] = DEPLOY_TIME
 
 scheduler = BackgroundScheduler()
 

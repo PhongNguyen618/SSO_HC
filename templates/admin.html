@@ -45,7 +45,7 @@
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
         <div>
             <h2 style="font-family: 'Outfit', sans-serif; font-size: 2rem; color: var(--color-primary); display: flex; align-items: center; gap: 0.6rem;">
-                <i class="fa-solid fa-gears"></i> Bảng Điều Khiển Admin <span style="font-size: 0.8rem; background: rgba(0, 188, 212, 0.15); color: #00bcd4; padding: 0.2rem 0.6rem; border-radius: 20px; font-weight: 500;">{{ APP_VERSION }}</span>
+                <i class="fa-solid fa-gears"></i> Bảng Điều Khiển Admin <span style="font-size: 0.8rem; background: rgba(0, 188, 212, 0.15); color: #00bcd4; padding: 0.2rem 0.6rem; border-radius: 20px; font-weight: 500;" title="Thời gian Deploy: {{ DEPLOY_TIME }}">{{ APP_VERSION }}{% if DEPLOY_TIME %} ({{ DEPLOY_TIME }}){% endif %}</span>
             </h2>
             <p style="color: var(--text-muted);">Quản trị hệ thống, cập nhật cấu hình API, quản lý vận động viên và thiết lập luật quy đổi.</p>
         </div>
