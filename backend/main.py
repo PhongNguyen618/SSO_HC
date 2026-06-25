@@ -21,7 +21,7 @@ load_dotenv()
 # Ví dụ: https://yourdomain.com hoặc http://localhost:8000 khi dev local
 APP_URL = os.getenv("APP_URL", "").rstrip("/")
 
-from backend.database import SessionLocal, init_db, get_db, Config, Athlete, Activity, MetsRule, RewardRule, hash_password, CompetitionEvent, CompetitionRegistration, EventMultiplier
+from backend.database import SessionLocal, init_db, get_db, Config, Athlete, Activity, MetsRule, RewardRule, hash_password, CompetitionEvent, CompetitionRegistration, EventMultiplier, SupportTicket
 from backend.calculations import get_award_info, get_multiplier_for_date
 from backend.sync_engine import sync_club_activities, get_config_dict, update_config, link_unlinked_activities, import_excel_files
 from backend.auth import get_admin_session, COOKIE_NAME, verify_password
@@ -4493,6 +4493,105 @@ def admin_sync_competition(comp_id: int, request: Request, db: Session = Depends
             print(f"Manual Sync Comp: Error during auto deduplication: {e}")
             
     return JSONResponse(content=res)
+
+
+# --- SUPPORT TICKETS API ---
+@app.post("/api/support")
+async def api_submit_support(request: Request, db: Session = Depends(get_db)):
+    """API gửi phản hồi hoặc báo lỗi từ giao diện người dùng (không cần đăng nhập)."""
+    try:
+        data = await request.json()
+        athlete_name = data.get("athlete_name", "").strip()
+        contact_info = data.get("contact_info", "").strip()
+        content = data.get("content", "").strip()
+        
+        if not content:
+            return JSONResponse(status_code=400, content={"status": "error", "message": "Nội dung phản hồi không được để trống."})
+            
+        ticket = SupportTicket(
+            athlete_name=athlete_name,
+            contact_info=contact_info,
+            content=content,
+            status="pending"
+        )
+        db.add(ticket)
+        db.commit()
+        db.refresh(ticket)
+        return {"status": "success", "message": "Gửi phản hồi thành công! Cảm ơn bạn đã đóng góp ý kiến."}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"status": "error", "message": f"Lỗi hệ thống: {str(e)}"})
+
+@app.get("/admin/api/support")
+def admin_list_support(request: Request, db: Session = Depends(get_db)):
+    """API lấy danh sách các phản hồi hỗ trợ (yêu cầu admin)."""
+    admin_session = get_admin_session(request, db)
+    if not admin_session:
+        return JSONResponse(status_code=401, content={"error": "Chưa đăng nhập admin"})
+    
+    tickets = db.query(SupportTicket).order_by(SupportTicket.created_at.desc()).all()
+    
+    # Định dạng kết quả trả về
+    res = []
+    for t in tickets:
+        res.append({
+            "id": t.id,
+            "athlete_name": t.athlete_name or "Ẩn danh",
+            "contact_info": t.contact_info or "",
+            "content": t.content,
+            "created_at": t.created_at.strftime("%Y-%m-%d %H:%M:%S") if t.created_at else "",
+            "status": t.status,
+            "admin_notes": t.admin_notes or "",
+            "resolved_at": t.resolved_at.strftime("%Y-%m-%d %H:%M:%S") if t.resolved_at else ""
+        })
+    return JSONResponse(content=res)
+
+@app.post("/admin/api/support/{ticket_id}/resolve")
+async def admin_resolve_support(ticket_id: int, request: Request, db: Session = Depends(get_db)):
+    """API cập nhật trạng thái phản hồi hỗ trợ (yêu cầu admin)."""
+    admin_session = get_admin_session(request, db)
+    if not admin_session:
+        return JSONResponse(status_code=401, content={"error": "Chưa đăng nhập admin"})
+    
+    ticket = db.query(SupportTicket).filter(SupportTicket.id == ticket_id).first()
+    if not ticket:
+        return JSONResponse(status_code=404, content={"error": "Không tìm thấy phản hồi"})
+        
+    try:
+        data = await request.json()
+        status = data.get("status", "resolved")
+        admin_notes = data.get("admin_notes", "").strip()
+        
+        ticket.status = status
+        ticket.admin_notes = admin_notes
+        if status in ("resolved", "processed"):
+            ticket.resolved_at = datetime.utcnow()
+        else:
+            ticket.resolved_at = None
+            
+        db.commit()
+        return {"status": "success", "message": "Cập nhật phản hồi thành công."}
+    except Exception as e:
+        db.rollback()
+        return JSONResponse(status_code=500, content={"error": f"Lỗi cập nhật: {str(e)}"})
+
+@app.delete("/admin/api/support/{ticket_id}")
+def admin_delete_support(ticket_id: int, request: Request, db: Session = Depends(get_db)):
+    """API xóa phản hồi hỗ trợ (yêu cầu admin)."""
+    admin_session = get_admin_session(request, db)
+    if not admin_session:
+        return JSONResponse(status_code=401, content={"error": "Chưa đăng nhập admin"})
+        
+    ticket = db.query(SupportTicket).filter(SupportTicket.id == ticket_id).first()
+    if not ticket:
+        return JSONResponse(status_code=404, content={"error": "Không tìm thấy phản hồi"})
+        
+    try:
+        db.delete(ticket)
+        db.commit()
+        return {"status": "success", "message": "Xóa phản hồi thành công."}
+    except Exception as e:
+        db.rollback()
+        return JSONResponse(status_code=500, content={"error": f"Lỗi khi xóa: {str(e)}"})
 
 
 if __name__ == "__main__":

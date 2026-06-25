@@ -189,6 +189,142 @@
             }
         });
     </script>
+
+    {% if not request.url.path.startswith('/admin') %}
+    <!-- Floating Support Button -->
+    <button id="floatingSupportBtn" class="floating-support-btn" title="Gửi góp ý / báo lỗi">
+        <i class="fa-solid fa-comment-dots"></i>
+    </button>
+
+    <!-- Support Feedback Modal -->
+    <div id="supportFeedbackModal" class="support-modal-overlay">
+        <div class="support-modal-content">
+            <div class="support-modal-header">
+                <h3><i class="fa-solid fa-comments"></i> Gửi Ý Kiến / Báo Lỗi</h3>
+                <button class="support-modal-close" id="closeSupportModalBtn">&times;</button>
+            </div>
+            <form id="supportFeedbackForm" class="support-modal-body" style="margin: 0;">
+                <div class="form-row">
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label for="supportAthleteName">Họ và tên VĐV (Không bắt buộc)</label>
+                        <input type="text" id="supportAthleteName" placeholder="Ví dụ: Nguyễn Văn A" class="form-control">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label for="supportContactInfo">SĐT / Email / Zalo (Không bắt buộc)</label>
+                        <input type="text" id="supportContactInfo" placeholder="Ví dụ: 0987654321" class="form-control">
+                    </div>
+                </div>
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label for="supportContent">Nội dung góp ý / báo lỗi <span style="color: #ff5e36;">*</span></label>
+                    <textarea id="supportContent" rows="4" placeholder="Mô tả chi tiết ý kiến đóng góp hoặc lỗi bạn gặp phải..." required class="form-control" style="resize: vertical; font-family: inherit;"></textarea>
+                </div>
+                <div id="supportFormMsg" class="support-form-msg" style="margin-bottom: 1rem;"></div>
+                <div class="support-modal-footer">
+                    <button type="button" class="btn btn-secondary" id="cancelSupportModalBtn">Hủy</button>
+                    <button type="submit" class="btn btn-primary" id="submitSupportBtn">
+                        <i class="fa-solid fa-paper-plane"></i> Gửi phản hồi
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Floating Support Script -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const floatingSupportBtn = document.getElementById('floatingSupportBtn');
+            const supportFeedbackModal = document.getElementById('supportFeedbackModal');
+            const closeSupportModalBtn = document.getElementById('closeSupportModalBtn');
+            const cancelSupportModalBtn = document.getElementById('cancelSupportModalBtn');
+            const supportFeedbackForm = document.getElementById('supportFeedbackForm');
+            const supportFormMsg = document.getElementById('supportFormMsg');
+
+            if (floatingSupportBtn && supportFeedbackModal) {
+                floatingSupportBtn.addEventListener('click', () => {
+                    supportFeedbackModal.classList.add('active');
+                    document.body.style.overflow = 'hidden';
+                    supportFormMsg.style.display = 'none';
+                    supportFeedbackForm.reset();
+                });
+
+                const closeSupport = () => {
+                    supportFeedbackModal.classList.remove('active');
+                    document.body.style.overflow = '';
+                };
+
+                if (closeSupportModalBtn) closeSupportModalBtn.addEventListener('click', closeSupport);
+                if (cancelSupportModalBtn) cancelSupportModalBtn.addEventListener('click', closeSupport);
+
+                // Close on clicking outside modal content
+                supportFeedbackModal.addEventListener('click', (e) => {
+                    if (e.target === supportFeedbackModal) {
+                        closeSupport();
+                    }
+                });
+
+                if (supportFeedbackForm) {
+                    supportFeedbackForm.addEventListener('submit', async (e) => {
+                        e.preventDefault();
+                        supportFormMsg.style.display = 'none';
+                        
+                        const name = document.getElementById('supportAthleteName').value.trim();
+                        const contact = document.getElementById('supportContactInfo').value.trim();
+                        const content = document.getElementById('supportContent').value.trim();
+                        
+                        if (!content) {
+                            supportFormMsg.className = 'support-form-msg error';
+                            supportFormMsg.textContent = 'Vui lòng nhập nội dung phản hồi.';
+                            supportFormMsg.style.display = 'block';
+                            return;
+                        }
+                        
+                        const submitBtn = document.getElementById('submitSupportBtn');
+                        const originalBtnContent = submitBtn.innerHTML;
+                        submitBtn.disabled = true;
+                        submitBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Đang gửi...';
+                        
+                        try {
+                            const response = await fetch('/api/support', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({
+                                    athlete_name: name,
+                                    contact_info: contact,
+                                    content: content
+                                })
+                            });
+                            
+                            const result = await response.json();
+                            if (response.ok && result.status === 'success') {
+                                supportFormMsg.className = 'support-form-msg success';
+                                supportFormMsg.textContent = result.message || 'Gửi phản hồi thành công!';
+                                supportFormMsg.style.display = 'block';
+                                supportFeedbackForm.reset();
+                                
+                                // Tự động đóng sau 2s
+                                setTimeout(closeSupport, 2000);
+                            } else {
+                                supportFormMsg.className = 'support-form-msg error';
+                                supportFormMsg.textContent = result.message || 'Gửi phản hồi thất bại. Vui lòng thử lại.';
+                                supportFormMsg.style.display = 'block';
+                            }
+                        } catch (err) {
+                            supportFormMsg.className = 'support-form-msg error';
+                            supportFormMsg.textContent = 'Có lỗi kết nối mạng. Vui lòng kiểm tra lại đường truyền.';
+                            supportFormMsg.style.display = 'block';
+                        } finally {
+                            submitBtn.disabled = false;
+                            submitBtn.innerHTML = originalBtnContent;
+                        }
+                    });
+                }
+            }
+        });
+    </script>
+    {% endif %}
+
     {% block scripts %}{% endblock %}
 </body>
 </html>

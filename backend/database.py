@@ -117,6 +117,17 @@ class EventMultiplier(Base):
     
     event = relationship("CompetitionEvent")
 
+class SupportTicket(Base):
+    __tablename__ = "support_tickets"
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    athlete_name = Column(String, nullable=True)
+    contact_info = Column(String, nullable=True)
+    content = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    status = Column(String, default="pending") # pending, resolved, ignored
+    admin_notes = Column(String, nullable=True)
+    resolved_at = Column(DateTime, nullable=True)
+
 class Activity(Base):
     __tablename__ = "activities"
     # id can be a SHA256 of composite key if Strava ID is missing
