@@ -256,4 +256,13 @@ Dự án là web app Strava SSO_HC dùng FastAPI, SQLAlchemy và SQLite. Giao di
     - *Chiều ngược (Canvas -> Slider):* Khi người dùng dùng chuột hoặc ngón tay chạm kéo thả (drag) ảnh trực tiếp trên canvas, các thanh trượt X, Y tự động di chuyển theo vị trí tay kéo của người dùng, đảm bảo thông số trên bảng điều khiển luôn hiển thị chuẩn xác và nhất quán.
   - **Khởi tạo và Reset:** Tích hợp logic reset giá trị của hai thanh trượt X, Y mới về `0` (và nhãn hiển thị về `0px`) khi tải ảnh mới lên hoặc khi nhấn nút **Reset (Đặt lại)**.
 - **Kết quả kiểm thử:**
-  - Chạy script kiểm thử [test_avatar_render.py](file:///C:/Users/PC/.gemini/antigravity/brain/bd264055-d159-48f2-b24a-882bf20c1d44/scratch/test_avatar_render.py) thành công 100%, không phát sinh bất kỳ lỗi cú pháp HTML/JS nào. Giao diện hoạt động trơn tru.
+  - Chạy script kiểm thử [test_avatar_render.py](file:///C:/Users/PC/.gemini/antigravity/brain/bd264055-d159-48f2-b24a-882bf20c1d44/scratch/test_avatar_render.py) thành công 100%, không phát sinh bất kỳ lỗi cú pháp HTML/JS nào. Giao diện hoạt động trơn tru.
+
+### 12. Sửa lỗi thuật toán xử lý trùng lặp hoạt động (Deduplication)
+- **Files sửa đổi:** [backend/sync_engine.py](file:///c:/Users/PC/Desktop/SSO_HC/backend/sync_engine.py) & [backend/main.py](file:///c:/Users/PC/Desktop/SSO_HC/backend/main.py)
+- **Chi tiết sửa đổi:**
+  - **Khắc phục lỗi scope `gmt7_now` (`backend/sync_engine.py`):** Di chuyển khai báo `gmt7_now` ra trước vòng lặp chính của hoạt động để tránh lỗi `UnboundLocalError` khi đồng bộ hoạt động đầu tiên có thuộc tính `start_date_local`. **[BUG #1]**
+  - **Phân tách trùng lặp theo giải đấu (`backend/sync_engine.py`):** Thêm điều kiện lọc `Activity.event_id == event_id` vào query pre-sync dedup giúp cô lập việc quét trùng chéo giữa các giải đấu khác nhau. **[BUG #2]**
+  - **Chuẩn hóa so sánh từ khóa generic (`backend/sync_engine.py` & `backend/main.py`):** Thay đổi việc so sánh generic keywords bằng so sánh chính xác toàn bộ tên: `name_clean in generic_keywords or name_clean == ""` để tránh false positive với tên riêng dài chứa từ khóa (như "Sunrise Marathon"). **[BUG #3]**
+  - **Hoàn thiện logic gộp nhiều bản ghi (`backend/main.py`):** Trong hàm `deduplicate_activities_logic`, loại bỏ lệnh `break` sớm khi bản ghi đại diện gốc (`act1`) bị xóa. Thay thế bằng cơ chế cập nhật đại diện liên tục `act1 = act2` và `act1_idx = j` để dọn dẹp sạch sẽ nhóm nhiều bản ghi trùng nhau (3 bản ghi trở lên), chỉ giữ lại bản ghi có multiplier cao nhất. **[BUG #4]**
+- **Kết quả kiểm thử (`scratch/test_dedup_fixes.py`):** Chạy và xác minh thành công 100% việc đồng bộ hóa nhiều hoạt động (cả có và không có `start_date_local`), cách ly trùng lặp giải đấu khác nhau, bỏ qua trùng lặp sai cho tên riêng dài, và dọn dẹp nhóm 3 hoạt động trùng lặp để chỉ giữ lại 1 bản ghi có multiplier cao nhất. Giao diện và API hoạt động ổn định.

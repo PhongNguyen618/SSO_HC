@@ -94,7 +94,8 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
     print(f"Sync Engine: Downloaded {len(all_activities)} activities from Strava for event '{event.title}'.")
     
     new_count = 0
-    today_str = (datetime.utcnow() + timedelta(hours=7)).strftime("%Y-%m-%d")
+    gmt7_now = datetime.utcnow() + timedelta(hours=7)
+    today_str = gmt7_now.strftime("%Y-%m-%d")
     seen_ids = set()
 
     # Cache danh sách vận động viên để đối khớp tốc độ cao (hỗ trợ nhiều tên cách nhau bằng dấu phẩy)
@@ -138,7 +139,6 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
             if len(start_date_local) >= 16:
                 act_time_str = start_date_local[11:16]  # Định dạng HH:MM
         else:
-            gmt7_now = datetime.utcnow() + timedelta(hours=7)
             act_date_str = today_str
             # Tự động áp giờ chạy mặc định là giờ local hiện tại (GMT+7)
             act_time_str = gmt7_now.strftime("%H:%M")
@@ -205,6 +205,7 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
             limit_date = (gmt7_now - timedelta(days=4)).strftime("%Y-%m-%d")
             existing_similar = db.query(Activity).filter(
                 Activity.athlete_id == athlete_id,
+                Activity.event_id == event_id,
                 Activity.sport_type == sport_type,
                 Activity.activity_date >= limit_date
             ).all()
@@ -227,8 +228,8 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
                     "morning ride", "afternoon ride", "evening ride", "night ride",
                     "lunch run", "lunch walk", "lunch ride"
                 ]
-                is_generic1 = any(k in name1_clean for k in generic_keywords) or name1_clean == ""
-                is_generic2 = any(k in name2_clean for k in generic_keywords) or name2_clean == ""
+                is_generic1 = name1_clean in generic_keywords or name1_clean == ""
+                is_generic2 = name2_clean in generic_keywords or name2_clean == ""
                 
                 name_match = True
                 if name1_clean != name2_clean and not is_generic1 and not is_generic2:

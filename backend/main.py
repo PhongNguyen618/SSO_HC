@@ -176,9 +176,6 @@ def deduplicate_activities_logic(db: Session) -> dict:
                 continue
                 
             # Sắp xếp các hoạt động để giữ lại bản ghi có thông tin tốt nhất
-            # 1. Ưu tiên có athlete_id (đã liên kết với VĐV)
-            # 2. Ưu tiên tên chi tiết (không phải "Activity" hoặc "Hoạt động Strava")
-            # 3. Ưu tiên ngày nhỏ hơn (ngày diễn ra thực tế)
             def sort_key(x):
                 has_athlete = 1 if x.athlete_id is not None else 0
                 is_generic_name = 1 if x.name in ["Activity", "Hoạt động Strava"] else 0
@@ -195,6 +192,7 @@ def deduplicate_activities_logic(db: Session) -> dict:
                     continue
                     
                 act1 = act_list[i]
+                act1_idx = i
                 
                 # So sánh chéo với các hoạt động phía sau
                 for j in range(i + 1, len(act_list)):
@@ -235,8 +233,8 @@ def deduplicate_activities_logic(db: Session) -> dict:
                         "morning ride", "afternoon ride", "evening ride", "night ride",
                         "lunch run", "lunch walk", "lunch ride"
                     ]
-                    is_generic1 = any(k in name1_clean for k in generic_keywords) or name1_clean == ""
-                    is_generic2 = any(k in name2_clean for k in generic_keywords) or name2_clean == ""
+                    is_generic1 = name1_clean in generic_keywords or name1_clean == ""
+                    is_generic2 = name2_clean in generic_keywords or name2_clean == ""
                     
                     if name1_clean != name2_clean and not is_generic1 and not is_generic2:
                         continue
@@ -273,8 +271,9 @@ def deduplicate_activities_logic(db: Session) -> dict:
                             merged_indices.add(j)
                         else:
                             to_delete.append(act1.id)
-                            merged_indices.add(i)
-                            break
+                            merged_indices.add(act1_idx)
+                            act1 = act2
+                            act1_idx = j
                             
                 # Giữ nguyên ID nguyên bản của hoạt động chính (act1) để tránh việc Strava đồng bộ lại
                 pass
