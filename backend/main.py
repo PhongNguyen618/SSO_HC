@@ -201,7 +201,7 @@ def deduplicate_activities_logic(db: Session) -> dict:
                     if act1.sport_type != act2.sport_type:
                         continue
                         
-                    # 3. Chênh lệch ngày không quá 2 ngày (để xử lý lệch múi giờ sâu hoặc đồng bộ trễ)
+                    # 3. Chênh lệch ngày không quá 4 ngày (để xử lý lệch múi giờ sâu hoặc đồng bộ trễ lịch sử)
                     date_diff_days = 999
                     if act1.activity_date and act2.activity_date:
                         try:
@@ -211,7 +211,7 @@ def deduplicate_activities_logic(db: Session) -> dict:
                         except Exception:
                             pass
                             
-                    if date_diff_days > 2:
+                    if date_diff_days > 4:
                         continue
                         
                     # 4. Quy tắc về tên hoạt động: để tránh xóa nhầm hai hoạt động thực tế khác nhau tự đặt tên riêng
@@ -234,22 +234,38 @@ def deduplicate_activities_logic(db: Session) -> dict:
                     # 5. Kiểm tra độ lệch cự ly (distance_km_raw)
                     dist1 = act1.distance_km_raw if act1.distance_km_raw is not None else act1.distance_km
                     dist2 = act2.distance_km_raw if act2.distance_km_raw is not None else act2.distance_km
-                    dist_diff = abs((dist1 or 0) - (dist2 or 0))
+                    dist_diff = abs((dist1 or 0.0) - (dist2 or 0.0))
                     
                     # 6. Kiểm tra độ lệch thời gian di chuyển (moving_time_min)
-                    time_diff = abs((act1.moving_time_min or 0) - (act2.moving_time_min or 0))
+                    time_diff = abs((act1.moving_time_min or 0.0) - (act2.moving_time_min or 0.0))
                     
                     # 7. Kiểm tra độ lệch độ cao tăng thêm (elevation_gain_m)
-                    elev_diff = abs((act1.elevation_gain_m or 0) - (act2.elevation_gain_m or 0))
+                    elev_diff = abs((act1.elevation_gain_m or 0.0) - (act2.elevation_gain_m or 0.0))
                     
-                    # Ngưỡng gộp an toàn: 
-                    # - cự ly lệch <= 0.05 km
-                    # - thời gian lệch <= 1.0 phút
-                    # - độ cao lệch <= 10.0 m
-                    if dist_diff <= 0.05 and time_diff <= 1.0 and elev_diff <= 10.0:
-                        to_delete.append(act2.id)
-                        merged_indices.add(j)
+                    # Ngưỡng gộp an toàn:
+                    # - Mặc định cự ly lệch <= 0.05 km, thời gian lệch <= 1.0 phút, độ cao lệch <= 10.0 m
+                    # - Nếu lệch > 2 ngày: thắt chặt cự ly <= 0.02 km, thời gian <= 0.5 phút để tránh xóa nhầm hoạt động thật
+                    max_dist_diff = 0.05
+                    max_time_diff = 1.0
+                    max_elev_diff = 10.0
+                    if date_diff_days > 2:
+                        max_dist_diff = 0.02
+                        max_time_diff = 0.5
+                        max_elev_diff = 5.0
                         
+                    if dist_diff <= max_dist_diff and time_diff <= max_time_diff and elev_diff <= max_elev_diff:
+                        # Quyết định giữ lại bản ghi có hệ số nhân cao hơn
+                        mult1 = act1.multiplier or 1.0
+                        mult2 = act2.multiplier or 1.0
+                        
+                        if mult1 >= mult2:
+                            to_delete.append(act2.id)
+                            merged_indices.add(j)
+                        else:
+                            to_delete.append(act1.id)
+                            merged_indices.add(i)
+                            break
+                            
                 # Giữ nguyên ID nguyên bản của hoạt động chính (act1) để tránh việc Strava đồng bộ lại
                 pass
 
