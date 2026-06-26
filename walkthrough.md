@@ -258,11 +258,18 @@ Dự án là web app Strava SSO_HC dùng FastAPI, SQLAlchemy và SQLite. Giao di
 - **Kết quả kiểm thử:**
   - Chạy script kiểm thử [test_avatar_render.py](file:///C:/Users/PC/.gemini/antigravity/brain/bd264055-d159-48f2-b24a-882bf20c1d44/scratch/test_avatar_render.py) thành công 100%, không phát sinh bất kỳ lỗi cú pháp HTML/JS nào. Giao diện hoạt động trơn tru.
 
-### 12. Sửa lỗi thuật toán xử lý trùng lặp hoạt động (Deduplication)
+### 12. Sửa lỗi thuật toán xử lý trùng lặp hoạt động (Deduplication) và Tích hợp Time Overlap
 - **Files sửa đổi:** [backend/sync_engine.py](file:///c:/Users/PC/Desktop/SSO_HC/backend/sync_engine.py) & [backend/main.py](file:///c:/Users/PC/Desktop/SSO_HC/backend/main.py)
 - **Chi tiết sửa đổi:**
   - **Khắc phục lỗi scope `gmt7_now` (`backend/sync_engine.py`):** Di chuyển khai báo `gmt7_now` ra trước vòng lặp chính của hoạt động để tránh lỗi `UnboundLocalError` khi đồng bộ hoạt động đầu tiên có thuộc tính `start_date_local`. **[BUG #1]**
   - **Phân tách trùng lặp theo giải đấu (`backend/sync_engine.py`):** Thêm điều kiện lọc `Activity.event_id == event_id` vào query pre-sync dedup giúp cô lập việc quét trùng chéo giữa các giải đấu khác nhau. **[BUG #2]**
   - **Chuẩn hóa so sánh từ khóa generic (`backend/sync_engine.py` & `backend/main.py`):** Thay đổi việc so sánh generic keywords bằng so sánh chính xác toàn bộ tên: `name_clean in generic_keywords or name_clean == ""` để tránh false positive với tên riêng dài chứa từ khóa (như "Sunrise Marathon"). **[BUG #3]**
   - **Hoàn thiện logic gộp nhiều bản ghi (`backend/main.py`):** Trong hàm `deduplicate_activities_logic`, loại bỏ lệnh `break` sớm khi bản ghi đại diện gốc (`act1`) bị xóa. Thay thế bằng cơ chế cập nhật đại diện liên tục `act1 = act2` và `act1_idx = j` để dọn dẹp sạch sẽ nhóm nhiều bản ghi trùng nhau (3 bản ghi trở lên), chỉ giữ lại bản ghi có multiplier cao nhất. **[BUG #4]**
-- **Kết quả kiểm thử (`scratch/test_dedup_fixes.py`):** Chạy và xác minh thành công 100% việc đồng bộ hóa nhiều hoạt động (cả có và không có `start_date_local`), cách ly trùng lặp giải đấu khác nhau, bỏ qua trùng lặp sai cho tên riêng dài, và dọn dẹp nhóm 3 hoạt động trùng lặp để chỉ giữ lại 1 bản ghi có multiplier cao nhất. Giao diện và API hoạt động ổn định.
+  - **Tích hợp Thuật toán Time Overlap (`sync_engine.py` & `main.py`):**
+    - Chuyển đổi giờ bắt đầu chạy `activity_time` (HH:MM) sang số phút kể từ đầu ngày và cộng với `elapsed_time_min` để xác định khoảng thời gian diễn ra hoạt động.
+    - Nếu hai hoạt động của cùng một người diễn ra song song (chồng chéo thời gian trên 50% và giờ bắt đầu lệch không quá 15 phút), hệ thống coi là trùng lặp bất kể sai lệch cự ly GPS bao nhiêu (giải quyết triệt để lỗi ghi song song 2 thiết bị Huawei Watch và Strava App của Lê Văn Thái).
+    - Di chuyển logic check overlap lên trước logic kiểm tra tên hoạt động để tránh bị skip sớm khi VĐV đặt tên khác nhau cho 2 thiết bị.
+  - **Ưu tiên giữ lại bản ghi có cự ly dài hơn (`main.py`):** Khi hai hoạt động trùng lặp có cùng multiplier, hệ thống tự động giữ lại bản ghi có cự ly (`distance_km`) dài hơn (đo chính xác hơn/không bị mất GPS giữa chừng) và xóa bản ghi ngắn hơn.
+- **Kết quả kiểm thử (`scratch/test_dedup_fixes.py`):** Chạy và xác minh thành công 100%:
+  - BUG #1, BUG #2, BUG #3, BUG #4 hoạt động ổn định.
+  - Trường hợp Lê Văn Thái (Huawei Watch 7.89 km vs Strava App 8.38 km cùng giờ bắt đầu 05:13): Thuật toán Overlap phát hiện trùng lặp thành công, tự động xóa bản ghi Huawei và giữ lại bản ghi Strava App dài hơn 8.38 km. Giao diện và API hoạt động ổn định.

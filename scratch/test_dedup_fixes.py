@@ -27,7 +27,7 @@ def run_tests():
         db.add_all([event1, event2])
         
         # Tạo 1 VĐV
-        athlete = Athlete(id=1, full_name="Test Athlete", gender="Nam", weight=60.0, is_active=True, strava_name="test athlete")
+        athlete = Athlete(id=1, full_name="Lê Văn Thái", gender="Nam", weight=60.0, is_active=True, strava_name="lê văn thái")
         db.add(athlete)
         
         # Đăng ký cả 2 giải đấu
@@ -57,7 +57,7 @@ def run_tests():
                 "elapsed_time": 1800.0,
                 "total_elevation_gain": 10.0,
                 "start_date_local": "2026-06-25T07:00:00Z", # Có start_date_local
-                "athlete": {"firstname": "Test", "lastname": "Athlete"}
+                "athlete": {"firstname": "Lê", "lastname": "Văn Thái"}
             },
             {
                 "name": "Evening Run",
@@ -68,7 +68,7 @@ def run_tests():
                 "elapsed_time": 2880.0,
                 "total_elevation_gain": 15.0,
                 "start_date_local": None, # Không có start_date_local (sẽ đi vào else, gán gmt7_now)
-                "athlete": {"firstname": "Test", "lastname": "Athlete"}
+                "athlete": {"firstname": "Lê", "lastname": "Văn Thái"}
             }
         ]
         
@@ -137,7 +137,7 @@ def run_tests():
             id="act_marathon",
             athlete_id=1,
             event_id=1,
-            athlete_name_raw="test athlete",
+            athlete_name_raw="lê văn thái",
             name="Sunrise Marathon Training",
             type="Run",
             sport_type="Run",
@@ -151,7 +151,7 @@ def run_tests():
             id="act_run",
             athlete_id=1,
             event_id=1,
-            athlete_name_raw="test athlete",
+            athlete_name_raw="lê văn thái",
             name="Afternoon Run",
             type="Run",
             sport_type="Run",
@@ -186,19 +186,19 @@ def run_tests():
         # Đảm bảo sau khi chạy deduplicate_activities_logic, chỉ còn lại B.
         print("\n--- Test 3 activities duplicated completely: A(1.0), B(3.0), C(2.0) ---")
         act_A = Activity(
-            id="act_A", athlete_id=1, event_id=1, athlete_name_raw="test athlete",
+            id="act_A", athlete_id=1, event_id=1, athlete_name_raw="lê văn thái",
             name="Morning Run", type="Run", sport_type="Run",
             distance_km=5.0, distance_km_raw=5.0, moving_time_min=30.0,
             activity_date="2026-06-25", multiplier=1.0
         )
         act_B = Activity(
-            id="act_B", athlete_id=1, event_id=1, athlete_name_raw="test athlete",
+            id="act_B", athlete_id=1, event_id=1, athlete_name_raw="lê văn thái",
             name="Morning Run", type="Run", sport_type="Run",
             distance_km=5.0, distance_km_raw=5.0, moving_time_min=30.0,
             activity_date="2026-06-25", multiplier=3.0
         )
         act_C = Activity(
-            id="act_C", athlete_id=1, event_id=1, athlete_name_raw="test athlete",
+            id="act_C", athlete_id=1, event_id=1, athlete_name_raw="lê văn thái",
             name="Morning Run", type="Run", sport_type="Run",
             distance_km=5.0, distance_km_raw=5.0, moving_time_min=30.0,
             activity_date="2026-06-25", multiplier=2.0
@@ -213,6 +213,67 @@ def run_tests():
         assert len(remaining) == 1, f"Failed: Expected 1 activity remaining, got {len(remaining)}"
         assert remaining[0].id == "act_B", f"Failed: Expected act_B to be kept, got {remaining[0].id}"
         print("  BUG #4 Test: PASSED (Multi-duplicate group resolved correctly, keeping highest multiplier)")
+        
+        # --------------------------------------------------
+        # TEST NEW FEATURE: Time Overlap Deduplication (Trường hợp Lê Văn Thái)
+        # --------------------------------------------------
+        print("\n--- Testing Time Overlap Deduplication (Le Van Thai Case) ---")
+        db.query(Activity).delete()
+        db.commit()
+        
+        # Tạo 2 hoạt động ghi song song:
+        # Act 1: Huawei Watch - 7.89 km, 56m 14s (56.23 min), start 05:13
+        # Act 2: Strava App - 8.38 km, 57m 24s (57.4 min), start 05:13 (hoặc 05:14)
+        # Cả hai có multiplier giống nhau (1.0). Thuật toán phải gộp chúng lại và giữ lại Act 2 (8.38 km vì dài hơn).
+        act_huawei = Activity(
+            id="act_huawei",
+            athlete_id=1,
+            event_id=1,
+            athlete_name_raw="lê văn thái",
+            name="Chạy ngoài trời",
+            type="Run",
+            sport_type="Run",
+            distance_km=7.89,
+            distance_km_raw=7.89,
+            moving_time_min=56.23,
+            elapsed_time_min=56.23,
+            activity_date="2026-06-26",
+            activity_time="05:13",
+            multiplier=1.0
+        )
+        act_strava_app = Activity(
+            id="act_strava_app",
+            athlete_id=1,
+            event_id=1,
+            athlete_name_raw="lê văn thái",
+            name="Chạy bộ buổi sáng",
+            type="Run",
+            sport_type="Run",
+            distance_km=8.38,
+            distance_km_raw=8.38,
+            moving_time_min=57.4,
+            elapsed_time_min=57.4,
+            activity_date="2026-06-26",
+            activity_time="05:13",
+            multiplier=1.0
+        )
+        db.add_all([act_huawei, act_strava_app])
+        db.commit()
+        
+        # Chạy logic dọn trùng
+        res_overlap = deduplicate_activities_logic(db)
+        print(f"Deleted count for overlap test: {res_overlap.get('deleted_count')}")
+        
+        remaining_overlap = db.query(Activity).all()
+        print(f"Remaining activities count: {len(remaining_overlap)}")
+        for r in remaining_overlap:
+            # Dùng encode sang ascii trực tiếp để thay thế toàn bộ ký tự Unicode bằng dấu ?
+            name_ascii = r.name.encode('ascii', errors='replace').decode('ascii')
+            print(f"  Kept ID: {r.id} | Name: '{name_ascii}' | Dist: {r.distance_km} km")
+            
+        assert len(remaining_overlap) == 1, f"Failed: Expected 1 activity, got {len(remaining_overlap)} (Time Overlap did not group them)"
+        assert remaining_overlap[0].id == "act_strava_app", f"Failed: Expected act_strava_app (8.38 km) to be kept, got {remaining_overlap[0].id}"
+        print("  Time Overlap Deduplication Test: PASSED (Successfully grouped parallel records and kept longest distance)")
         
         print("\n==================================================")
         print("ALL TESTS PASSED SUCCESSFULLY!")

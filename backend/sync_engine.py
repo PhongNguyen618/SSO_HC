@@ -235,7 +235,36 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
                 if name1_clean != name2_clean and not is_generic1 and not is_generic2:
                     name_match = False
                     
-                if name_match and dist_diff <= 0.05 and time_diff <= 1.0 and elev_diff <= 10.0:
+                # Check overlap thời gian (bổ sung cho trường hợp ghi song song nhiều thiết bị)
+                time_overlap_dup = False
+                if ext.activity_date == act_date_str and ext.activity_time and act_time_str:
+                    try:
+                        h1, m1 = map(int, ext.activity_time.split(":"))
+                        h2, m2 = map(int, act_time_str.split(":"))
+                        start1 = h1 * 60 + m1
+                        start2 = h2 * 60 + m2
+                        
+                        dur1 = ext.elapsed_time_min if ext.elapsed_time_min is not None else ext.moving_time_min
+                        dur2 = elapsed_time_min if elapsed_time_min is not None else moving_time_min
+                        
+                        dur1 = dur1 or 0.0
+                        dur2 = dur2 or 0.0
+                        
+                        end1 = start1 + dur1
+                        end2 = start2 + dur2
+                        
+                        overlap_mins = max(0.0, min(end1, end2) - max(start1, start2))
+                        min_dur = min(dur1, dur2)
+                        
+                        if min_dur > 0:
+                            overlap_ratio = overlap_mins / min_dur
+                            if overlap_ratio > 0.5 and abs(start1 - start2) <= 15:
+                                time_overlap_dup = True
+                    except Exception:
+                        pass
+                        
+                is_similar_static = name_match and dist_diff <= 0.05 and time_diff <= 1.0 and elev_diff <= 10.0
+                if is_similar_static or time_overlap_dup:
                     is_dup_pre = True
                     break
                     

@@ -222,6 +222,34 @@ def deduplicate_activities_logic(db: Session) -> dict:
                     if date_diff_days > 4:
                         continue
                         
+                    # Check overlap thời gian (bổ sung cho trường hợp ghi song song nhiều thiết bị)
+                    time_overlap_dup = False
+                    if act1.activity_date == act2.activity_date and act1.activity_time and act2.activity_time:
+                        try:
+                            h1, m1 = map(int, act1.activity_time.split(":"))
+                            h2, m2 = map(int, act2.activity_time.split(":"))
+                            start1 = h1 * 60 + m1
+                            start2 = h2 * 60 + m2
+                            
+                            dur1 = act1.elapsed_time_min if act1.elapsed_time_min is not None else act1.moving_time_min
+                            dur2 = act2.elapsed_time_min if act2.elapsed_time_min is not None else act2.moving_time_min
+                            
+                            dur1 = dur1 or 0.0
+                            dur2 = dur2 or 0.0
+                            
+                            end1 = start1 + dur1
+                            end2 = start2 + dur2
+                            
+                            overlap_mins = max(0.0, min(end1, end2) - max(start1, start2))
+                            min_dur = min(dur1, dur2)
+                            
+                            if min_dur > 0:
+                                overlap_ratio = overlap_mins / min_dur
+                                if overlap_ratio > 0.5 and abs(start1 - start2) <= 15:
+                                    time_overlap_dup = True
+                        except Exception:
+                            pass
+
                     # 4. Quy tắc về tên hoạt động: để tránh xóa nhầm hai hoạt động thực tế khác nhau tự đặt tên riêng
                     name1_clean = (act1.name or "").strip().lower()
                     name2_clean = (act2.name or "").strip().lower()
@@ -236,7 +264,8 @@ def deduplicate_activities_logic(db: Session) -> dict:
                     is_generic1 = name1_clean in generic_keywords or name1_clean == ""
                     is_generic2 = name2_clean in generic_keywords or name2_clean == ""
                     
-                    if name1_clean != name2_clean and not is_generic1 and not is_generic2:
+                    # Nếu không phải trùng overlap thời gian thì mới kiểm tra tên hoạt động nghiêm ngặt
+                    if name1_clean != name2_clean and not is_generic1 and not is_generic2 and not time_overlap_dup:
                         continue
                         
                     # 5. Kiểm tra độ lệch cự ly (distance_km_raw)
@@ -261,19 +290,31 @@ def deduplicate_activities_logic(db: Session) -> dict:
                         max_time_diff = 0.5
                         max_elev_diff = 5.0
                         
-                    if dist_diff <= max_dist_diff and time_diff <= max_time_diff and elev_diff <= max_elev_diff:
-                        # Quyết định giữ lại bản ghi có hệ số nhân cao hơn
+                    is_similar_static = dist_diff <= max_dist_diff and time_diff <= max_time_diff and elev_diff <= max_elev_diff
+                    if is_similar_static or time_overlap_dup:
+                        # Quyết định giữ lại bản ghi tối ưu hơn
                         mult1 = act1.multiplier or 1.0
                         mult2 = act2.multiplier or 1.0
                         
-                        if mult1 >= mult2:
+                        if mult1 > mult2:
                             to_delete.append(act2.id)
                             merged_indices.add(j)
-                        else:
+                        elif mult2 > mult1:
                             to_delete.append(act1.id)
                             merged_indices.add(act1_idx)
                             act1 = act2
                             act1_idx = j
+                        else: # mult1 == mult2 (Bằng hệ số nhân, giữ lại bản ghi có cự ly dài hơn)
+                            dist1 = act1.distance_km_raw if act1.distance_km_raw is not None else act1.distance_km
+                            dist2 = act2.distance_km_raw if act2.distance_km_raw is not None else act2.distance_km
+                            if (dist1 or 0.0) >= (dist2 or 0.0):
+                                to_delete.append(act2.id)
+                                merged_indices.add(j)
+                            else:
+                                to_delete.append(act1.id)
+                                merged_indices.add(act1_idx)
+                                act1 = act2
+                                act1_idx = j
                             
                 # Giữ nguyên ID nguyên bản của hoạt động chính (act1) để tránh việc Strava đồng bộ lại
                 pass
