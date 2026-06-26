@@ -153,7 +153,7 @@ templates.env.globals["DEPLOY_TIME"] = DEPLOY_TIME
 
 scheduler = BackgroundScheduler()
 
-def deduplicate_activities_logic(db: Session) -> dict:
+def deduplicate_activities_logic(db: Session, mode: str = "all", dry_run: bool = False) -> dict:
     """Core logic dọn dẹp dữ liệu trùng lặp trong DB, hỗ trợ sai số (dung sai) nhỏ và lệch ngày."""
     try:
         activities = db.query(Activity).all()
@@ -170,6 +170,7 @@ def deduplicate_activities_logic(db: Session) -> dict:
             
         to_delete = []
         updated_count = 0
+        deleted_details = []
         
         for ath_key, act_list in by_athlete.items():
             if len(act_list) < 2:
@@ -226,8 +227,10 @@ def deduplicate_activities_logic(db: Session) -> dict:
                     time_overlap_dup = False
                     if act1.activity_date == act2.activity_date and act1.activity_time and act2.activity_time:
                         try:
-                            h1, m1 = map(int, act1.activity_time.split(":"))
-                            h2, m2 = map(int, act2.activity_time.split(":"))
+                            parts1 = act1.activity_time.split(":")
+                            parts2 = act2.activity_time.split(":")
+                            h1, m1 = int(parts1[0]), int(parts1[1])
+                            h2, m2 = int(parts2[0]), int(parts2[1])
                             start1 = h1 * 60 + m1
                             start2 = h2 * 60 + m2
                             
@@ -277,7 +280,7 @@ def deduplicate_activities_logic(db: Session) -> dict:
                     
                     # Nếu không phải trùng overlap thời gian và không quá giống nhau tuyệt đối (chặt chẽ) thì mới kiểm tra tên hoạt động nghiêm ngặt
                     is_similar_tight = dist_diff <= 0.05 and time_diff <= 1.0 and elev_diff <= 10.0
-                    if name1_clean != name2_clean and not is_generic1 and not is_generic2 and not time_overlap_dup and not is_similar_tight:
+                    if name1_clean != name2_clean and (not is_generic1 or not is_generic2) and not time_overlap_dup and not is_similar_tight:
                         continue
                         
                     # Ngưỡng gộp an toàn:
@@ -303,30 +306,75 @@ def deduplicate_activities_logic(db: Session) -> dict:
                         max_elev_diff = max(10.0, 15.0)
                         
                     is_similar_static = dist_diff <= max_dist_diff and time_diff <= max_time_diff and elev_diff <= max_elev_diff
-                    if is_similar_static:
+                    
+                    # Xác định xem hoạt động này có nên được gộp ở chế độ hiện tại không
+                    should_merge = False
+                    reason = ""
+                    if is_similar_tight:
+                        if mode in ["all", "standard"]:
+                            should_merge = True
+                            reason = "Trùng thông số tuyệt đối (cự ly <= 50m, thời gian <= 1m)"
+                    elif time_overlap_dup and is_similar_static:
+                        if mode in ["all", "two_devices"]:
+                            should_merge = True
+                            reason = "Trùng lặp 2 thiết bị (chồng chéo thời gian > 50%, lệch cự ly <= 8%)"
+                            
+                    if should_merge:
                         # Quyết định giữ lại bản ghi tối ưu hơn
                         mult1 = act1.multiplier or 1.0
                         mult2 = act2.multiplier or 1.0
                         
+                        act_to_delete = None
+                        act_to_keep = None
+                        
                         if mult1 > mult2:
+                            act_to_delete = act2
+                            act_to_keep = act1
                             to_delete.append(act2.id)
                             merged_indices.add(j)
                         elif mult2 > mult1:
+                            act_to_delete = act1
+                            act_to_keep = act2
                             to_delete.append(act1.id)
                             merged_indices.add(act1_idx)
                             act1 = act2
                             act1_idx = j
                         else: # mult1 == mult2 (Bằng hệ số nhân, giữ lại bản ghi có cự ly dài hơn)
-                            dist1 = act1.distance_km_raw if act1.distance_km_raw is not None else act1.distance_km
-                            dist2 = act2.distance_km_raw if act2.distance_km_raw is not None else act2.distance_km
-                            if (dist1 or 0.0) >= (dist2 or 0.0):
+                            dist_1_val = act1.distance_km_raw if act1.distance_km_raw is not None else act1.distance_km
+                            dist_2_val = act2.distance_km_raw if act2.distance_km_raw is not None else act2.distance_km
+                            if (dist_1_val or 0.0) >= (dist_2_val or 0.0):
+                                act_to_delete = act2
+                                act_to_keep = act1
                                 to_delete.append(act2.id)
                                 merged_indices.add(j)
                             else:
+                                act_to_delete = act1
+                                act_to_keep = act2
                                 to_delete.append(act1.id)
                                 merged_indices.add(act1_idx)
                                 act1 = act2
                                 act1_idx = j
+                                
+                        if act_to_delete and act_to_keep:
+                            ath_name = db.query(Athlete.full_name).filter(Athlete.id == act1.athlete_id).scalar() or act1.athlete_name_raw or "VĐV ẩn danh"
+                            deleted_details.append({
+                                "athlete_name": ath_name,
+                                "deleted": {
+                                    "id": act_to_delete.id,
+                                    "name": act_to_delete.name or "Hoạt động Strava",
+                                    "distance": act_to_delete.distance_km,
+                                    "time": act_to_delete.moving_time_min,
+                                    "date": act_to_delete.activity_date
+                                },
+                                "kept": {
+                                    "id": act_to_keep.id,
+                                    "name": act_to_keep.name or "Hoạt động Strava",
+                                    "distance": act_to_keep.distance_km,
+                                    "time": act_to_keep.moving_time_min,
+                                    "date": act_to_keep.activity_date
+                                },
+                                "reason": reason
+                            })
                             
                 # Giữ nguyên ID nguyên bản của hoạt động chính (act1) để tránh việc Strava đồng bộ lại
                 pass
@@ -334,13 +382,27 @@ def deduplicate_activities_logic(db: Session) -> dict:
                         
         deleted_count = 0
         if to_delete:
-            deleted_count = db.query(Activity).filter(Activity.id.in_(to_delete)).delete(synchronize_session=False)
+            if not dry_run:
+                deleted_count = db.query(Activity).filter(Activity.id.in_(to_delete)).delete(synchronize_session=False)
+                db.commit()
+            else:
+                deleted_count = len(to_delete)
+        else:
+            if not dry_run:
+                db.commit()
             
-        db.commit()
+        mode_vi = "tất cả"
+        if mode == "standard":
+            mode_vi = "cơ bản"
+        elif mode == "two_devices":
+            mode_vi = "2 thiết bị"
+            
+        action_word = "Phát hiện" if dry_run else "Đã dọn dẹp thành công"
         return {
             "deleted_count": deleted_count,
             "updated_count": updated_count,
-            "message": f"Đã dọn dẹp thành công {deleted_count} hoạt động trùng lặp và đồng bộ hóa {updated_count} khóa ID."
+            "deleted_details": deleted_details,
+            "message": f"{action_word} {deleted_count} hoạt động trùng lặp ở chế độ {mode_vi}."
         }
     except Exception as e:
         db.rollback()
@@ -3606,18 +3668,20 @@ def edit_activity(
         return JSONResponse(status_code=500, content={"error": f"Lỗi cập nhật hoạt động: {str(e)}"})
 
 @app.post("/admin/activity/deduplicate")
-def api_deduplicate_activities(request: Request, db: Session = Depends(get_db)):
+def api_deduplicate_activities(request: Request, mode: str = "all", dry_run: bool = False, db: Session = Depends(get_db)):
     """API dọn dẹp dữ liệu trùng lặp trong DB, hỗ trợ sai số (dung sai) nhỏ và lệch ngày."""
     admin_session = get_admin_session(request, db)
     if not admin_session:
         return JSONResponse(status_code=401, content={"error": "Chưa đăng nhập admin"})
         
     try:
-        res = deduplicate_activities_logic(db)
+        res = deduplicate_activities_logic(db, mode=mode, dry_run=dry_run)
         return JSONResponse(content={
             "status": "success",
             "deleted_count": res["deleted_count"],
             "updated_count": res["updated_count"],
+            "deleted_details": res["deleted_details"],
+            "dry_run": dry_run,
             "message": res["message"]
         })
     except Exception as e:

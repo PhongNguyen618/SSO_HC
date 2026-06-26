@@ -866,9 +866,12 @@
                     </select>
                 </div>
             </div>
-            <div>
-                <button onclick="runDeduplicateActivities(event)" class="btn btn-secondary btn-sm" style="background: linear-gradient(135deg, #ff5e36, #ff7b57); border: none; color: #fff; display: flex; align-items: center; gap: 0.5rem;" title="Quét và xóa các hoạt động trùng lặp về quãng đường/calo">
-                    <i class="fa-solid fa-broom"></i> Dọn dẹp hoạt động trùng lặp
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                <button onclick="runDeduplicateActivities(event, 'standard')" class="btn btn-secondary btn-sm" style="background: linear-gradient(135deg, #2b9348, #55a630); border: none; color: #fff; display: flex; align-items: center; gap: 0.5rem;" title="Quét và dọn các hoạt động trùng cự ly/thời gian tuyệt đối">
+                    <i class="fa-solid fa-circle-check"></i> Dọn trùng lặp cơ bản
+                </button>
+                <button onclick="runDeduplicateActivities(event, 'two_devices')" class="btn btn-secondary btn-sm" style="background: linear-gradient(135deg, #ff5e36, #ff7b57); border: none; color: #fff; display: flex; align-items: center; gap: 0.5rem;" title="Quét và dọn các hoạt động cùng thời điểm ghi song song từ 2 thiết bị">
+                    <i class="fa-solid fa-mobile-screen-button"></i> Dọn trùng 2 thiết bị
                 </button>
             </div>
         </div>
@@ -2009,6 +2012,42 @@
         </div>
     </div>
 
+    <!-- Modal Báo Cáo Kết Quả Dọn Dẹp -->
+    <div id="dedup-result-modal" class="modal-backdrop" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.85); z-index: 9999; align-items: center; justify-content: center; padding: 1rem;">
+        <div class="glass-card" style="width: 95%; max-width: 900px; max-height: 90vh; overflow-y: auto; padding: 2rem; border: 1px solid var(--border-color); position: relative; background: rgba(20, 16, 38, 0.98); box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.57); border-radius: 12px;">
+            <button onclick="closeDedupResultModal()" style="position: absolute; top: 1rem; right: 1rem; background: none; border: none; color: var(--text-color); font-size: 1.5rem; cursor: pointer; opacity: 0.7; transition: opacity 0.2s;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.7">&times;</button>
+            <h3 style="color: #ff7b57; font-weight: 700; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem; font-size: 1.25rem;">
+                <i class="fa-solid fa-square-poll-horizontal"></i> Báo Cáo Kết Quả Dọn Dẹp
+            </h3>
+            
+            <div id="dedup-summary-stats" style="margin-bottom: 1.5rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem;">
+                <!-- Render thống kê qua JS -->
+            </div>
+
+            <h4 style="font-size: 0.95rem; font-weight: 600; color: var(--text-color); border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; margin-top: 1.5rem;">
+                Chi Tiết Các Hoạt Động Được Gộp / Xóa
+            </h4>
+            <div class="table-responsive" style="margin-top: 1rem; max-height: 45vh; border-radius: 8px; border: 1px solid var(--border-color);">
+                <table class="custom-table" style="font-size: 0.8rem; margin-bottom: 0;">
+                    <thead>
+                        <tr id="dedup-table-header-row" style="background: rgba(255,255,255,0.02);">
+                            <th>VĐV</th>
+                            <th>Hoạt động bị xóa (Phụ)</th>
+                            <th>Hoạt động giữ lại (Chính)</th>
+                            <th>Lý do gộp</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dedup-result-details">
+                        <!-- Render chi tiết qua JS -->
+                    </tbody>
+                </table>
+            </div>
+            <div style="margin-top: 1.5rem; display: flex; justify-content: flex-end;">
+                <button onclick="closeDedupResultModal()" class="btn btn-secondary btn-sm" style="background: rgba(255,255,255,0.05); color: #fff; border: 1px solid var(--border-color); padding: 0.4rem 1rem; border-radius: 4px;">Đóng báo cáo</button>
+            </div>
+        </div>
+    </div>
+
     {% endif %}
 </div>
 {% endblock %}
@@ -2483,9 +2522,21 @@
         });
     }
 
-    function runDeduplicateActivities(event) {
-        if (!confirm('Bạn có chắc chắn muốn quét và dọn dẹp các hoạt động bị trùng lặp? Quá trình này sẽ lọc toàn bộ database, giữ lại 1 bản ghi duy nhất cho mỗi hoạt động trùng khớp.')) {
-            return;
+    function closeDedupResultModal() {
+        document.getElementById('dedup-result-modal').style.display = 'none';
+    }
+
+    function runDeduplicateActivities(event, mode = 'all') {
+        const isDryRun = mode === 'two_devices';
+        
+        if (mode === 'standard') {
+            if (!confirm('Bạn có chắc chắn muốn dọn dẹp trùng lặp cơ bản? (Các hoạt động trùng cự ly/thời gian tuyệt đối sẽ bị xóa tự động ngay)')) {
+                return;
+            }
+        } else if (mode === 'two_devices') {
+            if (!confirm('Hệ thống sẽ quét các hoạt động ghi song song từ 2 thiết bị để bạn tự duyệt và xóa. Tiến hành quét?')) {
+                return;
+            }
         }
         
         const btn = event.currentTarget;
@@ -2493,7 +2544,9 @@
         btn.disabled = true;
         btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Đang xử lý...`;
         
-        fetch(`/admin/activity/deduplicate`, {
+        const url = `/admin/activity/deduplicate?mode=${mode}` + (isDryRun ? '&dry_run=true' : '');
+        
+        fetch(url, {
             method: 'POST'
         })
         .then(res => res.json())
@@ -2502,9 +2555,99 @@
             btn.innerHTML = originalHtml;
             
             if (data.status === 'success') {
-                alert(data.message);
+                const modal = document.getElementById('dedup-result-modal');
+                const titleEl = modal.querySelector('h3');
+                const headerRow = document.getElementById('dedup-table-header-row');
+                const statsDiv = document.getElementById('dedup-summary-stats');
+                const detailsTbody = document.getElementById('dedup-result-details');
+                
+                // Cập nhật tiêu đề Modal và Header bảng dựa trên chế độ dry_run
+                if (data.dry_run) {
+                    titleEl.innerHTML = `<i class="fa-solid fa-magnifying-glass"></i> Duyệt Trùng Lặp 2 Thiết Bị`;
+                    headerRow.innerHTML = `
+                        <th>VĐV</th>
+                        <th>Hoạt động trùng lặp (Đề xuất xóa)</th>
+                        <th>Hoạt động giữ lại (Gốc)</th>
+                        <th>Lý do gộp</th>
+                        <th style="width: 100px; text-align: center;">Hành động</th>
+                    `;
+                    
+                    statsDiv.innerHTML = `
+                        <div style="background: rgba(255,255,255,0.02); padding: 1rem; border-radius: 8px; border: 1px solid var(--border-color);">
+                            <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.25rem;">Trạng thái</div>
+                            <div style="font-size: 1.25rem; font-weight: 700; color: #ff7b57;">Đã phát hiện</div>
+                        </div>
+                        <div style="background: rgba(255,255,255,0.02); padding: 1rem; border-radius: 8px; border: 1px solid var(--border-color);">
+                            <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.25rem;">Số lượng phát hiện</div>
+                            <div id="dedup-stats-count" style="font-size: 1.25rem; font-weight: 700; color: #ff5e36;">${data.deleted_count}</div>
+                        </div>
+                    `;
+                } else {
+                    titleEl.innerHTML = `<i class="fa-solid fa-square-poll-horizontal"></i> Báo Cáo Kết Quả Dọn Dẹp`;
+                    headerRow.innerHTML = `
+                        <th>VĐV</th>
+                        <th>Hoạt động bị xóa (Phụ)</th>
+                        <th>Hoạt động giữ lại (Chính)</th>
+                        <th>Lý do gộp</th>
+                    `;
+                    
+                    statsDiv.innerHTML = `
+                        <div style="background: rgba(255,255,255,0.02); padding: 1rem; border-radius: 8px; border: 1px solid var(--border-color);">
+                            <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.25rem;">Trạng thái</div>
+                            <div style="font-size: 1.25rem; font-weight: 700; color: #2b9348;">Thành công</div>
+                        </div>
+                        <div style="background: rgba(255,255,255,0.02); padding: 1rem; border-radius: 8px; border: 1px solid var(--border-color);">
+                            <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.25rem;">Hoạt động đã xóa</div>
+                            <div style="font-size: 1.25rem; font-weight: 700; color: #ff5e36;">${data.deleted_count}</div>
+                        </div>
+                    `;
+                }
+                
+                detailsTbody.innerHTML = '';
+                const details = data.deleted_details || [];
+                if (details.length === 0) {
+                    const colSpan = data.dry_run ? 5 : 4;
+                    detailsTbody.innerHTML = `<tr><td colspan="${colSpan}" style="text-align: center; color: var(--text-muted); padding: 2rem;">Không phát hiện hoạt động nào cần dọn dẹp ở chế độ này.</td></tr>`;
+                } else {
+                    details.forEach((item, idx) => {
+                        const rowId = `dedup-row-${idx}`;
+                        let actionCell = '';
+                        if (data.dry_run) {
+                            actionCell = `
+                                <td style="text-align: center; vertical-align: middle; padding: 0.75rem 0.5rem;">
+                                    <button class="btn btn-danger btn-sm" onclick="deleteActivityInDedupModal('${item.deleted.id}', '${rowId}', this)" style="background: linear-gradient(135deg, #d90429, #ef233c); border: none; padding: 0.35rem 0.6rem; font-size: 0.7rem; border-radius: 4px; display: inline-flex; align-items: center; gap: 0.25rem; cursor: pointer; transition: transform 0.1s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                                        <i class="fa-solid fa-trash-can"></i> Xóa
+                                    </button>
+                                </td>
+                            `;
+                        }
+                        
+                        detailsTbody.innerHTML += `
+                            <tr id="${rowId}">
+                                <td style="font-weight:600; color: var(--text-color);">${item.athlete_name}</td>
+                                <td style="color:#ff5e36; padding: 0.75rem 0.5rem;">
+                                    <strong style="display:block; margin-bottom:0.25rem;">${item.deleted.name}</strong>
+                                    <span style="font-size:0.75rem; color:var(--text-muted);">${item.deleted.distance} km | ${item.deleted.time} phút | Ngày: ${item.deleted.date}</span>
+                                </td>
+                                <td style="color:#2b9348; padding: 0.75rem 0.5rem;">
+                                    <strong style="display:block; margin-bottom:0.25rem;">${item.kept.name}</strong>
+                                    <span style="font-size:0.75rem; color:var(--text-muted);">${item.kept.distance} km | ${item.kept.time} phút | Ngày: ${item.kept.date}</span>
+                                </td>
+                                <td style="padding: 0.75rem 0.5rem;">
+                                    <span class="badge" style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); color: var(--text-muted); font-size: 0.7rem; padding: 0.2rem 0.4rem; border-radius: 4px; display: inline-block; white-space: normal; line-height: 1.2;">
+                                        ${item.reason}
+                                    </span>
+                                </td>
+                                ${actionCell}
+                            </tr>
+                        `;
+                    });
+                }
+                
+                modal.style.display = 'flex';
+                
                 if (document.getElementById('tab-activities').classList.contains('active')) {
-                    loadActivities(1);
+                    loadActivities(currentActivitiesPage);
                 }
             } else {
                 alert('Lỗi: ' + (data.error || 'Không thể xử lý dọn dẹp'));
@@ -2513,6 +2656,55 @@
         .catch(err => {
             btn.disabled = false;
             btn.innerHTML = originalHtml;
+            alert('Lỗi kết nối: ' + err);
+        });
+    }
+
+    function deleteActivityInDedupModal(activityId, rowId, btn) {
+        if (!confirm("Bạn có chắc chắn muốn xóa hoạt động này? Hành động này không thể hoàn tác.")) {
+            return;
+        }
+        
+        btn.disabled = true;
+        const originalText = btn.innerHTML;
+        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i>`;
+        
+        fetch(`/admin/activity/delete/${activityId}`, {
+            method: 'POST'
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                const row = document.getElementById(rowId);
+                if (row) {
+                    row.remove();
+                }
+                
+                const statsCountEl = document.getElementById('dedup-stats-count');
+                if (statsCountEl) {
+                    let currentCount = parseInt(statsCountEl.innerText) || 0;
+                    if (currentCount > 0) {
+                        statsCountEl.innerText = currentCount - 1;
+                    }
+                }
+                
+                if (document.getElementById('tab-activities').classList.contains('active')) {
+                    loadActivities(currentActivitiesPage);
+                }
+                
+                const detailsTbody = document.getElementById('dedup-result-details');
+                if (detailsTbody && detailsTbody.children.length === 0) {
+                    detailsTbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 2rem;">Tất cả hoạt động trùng lặp đã được xử lý xong.</td></tr>`;
+                }
+            } else {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+                alert('Lỗi khi xóa: ' + (data.error || 'Không thể xóa'));
+            }
+        })
+        .catch(err => {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
             alert('Lỗi kết nối: ' + err);
         });
     }

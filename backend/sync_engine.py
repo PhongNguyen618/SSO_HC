@@ -221,8 +221,10 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
                 time_overlap_dup = False
                 if ext.activity_date == act_date_str and ext.activity_time and act_time_str:
                     try:
-                        h1, m1 = map(int, ext.activity_time.split(":"))
-                        h2, m2 = map(int, act_time_str.split(":"))
+                        parts1 = ext.activity_time.split(":")
+                        parts2 = act_time_str.split(":")
+                        h1, m1 = int(parts1[0]), int(parts1[1])
+                        h2, m2 = int(parts2[0]), int(parts2[1])
                         start1 = h1 * 60 + m1
                         start2 = h2 * 60 + m2
                         
@@ -261,7 +263,7 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
                 
                 name_match = True
                 is_similar_tight = dist_diff <= 0.05 and time_diff <= 1.0 and elev_diff <= 10.0
-                if name1_clean != name2_clean and not is_generic1 and not is_generic2 and not time_overlap_dup and not is_similar_tight:
+                if name1_clean != name2_clean and (not is_generic1 or not is_generic2) and not time_overlap_dup and not is_similar_tight:
                     name_match = False
                     
                 # Thiết lập dung sai cho cự ly và thời gian
