@@ -225,6 +225,7 @@ def deduplicate_activities_logic(db: Session, mode: str = "all", dry_run: bool =
                         
                     # Check overlap thời gian (bổ sung cho trường hợp ghi song song nhiều thiết bị)
                     time_overlap_dup = False
+                    h_diff_val = 0
                     if act1.activity_date == act2.activity_date and act1.activity_time and act2.activity_time:
                         try:
                             parts1 = act1.activity_time.split(":")
@@ -246,10 +247,18 @@ def deduplicate_activities_logic(db: Session, mode: str = "all", dry_run: bool =
                             overlap_mins = max(0.0, min(end1, end2) - max(start1, start2))
                             min_dur = min(dur1, dur2)
                             
+                            diff_mins = abs(start1 - start2)
                             if min_dur > 0:
                                 overlap_ratio = overlap_mins / min_dur
-                                if overlap_ratio > 0.5 and abs(start1 - start2) <= 15:
+                                if overlap_ratio > 0.5 and diff_mins <= 15:
                                     time_overlap_dup = True
+                                    
+                            # Nếu chưa trùng overlap, kiểm tra trùng lệch múi giờ chẵn tiếng (h_diff từ 1 đến 14 tiếng)
+                            if not time_overlap_dup:
+                                h_diff = round(diff_mins / 60.0)
+                                if 1 <= h_diff <= 14 and abs(diff_mins - h_diff * 60) <= 15:
+                                    time_overlap_dup = True
+                                    h_diff_val = h_diff
                         except Exception:
                             pass
 
@@ -317,7 +326,10 @@ def deduplicate_activities_logic(db: Session, mode: str = "all", dry_run: bool =
                     elif time_overlap_dup and is_similar_static:
                         if mode in ["all", "two_devices"]:
                             should_merge = True
-                            reason = "Trùng lặp 2 thiết bị (chồng chéo thời gian > 50%, lệch cự ly <= 8%)"
+                            if h_diff_val > 0:
+                                reason = f"Trùng 2 thiết bị lệch múi giờ (lệch ~{h_diff_val}h, cự ly lệch <= 8%)"
+                            else:
+                                reason = "Trùng lặp 2 thiết bị (chồng chéo thời gian > 50%, lệch cự ly <= 8%)"
                             
                     if should_merge:
                         # Quyết định giữ lại bản ghi tối ưu hơn

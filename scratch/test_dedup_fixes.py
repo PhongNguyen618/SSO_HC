@@ -201,7 +201,20 @@ def test_all_dedup_fixes():
                 distance_km=8.1, distance_km_raw=8.1, moving_time_min=45.0, elevation_gain_m=10.0,
                 activity_date="2026-06-25", activity_time="09:35:00", multiplier=1.0
             )
-            dbsession.add_all([a1, a2, a3, adev1, adev2])
+            
+            # Cặp hoạt động ghi song song bị lệch múi giờ chẵn tiếng (lệch đúng 4 tiếng, cự ly lệch 6%)
+            atz1 = Activity(
+                id="act_tz_1", athlete_id=1, event_id=1, name="Chạy bộ buổi sáng", sport_type="Run",
+                distance_km=8.38, distance_km_raw=8.38, moving_time_min=57.4, elevation_gain_m=10.0,
+                activity_date="2026-06-25", activity_time="06:47:00", multiplier=1.0
+            )
+            atz2 = Activity(
+                id="act_tz_2", athlete_id=1, event_id=1, name="Chạy ngoài trời", sport_type="Run",
+                distance_km=7.89, distance_km_raw=7.89, moving_time_min=56.2, elevation_gain_m=10.0,
+                activity_date="2026-06-25", activity_time="10:47:00", multiplier=1.0
+            )
+            
+            dbsession.add_all([a1, a2, a3, adev1, adev2, atz1, atz2])
             dbsession.commit()
 
         # Test Mode "standard" (Chỉ dọn trùng cự ly/thời gian tuyệt đối)
@@ -217,29 +230,35 @@ def test_all_dedup_fixes():
         assert "act_chain_3" not in remaining_ids, "act_chain_3 phải bị xóa"
         assert "act_dev_1" in remaining_ids, "act_dev_1 không được xóa trong standard mode"
         assert "act_dev_2" in remaining_ids, "act_dev_2 không được xóa trong standard mode"
+        assert "act_tz_1" in remaining_ids, "act_tz_1 không được xóa trong standard mode"
+        assert "act_tz_2" in remaining_ids, "act_tz_2 không được xóa trong standard mode"
         print("=> Test Bug 4 & Mode standard thành công: Xóa chuỗi trùng 3+ hoàn toàn và bỏ qua trùng 2 thiết bị!")
         
-        # Test Mode "two_devices" (Chỉ dọn trùng thiết bị song song)
+        # Test Mode "two_devices" (Chỉ dọn trùng thiết bị song song + lệch múi giờ)
         create_post_sync_test_data(db)
         print("Chạy dọn dẹp trùng lặp ở chế độ two_devices (2 thiết bị)...")
         res_two_devices = deduplicate_activities_logic(db, mode="two_devices")
         print(f"  Two devices result: deleted_count={res_two_devices['deleted_count']}, message={res_two_devices['message']}")
-        assert res_two_devices['deleted_count'] == 1, f"Sai số lượng xóa 2 thiết bị: Kỳ vọng 1, thực tế {res_two_devices['deleted_count']}"
+        assert res_two_devices['deleted_count'] == 2, f"Sai số lượng xóa 2 thiết bị: Kỳ vọng 2, thực tế {res_two_devices['deleted_count']}"
         remaining_ids_2 = [a.id for a in db.query(Activity.id).all()]
         assert "act_dev_1" not in remaining_ids_2, "act_dev_1 phải bị xóa"
         assert "act_dev_2" in remaining_ids_2, "act_dev_2 phải được giữ lại"
+        assert "act_tz_2" not in remaining_ids_2, "act_tz_2 phải bị xóa do cự ly ngắn hơn"
+        assert "act_tz_1" in remaining_ids_2, "act_tz_1 phải được giữ lại"
         assert "act_chain_2" in remaining_ids_2, "act_chain_2 không được xóa trong mode này"
-        print("=> Test Mode two_devices thành công: Dọn trùng lặp thiết bị song song chính xác!")
+        print("=> Test Mode two_devices thành công: Dọn trùng lặp thiết bị song song và lệch múi giờ chính xác!")
         
         # Test Mode "two_devices" với dry_run=True (Không được xóa bản ghi nào)
         create_post_sync_test_data(db)
         print("Chạy dọn dẹp trùng lặp ở chế độ two_devices (dry_run=True)...")
         res_dry_run = deduplicate_activities_logic(db, mode="two_devices", dry_run=True)
         print(f"  Dry run result: deleted_count={res_dry_run['deleted_count']}, message={res_dry_run['message']}")
-        assert res_dry_run['deleted_count'] == 1, f"Sai số lượng phát hiện: Kỳ vọng 1, thực tế {res_dry_run['deleted_count']}"
+        assert res_dry_run['deleted_count'] == 2, f"Sai số lượng phát hiện: Kỳ vọng 2, thực tế {res_dry_run['deleted_count']}"
         remaining_ids_dry = [a.id for a in db.query(Activity.id).all()]
         assert "act_dev_1" in remaining_ids_dry, "act_dev_1 KHÔNG được bị xóa khi dry_run=True"
         assert "act_dev_2" in remaining_ids_dry, "act_dev_2 KHÔNG được bị xóa khi dry_run=True"
+        assert "act_tz_1" in remaining_ids_dry, "act_tz_1 KHÔNG được bị xóa khi dry_run=True"
+        assert "act_tz_2" in remaining_ids_dry, "act_tz_2 KHÔNG được bị xóa khi dry_run=True"
         print("=> Test dry_run thành công: Phát hiện nhưng không xóa bản ghi!")
         
         # Test Mode "all" (Dọn cả hai loại)
@@ -247,11 +266,12 @@ def test_all_dedup_fixes():
         print("Chạy dọn dẹp trùng lặp ở chế độ all (tất cả)...")
         res_all = deduplicate_activities_logic(db, mode="all")
         print(f"  All result: deleted_count={res_all['deleted_count']}, message={res_all['message']}")
-        assert res_all['deleted_count'] == 3, f"Sai số lượng xóa tất cả: Kỳ vọng 3, thực tế {res_all['deleted_count']}"
+        assert res_all['deleted_count'] == 4, f"Sai số lượng xóa tất cả: Kỳ vọng 4, thực tế {res_all['deleted_count']}"
         remaining_ids_3 = [a.id for a in db.query(Activity.id).all()]
         assert "act_chain_2" not in remaining_ids_3
         assert "act_chain_3" not in remaining_ids_3
         assert "act_dev_1" not in remaining_ids_3
+        assert "act_tz_2" not in remaining_ids_3
         print("=> Test Mode all thành công!")
         
         print("\n=> TẤT CẢ CÁC TEST CASE ĐÃ VƯỢT QUA THÀNH CÔNG!")
