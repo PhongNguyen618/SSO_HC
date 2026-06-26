@@ -250,6 +250,17 @@ def deduplicate_activities_logic(db: Session) -> dict:
                         except Exception:
                             pass
 
+                    # 5. Kiểm tra độ lệch cự ly (distance_km_raw)
+                    dist1 = act1.distance_km_raw if act1.distance_km_raw is not None else act1.distance_km
+                    dist2 = act2.distance_km_raw if act2.distance_km_raw is not None else act2.distance_km
+                    dist_diff = abs((dist1 or 0.0) - (dist2 or 0.0))
+                    
+                    # 6. Kiểm tra độ lệch thời gian di chuyển (moving_time_min)
+                    time_diff = abs((act1.moving_time_min or 0.0) - (act2.moving_time_min or 0.0))
+                    
+                    # 7. Kiểm tra độ lệch độ cao tăng thêm (elevation_gain_m)
+                    elev_diff = abs((act1.elevation_gain_m or 0.0) - (act2.elevation_gain_m or 0.0))
+
                     # 4. Quy tắc về tên hoạt động: để tránh xóa nhầm hai hoạt động thực tế khác nhau tự đặt tên riêng
                     name1_clean = (act1.name or "").strip().lower()
                     name2_clean = (act2.name or "").strip().lower()
@@ -264,21 +275,11 @@ def deduplicate_activities_logic(db: Session) -> dict:
                     is_generic1 = name1_clean in generic_keywords or name1_clean == ""
                     is_generic2 = name2_clean in generic_keywords or name2_clean == ""
                     
-                    # Nếu không phải trùng overlap thời gian thì mới kiểm tra tên hoạt động nghiêm ngặt
-                    if name1_clean != name2_clean and not is_generic1 and not is_generic2 and not time_overlap_dup:
+                    # Nếu không phải trùng overlap thời gian và không quá giống nhau tuyệt đối (chặt chẽ) thì mới kiểm tra tên hoạt động nghiêm ngặt
+                    is_similar_tight = dist_diff <= 0.05 and time_diff <= 1.0 and elev_diff <= 10.0
+                    if name1_clean != name2_clean and not is_generic1 and not is_generic2 and not time_overlap_dup and not is_similar_tight:
                         continue
                         
-                    # 5. Kiểm tra độ lệch cự ly (distance_km_raw)
-                    dist1 = act1.distance_km_raw if act1.distance_km_raw is not None else act1.distance_km
-                    dist2 = act2.distance_km_raw if act2.distance_km_raw is not None else act2.distance_km
-                    dist_diff = abs((dist1 or 0.0) - (dist2 or 0.0))
-                    
-                    # 6. Kiểm tra độ lệch thời gian di chuyển (moving_time_min)
-                    time_diff = abs((act1.moving_time_min or 0.0) - (act2.moving_time_min or 0.0))
-                    
-                    # 7. Kiểm tra độ lệch độ cao tăng thêm (elevation_gain_m)
-                    elev_diff = abs((act1.elevation_gain_m or 0.0) - (act2.elevation_gain_m or 0.0))
-                    
                     # Ngưỡng gộp an toàn:
                     # - Mặc định cự ly lệch <= 0.05 km, thời gian lệch <= 1.0 phút, độ cao lệch <= 10.0 m
                     # - Nếu lệch > 2 ngày: thắt chặt cự ly <= 0.02 km, thời gian <= 0.5 phút để tránh xóa nhầm hoạt động thật
@@ -290,8 +291,19 @@ def deduplicate_activities_logic(db: Session) -> dict:
                         max_time_diff = 0.5
                         max_elev_diff = 5.0
                         
+                    # Nếu phát hiện trùng lặp thời gian (overlap), ta nới lỏng dung sai thành tỷ lệ tương đối:
+                    # - Cự ly lệch không quá 8% cự ly hoạt động (tối thiểu 0.05 km)
+                    # - Thời gian lệch không quá 5% thời lượng hoạt động (tối thiểu 1.0 phút)
+                    # - Độ cao lệch không quá 15m
+                    if time_overlap_dup:
+                        min_dist = min(dist1 or 0.0, dist2 or 0.0)
+                        min_time = min(act1.moving_time_min or 0.0, act2.moving_time_min or 0.0)
+                        max_dist_diff = max(0.05, 0.08 * min_dist)
+                        max_time_diff = max(1.0, 0.05 * min_time)
+                        max_elev_diff = max(10.0, 15.0)
+                        
                     is_similar_static = dist_diff <= max_dist_diff and time_diff <= max_time_diff and elev_diff <= max_elev_diff
-                    if is_similar_static or time_overlap_dup:
+                    if is_similar_static:
                         # Quyết định giữ lại bản ghi tối ưu hơn
                         mult1 = act1.multiplier or 1.0
                         mult2 = act2.multiplier or 1.0

@@ -217,24 +217,6 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
                 time_diff = abs((ext.moving_time_min or 0.0) - moving_time_min)
                 elev_diff = abs((ext.elevation_gain_m or 0.0) - elevation_gain_m)
                 
-                # So sánh tên hoạt động
-                name1_clean = (ext.name or "").strip().lower()
-                name2_clean = (name or "").strip().lower()
-                
-                generic_keywords = [
-                    "activity", "hoạt động strava", "hoạt động", "workout", "run", "walk", "ride",
-                    "morning run", "afternoon run", "evening run", "night run",
-                    "morning walk", "afternoon walk", "evening walk", "night walk",
-                    "morning ride", "afternoon ride", "evening ride", "night ride",
-                    "lunch run", "lunch walk", "lunch ride"
-                ]
-                is_generic1 = name1_clean in generic_keywords or name1_clean == ""
-                is_generic2 = name2_clean in generic_keywords or name2_clean == ""
-                
-                name_match = True
-                if name1_clean != name2_clean and not is_generic1 and not is_generic2:
-                    name_match = False
-                    
                 # Check overlap thời gian (bổ sung cho trường hợp ghi song song nhiều thiết bị)
                 time_overlap_dup = False
                 if ext.activity_date == act_date_str and ext.activity_time and act_time_str:
@@ -262,9 +244,40 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
                                 time_overlap_dup = True
                     except Exception:
                         pass
-                        
-                is_similar_static = name_match and dist_diff <= 0.05 and time_diff <= 1.0 and elev_diff <= 10.0
-                if is_similar_static or time_overlap_dup:
+
+                # So sánh tên hoạt động
+                name1_clean = (ext.name or "").strip().lower()
+                name2_clean = (name or "").strip().lower()
+                
+                generic_keywords = [
+                    "activity", "hoạt động strava", "hoạt động", "workout", "run", "walk", "ride",
+                    "morning run", "afternoon run", "evening run", "night run",
+                    "morning walk", "afternoon walk", "evening walk", "night walk",
+                    "morning ride", "afternoon ride", "evening ride", "night ride",
+                    "lunch run", "lunch walk", "lunch ride"
+                ]
+                is_generic1 = name1_clean in generic_keywords or name1_clean == ""
+                is_generic2 = name2_clean in generic_keywords or name2_clean == ""
+                
+                name_match = True
+                is_similar_tight = dist_diff <= 0.05 and time_diff <= 1.0 and elev_diff <= 10.0
+                if name1_clean != name2_clean and not is_generic1 and not is_generic2 and not time_overlap_dup and not is_similar_tight:
+                    name_match = False
+                    
+                # Thiết lập dung sai cho cự ly và thời gian
+                max_dist_diff = 0.05
+                max_time_diff = 1.0
+                max_elev_diff = 10.0
+                
+                # Nếu trùng overlap thời gian (do cùng giờ sync), nới lỏng thành tỉ lệ tương đối 8% cự ly và 5% thời gian
+                if time_overlap_dup:
+                    min_dist = min(dist_ext or 0.0, distance_km)
+                    min_time = min(ext.moving_time_min or 0.0, moving_time_min)
+                    max_dist_diff = max(0.05, 0.08 * min_dist)
+                    max_time_diff = max(1.0, 0.05 * min_time)
+                    max_elev_diff = max(10.0, 15.0)
+                    
+                if name_match and dist_diff <= max_dist_diff and time_diff <= max_time_diff and elev_diff <= max_elev_diff:
                     is_dup_pre = True
                     break
                     

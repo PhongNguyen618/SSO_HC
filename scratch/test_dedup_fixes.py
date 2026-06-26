@@ -275,6 +275,57 @@ def run_tests():
         assert remaining_overlap[0].id == "act_strava_app", f"Failed: Expected act_strava_app (8.38 km) to be kept, got {remaining_overlap[0].id}"
         print("  Time Overlap Deduplication Test: PASSED (Successfully grouped parallel records and kept longest distance)")
         
+        # --------------------------------------------------
+        # TEST SAFETY: 2 hoạt động thật sự khác nhau trong ngày (ví dụ 5km và 8km)
+        # Kể cả khi chúng cùng nhận giờ sync (activity_time = "05:13")
+        # Hệ thống phải giữ lại CẢ HAI hoạt động (không được gộp nhầm/xóa ngầm).
+        # --------------------------------------------------
+        print("\n--- Testing Safety: Real different activities are NOT merged ---")
+        db.query(Activity).delete()
+        db.commit()
+        
+        act_run_morning = Activity(
+            id="act_run_morning",
+            athlete_id=1,
+            event_id=1,
+            athlete_name_raw="lê văn thái",
+            name="Morning Run 5K",
+            type="Run",
+            sport_type="Run",
+            distance_km=5.0,
+            distance_km_raw=5.0,
+            moving_time_min=30.0,
+            elapsed_time_min=30.0,
+            activity_date="2026-06-26",
+            activity_time="05:13",
+            multiplier=1.0
+        )
+        act_run_evening = Activity(
+            id="act_run_evening",
+            athlete_id=1,
+            event_id=1,
+            athlete_name_raw="lê văn thái",
+            name="Evening Run 8K",
+            type="Run",
+            sport_type="Run",
+            distance_km=8.0,
+            distance_km_raw=8.0,
+            moving_time_min=48.0,
+            elapsed_time_min=48.0,
+            activity_date="2026-06-26",
+            activity_time="05:13", # Giả sử cùng giờ sync
+            multiplier=1.0
+        )
+        db.add_all([act_run_morning, act_run_evening])
+        db.commit()
+        
+        res_safety = deduplicate_activities_logic(db)
+        print(f"Deleted count for safety test: {res_safety.get('deleted_count')}")
+        remaining_safety = db.query(Activity).all()
+        print(f"Remaining activities count (expecting 2): {len(remaining_safety)}")
+        assert len(remaining_safety) == 2, f"Failed: Safety test failed. One of the real activities was deleted!"
+        print("  Safety Test: PASSED (Real activities with different distances are safely preserved)")
+        
         print("\n==================================================")
         print("ALL TESTS PASSED SUCCESSFULLY!")
         print("==================================================")
