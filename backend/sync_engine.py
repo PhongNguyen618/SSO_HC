@@ -131,8 +131,46 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
         if distance_km > 0:
             pace_min_km = round(moving_time_min / distance_km, 2)
 
-        # Lấy ngày và giờ hoạt động thực tế từ Strava API
+        # Phân giải VĐV sớm để phục vụ kiểm tra trùng lặp
+        athlete = athlete_map.get(athlete_name_raw.lower())
+        athlete_id = athlete.id if athlete else None
+
+        # --- Kiểm tra trùng lặp sớm (Early Dedup) cho Club API ---
+        # API Strava Club Activities KHÔNG trả về start_date_local (ngày giờ thực tế).
+        # Nếu hoạt động đã được sync ở lần trước (với ngày đúng), phải phát hiện
+        # và bỏ qua TRƯỚC KHI thuật toán grace period gán nhầm ngày.
         start_date_local = act.get("start_date_local") or act.get("start_date")
+        if not start_date_local:
+            from sqlalchemy import func as sa_func
+            early_limit = (gmt7_now - timedelta(days=7)).strftime("%Y-%m-%d")
+            if athlete_id:
+                early_matches = db.query(Activity).filter(
+                    Activity.athlete_id == athlete_id,
+                    Activity.event_id == event_id,
+                    Activity.sport_type == sport_type,
+                    Activity.activity_date >= early_limit
+                ).all()
+            else:
+                early_matches = db.query(Activity).filter(
+                    sa_func.lower(Activity.athlete_name_raw) == athlete_name_raw.lower(),
+                    Activity.event_id == event_id,
+                    Activity.sport_type == sport_type,
+                    Activity.activity_date >= early_limit
+                ).all()
+
+            is_already_synced = False
+            for ext in early_matches:
+                dist_ext = ext.distance_km_raw if ext.distance_km_raw is not None else ext.distance_km
+                if abs((dist_ext or 0.0) - distance_km) <= 0.05 \
+                   and abs((ext.moving_time_min or 0.0) - moving_time_min) <= 1.0 \
+                   and abs((ext.elevation_gain_m or 0.0) - elevation_gain_m) <= 10.0:
+                    is_already_synced = True
+                    print(f"Sync Engine: Early dedup - skip '{name}' of {athlete_name_raw} "
+                          f"(already synced on {ext.activity_date})")
+                    break
+
+            if is_already_synced:
+                continue
         act_time_str = None
         if start_date_local:
             act_date_str = start_date_local[:10]  # Định dạng YYYY-MM-DD
@@ -195,21 +233,28 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
             
         seen_ids.add(act_id)
             
-        athlete = athlete_map.get(athlete_name_raw.lower())
-        athlete_id = athlete.id if athlete else None
-
         # Chặn trùng lặp nâng cao (Pre-sync Deduplication) trước khi chèn
-        # Tìm trong DB xem có hoạt động nào của VĐV này trùng khớp cự ly và thời gian gần đây không
+        # Tìm trong DB xem có hoạt động nào trùng khớp cự ly và thời gian gần đây không
+        # Hỗ trợ cả VĐV đã liên kết (athlete_id) và chưa liên kết (athlete_name_raw)
+        existing_similar = []
+        limit_date = (gmt7_now - timedelta(days=4)).strftime("%Y-%m-%d")
         if athlete_id:
-            # GMT+7 now được lấy ở dòng 141 (gmt7_now)
-            limit_date = (gmt7_now - timedelta(days=4)).strftime("%Y-%m-%d")
             existing_similar = db.query(Activity).filter(
                 Activity.athlete_id == athlete_id,
                 Activity.event_id == event_id,
                 Activity.sport_type == sport_type,
                 Activity.activity_date >= limit_date
             ).all()
-            
+        else:
+            from sqlalchemy import func as sa_func
+            existing_similar = db.query(Activity).filter(
+                sa_func.lower(Activity.athlete_name_raw) == athlete_name_raw.lower(),
+                Activity.event_id == event_id,
+                Activity.sport_type == sport_type,
+                Activity.activity_date >= limit_date
+            ).all()
+
+        if existing_similar:
             is_dup_pre = False
             for ext in existing_similar:
                 dist_ext = ext.distance_km_raw if ext.distance_km_raw is not None else ext.distance_km

@@ -41,6 +41,10 @@ Tài liệu này chứa các quy tắc phát triển, bộ nhớ lưu trữ các
 - **Vấn đề**: Bộ lọc thời gian nhanh "7 ngày qua" và "30 ngày qua" ở trang chủ (`templates/index.html`) sử dụng ngày kết thúc giải chạy làm mốc tính lùi. Với các giải trường kỳ có thời hạn đến 2030, ngày lọc sẽ bị nhảy hoàn toàn sang 2030 thay vì hôm nay.
 - **Giải pháp**: Luôn sử dụng ngày hôm nay thực tế làm mốc kết thúc cho bộ lọc nhanh, chỉ fallback về ngày kết thúc giải đấu nếu ngày hôm nay đã vượt quá hạn đóng của giải đấu đó.
 
+### ⚠️ Lỗi Gán Nhầm Ngày Chủ Nhật Khi Sync Rạng Sáng Thứ 2 (Early Dedup Fix)
+- **Vấn đề**: API Strava Club Activities không trả về `start_date_local`. Khi sync lúc 00:15 Thứ 2, thuật toán grace period lùi TẤT CẢ hoạt động về ngày hôm trước (Chủ nhật). Hoạt động Thứ 7 đã sync đúng ngày Thứ 7 trước đó bị tạo lại với hash ID mới (vì hash bao gồm `act_date_str` = CN ≠ T7) → trùng lặp sai ngày, sai multiplier.
+- **Giải pháp**: Thêm tầng **Early Dedup** trước logic grace period trong `sync_engine.py`. Trước khi suy diễn ngày, kiểm tra xem hoạt động đã tồn tại trong DB (khớp athlete + sport_type + distance + time + elevation trong 7 ngày gần đây) → nếu trùng thì bỏ qua ngay, không cho grace period gán sai ngày. Đồng thời mở rộng Pre-sync Dedup hỗ trợ cả VĐV chưa liên kết (`athlete_id = None`) bằng cách truy vấn theo `athlete_name_raw`.
+
 ---
 
 ## 3. Prompt Template Cho Session Tiếp Theo

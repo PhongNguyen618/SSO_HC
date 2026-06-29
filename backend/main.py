@@ -330,6 +330,17 @@ def deduplicate_activities_logic(db: Session, mode: str = "all", dry_run: bool =
                                 reason = f"Trùng 2 thiết bị lệch múi giờ (lệch ~{h_diff_val}h, cự ly lệch <= 8%)"
                             else:
                                 reason = "Trùng lặp 2 thiết bị (chồng chéo thời gian > 50%, lệch cự ly <= 8%)"
+
+                    # Chế độ dọn trùng Chủ nhật: cùng thông số chặt, KHÁC ngày, 1 bản là CN
+                    if not should_merge and mode in ["all", "sunday_dup"] and is_similar_tight and date_diff_days >= 1:
+                        day1 = d1.weekday() if 'd1' in dir() else -1
+                        day2 = d2.weekday() if 'd2' in dir() else -1
+                        # Chỉ xét khi 1 trong 2 bản là CN (weekday=6) và bản kia không phải CN
+                        if (day1 == 6) != (day2 == 6):
+                            should_merge = True
+                            sun_date = act1.activity_date if day1 == 6 else act2.activity_date
+                            real_date = act2.activity_date if day1 == 6 else act1.activity_date
+                            reason = f"Trùng lặp CN (grace period gán nhầm {real_date} → {sun_date})"
                             
                     if should_merge:
                         # Quyết định giữ lại bản ghi tối ưu hơn
@@ -408,6 +419,8 @@ def deduplicate_activities_logic(db: Session, mode: str = "all", dry_run: bool =
             mode_vi = "cơ bản"
         elif mode == "two_devices":
             mode_vi = "2 thiết bị"
+        elif mode == "sunday_dup":
+            mode_vi = "trùng CN"
             
         action_word = "Phát hiện" if dry_run else "Đã dọn dẹp thành công"
         return {

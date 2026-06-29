@@ -873,6 +873,9 @@
                 <button onclick="runDeduplicateActivities(event, 'two_devices')" class="btn btn-secondary btn-sm" style="background: linear-gradient(135deg, #ff5e36, #ff7b57); border: none; color: #fff; display: flex; align-items: center; gap: 0.5rem;" title="Quét và dọn các hoạt động cùng thời điểm ghi song song từ 2 thiết bị">
                     <i class="fa-solid fa-mobile-screen-button"></i> Dọn trùng 2 thiết bị
                 </button>
+                <button onclick="runDeduplicateActivities(event, 'sunday_dup')" class="btn btn-secondary btn-sm" style="background: linear-gradient(135deg, #1d3557, #457b9d); border: none; color: #fff; display: flex; align-items: center; gap: 0.5rem;" title="Quét và dọn các hoạt động bị trùng lặp do lệch ngày Chủ nhật (rạng sáng Thứ 2)">
+                    <i class="fa-solid fa-calendar-day"></i> Dọn trùng Chủ nhật
+                </button>
             </div>
         </div>
 
@@ -2527,7 +2530,7 @@
     }
 
     function runDeduplicateActivities(event, mode = 'all') {
-        const isDryRun = mode === 'two_devices';
+        const isDryRun = mode === 'two_devices' || mode === 'sunday_dup';
         
         if (mode === 'standard') {
             if (!confirm('Bạn có chắc chắn muốn dọn dẹp trùng lặp cơ bản? (Các hoạt động trùng cự ly/thời gian tuyệt đối sẽ bị xóa tự động ngay)')) {
@@ -2535,6 +2538,10 @@
             }
         } else if (mode === 'two_devices') {
             if (!confirm('Hệ thống sẽ quét các hoạt động ghi song song từ 2 thiết bị để bạn tự duyệt và xóa. Tiến hành quét?')) {
+                return;
+            }
+        } else if (mode === 'sunday_dup') {
+            if (!confirm('Hệ thống sẽ quét các hoạt động bị trùng lặp do lệch ngày Chủ nhật (rạng sáng Thứ 2) để bạn tự duyệt và xóa. Tiến hành quét?')) {
                 return;
             }
         }
@@ -2563,7 +2570,9 @@
                 
                 // Cập nhật tiêu đề Modal và Header bảng dựa trên chế độ dry_run
                 if (data.dry_run) {
-                    titleEl.innerHTML = `<i class="fa-solid fa-magnifying-glass"></i> Duyệt Trùng Lặp 2 Thiết Bị`;
+                    titleEl.innerHTML = mode === 'sunday_dup' 
+                        ? `<i class="fa-solid fa-magnifying-glass"></i> Duyệt Trùng Lặp Ngày Chủ Nhật`
+                        : `<i class="fa-solid fa-magnifying-glass"></i> Duyệt Trùng Lặp 2 Thiết Bị`;
                     headerRow.innerHTML = `
                         <th>VĐV</th>
                         <th>Hoạt động trùng lặp (Đề xuất xóa)</th>
