@@ -13,6 +13,18 @@ load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///SSO_HC.db")
 
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+
+# Tự động kích hoạt PRAGMA foreign_keys = ON đối với SQLite để thực thi ràng buộc khóa ngoại
+from sqlalchemy.engine import Engine
+from sqlalchemy import event
+
+@event.listens_for(Engine, "connect")
+def set_sqlite_pragma(dbapi_connection, connection_record):
+    if DATABASE_URL.startswith("sqlite"):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 

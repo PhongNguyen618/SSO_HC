@@ -45,6 +45,13 @@ Tài liệu này chứa các quy tắc phát triển, bộ nhớ lưu trữ các
 - **Vấn đề**: API Strava Club Activities không trả về `start_date_local`. Khi sync lúc 00:15 Thứ 2, thuật toán grace period lùi TẤT CẢ hoạt động về ngày hôm trước (Chủ nhật). Hoạt động Thứ 7 đã sync đúng ngày Thứ 7 trước đó bị tạo lại với hash ID mới (vì hash bao gồm `act_date_str` = CN ≠ T7) → trùng lặp sai ngày, sai multiplier.
 - **Giải pháp**: Thêm tầng **Early Dedup** trước logic grace period trong `sync_engine.py`. Trước khi suy diễn ngày, kiểm tra xem hoạt động đã tồn tại trong DB (khớp athlete + sport_type + distance + time + elevation trong 7 ngày gần đây) → nếu trùng thì bỏ qua ngay, không cho grace period gán sai ngày. Đồng thời mở rộng Pre-sync Dedup hỗ trợ cả VĐV chưa liên kết (`athlete_id = None`) bằng cách truy vấn theo `athlete_name_raw`.
 
+### ⚠️ Lỗi Ràng Buộc Khóa Ngoại SQLite khi Xóa VĐV hoặc Giải Đấu (IntegrityError)
+- **Vấn đề**: Khi kích hoạt chế độ thực thi ràng buộc khóa ngoại của SQLite (`PRAGMA foreign_keys = ON`), các thao tác xóa trực tiếp Giải đấu (`CompetitionEvent`) hoặc Vận động viên (`Athlete`) sẽ lập tức ném ra lỗi `IntegrityError: FOREIGN KEY constraint failed` nếu thứ tự xóa chưa đúng hoặc các bảng phụ thuộc khác vẫn đang trỏ khóa ngoại vào chúng.
+- **Giải pháp**: 
+  - Đảm bảo kích hoạt `PRAGMA foreign_keys = ON` thông qua SQLAlchemy connect event listener để kiểm soát chặt chẽ tính toàn vẹn dữ liệu.
+  - Khi xóa VĐV: Thực hiện dọn dẹp các bản ghi đăng ký liên quan trong bảng `competition_registrations` trước, sau đó mới xóa bản ghi VĐV.
+  - Khi xóa Giải đấu: Thực hiện hủy liên kết hoạt động (`Activity.event_id = None`), dọn dẹp sạch sẽ các đăng ký (`competition_registrations`), và xóa các quy tắc cấu hình riêng (`MetsRule`, `RewardRule`, `BadgeRule`, `EventMultiplier`) thuộc về giải chạy này trước khi xóa chính giải đấu.
+
 ---
 
 ## 3. Prompt Template Cho Session Tiếp Theo

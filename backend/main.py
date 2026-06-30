@@ -2887,6 +2887,8 @@ def admin_delete_athlete(
         else:
             # Xóa toàn bộ (toàn cục) khi không có giải đấu cụ thể được chọn
             db.query(Activity).filter(Activity.athlete_id == athlete_id).update({Activity.athlete_id: None})
+            # Xóa sạch các đăng ký của VĐV này trong các giải đấu trước khi xóa tài khoản VĐV
+            db.query(CompetitionRegistration).filter(CompetitionRegistration.athlete_id == athlete_id).delete()
             db.delete(athlete)
             
         db.commit()
@@ -4609,7 +4611,22 @@ def admin_delete_competition(comp_id: int, request: Request, db: Session = Depen
                 try: os.remove(path)
                 except: pass
         
-        db.delete(comp)  # cascade sẽ xóa activities liên quan
+        # 1. Hủy liên kết hoạt động thuộc giải chạy này bằng cách đặt event_id = None
+        db.query(Activity).filter(Activity.event_id == comp_id).update({Activity.event_id: None}, synchronize_session=False)
+        
+        # 2. Xóa sạch các đăng ký của giải đấu này
+        db.query(CompetitionRegistration).filter(CompetitionRegistration.event_id == comp_id).delete()
+        
+        # 3. Xóa sạch các cấu hình riêng liên quan đến giải đấu này
+        db.query(MetsRule).filter(MetsRule.event_id == comp_id).delete()
+        db.query(RewardRule).filter(RewardRule.event_id == comp_id).delete()
+        
+        from backend.database import BadgeRule
+        db.query(BadgeRule).filter(BadgeRule.event_id == comp_id).delete()
+        db.query(EventMultiplier).filter(EventMultiplier.event_id == comp_id).delete()
+        
+        # 4. Xóa giải đấu ra khỏi bảng competition_events
+        db.delete(comp)
         db.commit()
         return RedirectResponse("/admin?success=Đã xóa giải đấu và tất cả hoạt động liên quan#tab-competitions", status_code=303)
     except Exception as e:
