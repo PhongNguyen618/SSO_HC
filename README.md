@@ -2,8 +2,6 @@
 
 Ứng dụng Web quản lý và thống kê thành tích thể thao từ nhóm Strava Club, phục vụ cho giải chạy nội bộ SSO_HC. 
 
-Ứng dụng được xây dựng theo **Giải pháp A**: Chạy hoàn toàn bằng **Python (FastAPI + Jinja2 Templates)**, không yêu cầu cài đặt Node.js/NPM, sử dụng cơ sở dữ liệu **SQLite** và giao diện tùy biến bằng **Vanilla CSS (Glassmorphism)**.
-
 ---
 
 ## 1. Bản đồ Kiến trúc & Luồng dữ liệu (Knowledge Map)
