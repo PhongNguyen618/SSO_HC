@@ -4,7 +4,7 @@ import hashlib
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from fastapi import UploadFile
-from backend.database import SessionLocal, Config, Athlete, Activity, CompetitionEvent
+from backend.database import SessionLocal, Config, Athlete, Activity, CompetitionEvent, CompetitionRegistration
 from backend.calculations import get_mets_value, calculate_kcal, check_suspicious_activity, get_multiplier_for_date
 
 def get_config_dict(db: Session) -> dict:
