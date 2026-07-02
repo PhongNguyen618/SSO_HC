@@ -63,6 +63,12 @@ def parse_time_str_to_seconds(time_str: str) -> float:
     time_str = time_str.strip().lower()
     if not time_str:
         return 0.0
+        
+    # Hỗ trợ tiếng Việt
+    time_str = time_str.replace("giờ", "h").replace("gio", "h")
+    time_str = time_str.replace("phút", "m").replace("phut", "m").replace("p", "m")
+    time_str = time_str.replace("giây", "s").replace("giay", "s").replace("g", "s")
+    
     if ":" in time_str:
         parts = time_str.split(":")
         try:
@@ -89,10 +95,45 @@ def parse_time_str_to_seconds(time_str: str) -> float:
             pass
     return total_seconds
 
+def clean_html_tags(raw_html):
+    import re
+    cleanr = re.compile('<.*?>')
+    return re.sub(cleanr, '', str(raw_html)).strip()
+
+def parse_stat_distance(raw_val):
+    import re
+    text = clean_html_tags(raw_val).lower().replace(",", ".")
+    is_km = "km" in text or "kilomet" in text
+    
+    num_part = ""
+    for char in text:
+        if char.isdigit() or char in ['.', ',']:
+            num_part += char
+            
+    if not num_part:
+        return 0.0
+        
+    if not is_km:
+        if len(num_part) >= 5 and num_part[-4] in ['.', ',']:
+            num_part = num_part[:-4] + num_part[-3:]
+            
+    if ',' in num_part and '.' in num_part:
+        num_part = num_part.replace(',', '')
+    elif ',' in num_part:
+        num_part = num_part.replace(',', '.')
+        
+    try:
+        num = float(num_part)
+        if is_km:
+            return num * 1000.0
+        return num
+    except ValueError:
+        return 0.0
+
 def scrape_club_activities_web(club_id: str, cookie: str = "") -> list:
     """
     Cào hoạt động từ trang web Strava Club sử dụng session cookie.
-    Trả về list dict hoạt động theo định dạng tương tự API Strava.
+    Hỗ trợ cả giao diện Next.js (khi chưa đăng nhập) và React Microfrontend (khi đã đăng nhập).
     """
     import requests
     import re
@@ -102,23 +143,20 @@ def scrape_club_activities_web(club_id: str, cookie: str = "") -> list:
     import time
     
     # 1. Thêm thời gian trễ ngẫu nhiên trước khi cào (Random Delay từ 3 đến 8 giây)
-    # để tránh việc gửi dồn dập request lên Strava khi đồng bộ nhiều club
     delay = random.uniform(3.0, 8.0)
     print(f"Sync Engine (Scraper): Sleeping for {delay:.2f}s to avoid rate limiting/IP ban...")
     time.sleep(delay)
     
-    # 2. Xoay vòng User-Agent ngẫu nhiên để giả lập các trình duyệt khác nhau
     user_agents = [
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0",
-        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_1_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1.1 Mobile/15E148 Safari/604.1"
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     ]
     
-    url = f"https://www.strava.com/clubs/{club_id}"
-    
+    # Khi đã đăng nhập (có cookie), truy cập trực tiếp trang recent_activity để lấy feed chính xác
+    if cookie:
+        url = f"https://www.strava.com/clubs/{club_id}/recent_activity"
+    else:
+        url = f"https://www.strava.com/clubs/{club_id}"
+        
     headers = {
         "User-Agent": user_agents[0],
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
@@ -149,120 +187,87 @@ def scrape_club_activities_web(club_id: str, cookie: str = "") -> list:
     html_content = response.text
     activities = []
     
-    # 1. Thử parse qua Next.js JSON (__NEXT_DATA__)
-    next_data_match = re.search(r'<script id="__NEXT_DATA__" type="application/json">({.*?})</script>', html_content)
-    if next_data_match:
+    # THẾ HỆ 1: Thử parse qua React Microfrontend props (Khi đã đăng nhập - Logged In)
+    react_feed_matches = re.findall(r"data-react-class='Microfrontend'\s+data-react-props='([^']+)'", html_content)
+    pre_fetched = []
+    for m in react_feed_matches:
         try:
-            data = json.loads(next_data_match.group(1))
-            props = data.get("props", {})
-            page_props = props.get("pageProps", {})
-            pre_fetched = page_props.get("preFetchedEntries") or []
+            decoded = html.unescape(m)
+            data = json.loads(decoded)
+            if data.get("scope") == "strava_feed":
+                pre_fetched = data.get("appContext", {}).get("preFetchedEntries", [])
+                print(f"Sync Engine (Scraper): Found {len(pre_fetched)} entries in React Microfrontend props.")
+                break
+        except Exception:
+            pass
             
-            if not pre_fetched:
-                def find_entries(obj):
-                    if isinstance(obj, list):
-                        if obj and isinstance(obj[0], dict) and ("athlete" in obj[0] or "activity" in obj[0] or "activityName" in obj[0]):
-                            return obj
-                        for item in obj:
-                            res = find_entries(item)
-                            if res:
-                                return res
-                    elif isinstance(obj, dict):
-                        for k, v in obj.items():
-                            res = find_entries(v)
-                            if res:
-                                return res
-                    return None
-                pre_fetched = find_entries(page_props) or []
+    if pre_fetched:
+        # Bóc tách từ Microfrontend
+        for entry in pre_fetched:
+            if entry.get("entity") != "Activity":
+                continue
+            try:
+                activity_info = entry.get("activity", {})
+                athlete_info = activity_info.get("athlete", {})
                 
-            print(f"Sync Engine (Scraper): Found {len(pre_fetched)} entries in Next.js props.")
-            
-            for entry in pre_fetched:
-                athlete_info = entry.get("athlete", {})
-                athlete_id_val = athlete_info.get("id") or athlete_info.get("athleteId")
-                firstname = athlete_info.get("firstName") or athlete_info.get("firstname") or ""
-                lastname = athlete_info.get("lastName") or athlete_info.get("lastname") or ""
-                if not firstname and not lastname:
-                    fullname = athlete_info.get("name") or entry.get("athleteName") or ""
+                athlete_id_val = athlete_info.get("athleteId")
+                fullname = athlete_info.get("athleteName") or ""
+                
+                firstname = athlete_info.get("firstName") or ""
+                lastname = ""
+                if not firstname:
                     parts = fullname.strip().split()
                     if len(parts) > 1:
                         firstname = parts[0]
                         lastname = " ".join(parts[1:])
                     elif parts:
                         firstname = parts[0]
-                        lastname = ""
+                else:
+                    parts = fullname.strip().split()
+                    if len(parts) > len(firstname.split()):
+                        lastname = fullname.replace(firstname, "").strip()
                 
-                activity_info = entry.get("activity") or entry
-                act_name = activity_info.get("name") or entry.get("activityName") or "Hoạt động Strava"
-                act_type = activity_info.get("type") or activity_info.get("sportType") or entry.get("type") or "Run"
-                sport_type = activity_info.get("sportType") or activity_info.get("sport_type") or act_type
+                act_name = activity_info.get("activityName") or "Hoạt động Strava"
+                act_type = activity_info.get("type") or "Run"
+                sport_type = act_type
                 
-                # Parse distance
-                dist_val = activity_info.get("distance")
                 distance_m = 0.0
-                if dist_val is not None:
-                    try:
-                        if isinstance(dist_val, (int, float)):
-                            if dist_val > 100:
-                                distance_m = float(dist_val)
-                            else:
-                                distance_m = float(dist_val) * 1000.0
-                        else:
-                            dist_str = str(dist_val).strip().lower()
-                            num_match = re.search(r'([\d\.,]+)', dist_str)
-                            if num_match:
-                                num_val = float(num_match.group(1).replace(",", "."))
-                                if "km" in dist_str:
-                                    distance_m = num_val * 1000.0
-                                else:
-                                    distance_m = num_val
-                    except Exception:
-                        pass
-                
-                # Parse moving time
-                mov_val = activity_info.get("movingTime") or activity_info.get("moving_time")
                 moving_time_s = 0.0
-                if mov_val is not None:
-                    try:
-                        if isinstance(mov_val, (int, float)):
-                            moving_time_s = float(mov_val)
-                        else:
-                            moving_time_s = parse_time_str_to_seconds(str(mov_val))
-                    except Exception:
-                        pass
-                
-                # Parse elapsed time
-                ela_val = activity_info.get("elapsedTime") or activity_info.get("elapsed_time")
-                elapsed_time_s = moving_time_s
-                if ela_val is not None:
-                    try:
-                        if isinstance(ela_val, (int, float)):
-                            elapsed_time_s = float(ela_val)
-                        else:
-                            elapsed_time_s = parse_time_str_to_seconds(str(ela_val))
-                    except Exception:
-                        pass
-                
-                # Parse elevation
-                elev_val = activity_info.get("elevationGain") or activity_info.get("totalElevationGain") or activity_info.get("total_elevation_gain")
                 elevation_gain_m = 0.0
-                if elev_val is not None:
-                    try:
-                        if isinstance(elev_val, (int, float)):
-                            elevation_gain_m = float(elev_val)
-                        else:
-                            elev_str = str(elev_val).strip().lower()
-                            num_match = re.search(r'([\d\.,]+)', elev_str)
-                            if num_match:
-                                elevation_gain_m = float(num_match.group(1).replace(",", "."))
-                    except Exception:
-                        pass
-                        
-                start_date_local = activity_info.get("startDateLocal") or activity_info.get("start_date_local") or activity_info.get("startDate") or activity_info.get("start_date")
+                
+                stats = activity_info.get("stats", [])
+                stats_dict = {s.get("key"): s.get("value") for s in stats}
+                
+                dist_key = None
+                time_key = None
+                elev_key = None
+                
+                for k, v in stats_dict.items():
+                    if k.endswith("_subtitle"):
+                        base_key = k.replace("_subtitle", "")
+                        val_text = clean_html_tags(str(v)).lower()
+                        if "quãng đường" in val_text or "distance" in val_text:
+                            dist_key = base_key
+                        elif "thời gian" in val_text or "time" in val_text or "moving" in val_text:
+                            time_key = base_key
+                        elif "độ cao" in val_text or "elevation" in val_text:
+                            elev_key = base_key
+
+                if dist_key and dist_key in stats_dict:
+                    distance_m = parse_stat_distance(stats_dict[dist_key])
+                if time_key and time_key in stats_dict:
+                    moving_time_s = parse_time_str_to_seconds(clean_html_tags(stats_dict[time_key]))
+                else:
+                    moving_time_s = float(activity_info.get("elapsedTime", 0))
+                    
+                if elev_key and elev_key in stats_dict:
+                    elevation_gain_m = parse_stat_distance(stats_dict[elev_key])
+                    
+                start_date_local = activity_info.get("startDate")
                 
                 if distance_m == 0.0 and moving_time_s == 0.0:
                     continue
-                
+                    
                 activities.append({
                     "athlete": {
                         "id": athlete_id_val,
@@ -272,14 +277,147 @@ def scrape_club_activities_web(club_id: str, cookie: str = "") -> list:
                     "name": act_name,
                     "distance": distance_m,
                     "moving_time": moving_time_s,
-                    "elapsed_time": elapsed_time_s,
+                    "elapsed_time": float(activity_info.get("elapsedTime", moving_time_s)),
                     "total_elevation_gain": elevation_gain_m,
                     "type": act_type,
                     "sport_type": sport_type,
                     "start_date_local": start_date_local
                 })
-        except Exception as json_err:
-            print(f"Sync Engine (Scraper): Error parsing Next.js JSON: {json_err}")
+            except Exception as entry_err:
+                print(f"Sync Engine (Scraper): Error parsing React entry: {entry_err}")
+                
+    else:
+        # THẾ HỆ 2: Thử parse qua Next.js JSON (__NEXT_DATA__) (Khi chưa đăng nhập - Logged Out)
+        next_data_match = re.search(r'<script id="__NEXT_DATA__" type="application/json">({.*?})</script>', html_content)
+        if next_data_match:
+            try:
+                data = json.loads(next_data_match.group(1))
+                props = data.get("props", {})
+                page_props = props.get("pageProps", {})
+                pre_fetched = page_props.get("preFetchedEntries") or []
+                
+                if not pre_fetched:
+                    def find_entries(obj):
+                        if isinstance(obj, list):
+                            if obj and isinstance(obj[0], dict) and ("athlete" in obj[0] or "activity" in obj[0] or "activityName" in obj[0]):
+                                return obj
+                            for item in obj:
+                                res = find_entries(item)
+                                if res:
+                                    return res
+                        elif isinstance(obj, dict):
+                            for k, v in obj.items():
+                                res = find_entries(v)
+                                if res:
+                                    return res
+                        return None
+                    pre_fetched = find_entries(page_props) or []
+                    
+                print(f"Sync Engine (Scraper): Found {len(pre_fetched)} entries in Next.js props.")
+                
+                for entry in pre_fetched:
+                    athlete_info = entry.get("athlete", {})
+                    athlete_id_val = athlete_info.get("id") or athlete_info.get("athleteId")
+                    firstname = athlete_info.get("firstName") or athlete_info.get("firstname") or ""
+                    lastname = athlete_info.get("lastName") or athlete_info.get("lastname") or ""
+                    if not firstname and not lastname:
+                        fullname = athlete_info.get("name") or entry.get("athleteName") or ""
+                        parts = fullname.strip().split()
+                        if len(parts) > 1:
+                            firstname = parts[0]
+                            lastname = " ".join(parts[1:])
+                        elif parts:
+                            firstname = parts[0]
+                            lastname = ""
+                    
+                    activity_info = entry.get("activity") or entry
+                    act_name = activity_info.get("name") or entry.get("activityName") or "Hoạt động Strava"
+                    act_type = activity_info.get("type") or activity_info.get("sportType") or entry.get("type") or "Run"
+                    sport_type = activity_info.get("sportType") or activity_info.get("sport_type") or act_type
+                    
+                    # Parse distance
+                    dist_val = activity_info.get("distance")
+                    distance_m = 0.0
+                    if dist_val is not None:
+                        try:
+                            if isinstance(dist_val, (int, float)):
+                                if dist_val > 100:
+                                    distance_m = float(dist_val)
+                                else:
+                                    distance_m = float(dist_val) * 1000.0
+                            else:
+                                dist_str = str(dist_val).strip().lower()
+                                num_match = re.search(r'([\d\.,]+)', dist_str)
+                                if num_match:
+                                    num_val = float(num_match.group(1).replace(",", "."))
+                                    if "km" in dist_str:
+                                        distance_m = num_val * 1000.0
+                                    else:
+                                        distance_m = num_val
+                        except Exception:
+                            pass
+                    
+                    # Parse moving time
+                    mov_val = activity_info.get("movingTime") or activity_info.get("moving_time")
+                    moving_time_s = 0.0
+                    if mov_val is not None:
+                        try:
+                            if isinstance(mov_val, (int, float)):
+                                moving_time_s = float(mov_val)
+                            else:
+                                moving_time_s = parse_time_str_to_seconds(str(mov_val))
+                        except Exception:
+                            pass
+                    
+                    # Parse elapsed time
+                    ela_val = activity_info.get("elapsedTime") or activity_info.get("elapsed_time")
+                    elapsed_time_s = moving_time_s
+                    if ela_val is not None:
+                        try:
+                            if isinstance(ela_val, (int, float)):
+                                elapsed_time_s = float(ela_val)
+                            else:
+                                elapsed_time_s = parse_time_str_to_seconds(str(ela_val))
+                        except Exception:
+                            pass
+                    
+                    # Parse elevation
+                    elev_val = activity_info.get("elevationGain") or activity_info.get("totalElevationGain") or activity_info.get("total_elevation_gain")
+                    elevation_gain_m = 0.0
+                    if elev_val is not None:
+                        try:
+                            if isinstance(elev_val, (int, float)):
+                                elevation_gain_m = float(elev_val)
+                            else:
+                                elev_str = str(elev_val).strip().lower()
+                                num_match = re.search(r'([\d\.,]+)', elev_str)
+                                if num_match:
+                                    elevation_gain_m = float(num_match.group(1).replace(",", "."))
+                        except Exception:
+                            pass
+                            
+                    start_date_local = activity_info.get("startDateLocal") or activity_info.get("start_date_local") or activity_info.get("startDate") or activity_info.get("start_date")
+                    
+                    if distance_m == 0.0 and moving_time_s == 0.0:
+                        continue
+                    
+                    activities.append({
+                        "athlete": {
+                            "id": athlete_id_val,
+                            "firstname": firstname,
+                            "lastname": lastname
+                        },
+                        "name": act_name,
+                        "distance": distance_m,
+                        "moving_time": moving_time_s,
+                        "elapsed_time": elapsed_time_s,
+                        "total_elevation_gain": elevation_gain_m,
+                        "type": act_type,
+                        "sport_type": sport_type,
+                        "start_date_local": start_date_local
+                    })
+            except Exception as json_err:
+                print(f"Sync Engine (Scraper): Error parsing Next.js JSON: {json_err}")
             
     return activities
 
