@@ -196,4 +196,25 @@ Chúng tôi đã bổ sung đầy đủ luồng uỷ quyền cá nhân (User Aut
 ### Kết quả xác minh (Unit Tests):
 Chúng tôi đã viết script kiểm thử tự động `scratch/test_user_oauth.py` để kiểm chứng luồng callback và lưu trữ:
 * **Kiểm tra callback trao đổi code và lưu DB:** Mock phản hồi từ Strava Token API, chạy logic callback với `athlete_id=1` -> **[ĐẠT]** (Lưu chính xác `access_token`, `refresh_token`, `expires_at`, ID số Strava `"987654321"` và cập nhật đúng URL ảnh đại diện).
+
+---
+
+## 8. Tích hợp cơ chế đồng bộ kết hợp Hybrid Sync chống trùng lặp hoạt động
+
+Chúng tôi đã tích hợp thành công cơ chế đồng bộ kết hợp (Hybrid Sync) tối ưu hoá việc lấy dữ liệu của giải đấu từ 2 nguồn song song mà không gây trùng lặp hoạt động.
+
+### Chi tiết thay đổi:
+* **Hàm hỗ trợ mới (`backend/sync_engine.py`):**
+  * `refresh_user_strava_token(db, athlete, configs)`: Tự động dùng Refresh Token cá nhân của VĐV để cấp mới Access Token cá nhân khi hết hạn.
+  * `sync_athlete_activities_api(db, athlete, access_token)`: Gọi trực tiếp API Strava cá nhân lấy các hoạt động của VĐV đó và chuẩn hoá dữ liệu trả về theo đúng cấu trúc.
+* **Cơ chế Hybrid Sync trong `_sync_single_event`:**
+  * Lọc danh sách các VĐV đã đăng ký giải đấu này có uỷ quyền cá nhân (`strava_refresh_token`).
+  * Gọi API cá nhân của từng VĐV này để lấy hoạt động mới của họ bằng hạn mức API riêng (không dùng chung IP nên chống chặn IP 100%).
+  * Đồng thời cào Web Scraper trang Club đối với các VĐV chưa uỷ quyền để tránh sót thành tích.
+  * Gộp chung hoạt động từ 2 nguồn và chạy qua bộ lọc trùng lặp Hash ID để lưu vào DB SQLite.
+
+### Kết quả xác minh (Unit Tests):
+Chúng tôi đã viết script kiểm thử tự động `scratch/test_hybrid_sync.py` để kiểm chứng logic lọc trùng:
+* **Lọc trùng hoạt động An Bui (cào từ cả 2 nguồn):** Hệ thống phát hiện hoạt động trùng lặp và loại bỏ in-memory -> **[ĐẠT]** (Chỉ lưu đúng 1 hoạt động duy nhất vào DB, không bị x2 cự ly).
+* **Đồng bộ VĐV chưa uỷ quyền (Nguyễn Bình):** Nhặt hoạt động qua Scraper và tự động cập nhật ID số `"11111"` -> **[ĐẠT]**.
 ```
