@@ -212,6 +212,7 @@ Chúng tôi đã tích hợp thành công cơ chế đồng bộ kết hợp (Hy
   * Gọi API cá nhân của từng VĐV này để lấy hoạt động mới của họ bằng hạn mức API riêng (không dùng chung IP nên chống chặn IP 100%).
   * Đồng thời cào Web Scraper trang Club đối với các VĐV chưa uỷ quyền để tránh sót thành tích.
   * Gộp chung hoạt động từ 2 nguồn và chạy qua bộ lọc trùng lặp Hash ID để lưu vào DB SQLite.
+  * **Đồng bộ ngày chạy theo giờ địa phương (Local Time):** Do API Club của Strava không trả về ngày giờ chạy thực tế, toàn bộ hoạt động cào Web Scraper và API cá nhân đều được thống nhất gán `start_date_local` là `None` khi nạp vào. Điều này bắt buộc hệ thống áp dụng ngày giờ đồng bộ thực tế trên máy chủ làm mốc và chạy thuật toán ân hạn (grace period) lùi ngày giống nhau tuyệt đối cho cả hai nguồn. Nhờ đó, ngày chạy của hoạt động được đồng bộ thống nhất, tránh lệch ngày gây trùng lặp (x2 hoạt động).
 
 ### Kết quả xác minh (Unit Tests):
 Chúng tôi đã viết script kiểm thử tự động `scratch/test_hybrid_sync.py` để kiểm chứng logic lọc trùng:
