@@ -51,6 +51,3 @@ test_output.xlsx
 *.swp
 *.swo
 .DS_Store
-
-# --- Scratch Debug Files ---
-scratch/
