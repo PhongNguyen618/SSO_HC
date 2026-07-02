@@ -283,6 +283,97 @@ def scrape_club_activities_web(club_id: str, cookie: str = "") -> list:
             
     return activities
 
+def refresh_user_strava_token(db, athlete, configs) -> str:
+    """
+    Tự động làm mới và trả về Access Token cá nhân của vận động viên.
+    """
+    import time
+    import requests
+    
+    client_id = configs.get("strava_client_id")
+    client_secret = configs.get("strava_client_secret")
+    refresh_token = athlete.strava_refresh_token
+    
+    if not refresh_token:
+        return None
+        
+    expires_at = 0
+    try:
+        expires_at = int(athlete.strava_expires_at or 0)
+    except ValueError:
+        pass
+        
+    if expires_at > int(time.time()) + 60:
+        return athlete.strava_access_token
+        
+    print(f"Sync Engine: User token expired for {athlete.full_name}. Refreshing...")
+    try:
+        response = requests.post("https://www.strava.com/oauth/token", data={
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "grant_type": "refresh_token",
+            "refresh_token": refresh_token
+        }, timeout=10)
+        response.raise_for_status()
+        token_data = response.json()
+        
+        athlete.strava_access_token = token_data["access_token"]
+        athlete.strava_refresh_token = token_data["refresh_token"]
+        athlete.strava_expires_at = str(token_data["expires_at"])
+        db.commit()
+        
+        print(f"Sync Engine: User token refreshed successfully for {athlete.full_name}.")
+        return token_data["access_token"]
+    except Exception as e:
+        print(f"Sync Engine: Error refreshing user token for {athlete.full_name}: {e}")
+        return None
+
+def sync_athlete_activities_api(db, athlete, access_token) -> list:
+    """
+    Gọi API Strava cá nhân lấy các hoạt động mới nhất của VĐV.
+    """
+    import requests
+    
+    print(f"Sync Engine (User API): Fetching activities for {athlete.full_name} via personal API...")
+    url = "https://www.strava.com/api/v3/athlete/activities"
+    headers = {"Authorization": f"Bearer {access_token}"}
+    
+    params = {"page": 1, "per_page": 30}
+    
+    try:
+        response = requests.get(url, headers=headers, params=params, timeout=10)
+        response.raise_for_status()
+        raw_acts = response.json()
+        
+        formatted_acts = []
+        for ra in raw_acts:
+            dist_m = float(ra.get("distance", 0.0))
+            mov_s = float(ra.get("moving_time", 0.0))
+            if dist_m == 0.0 and mov_s == 0.0:
+                continue
+                
+            formatted_acts.append({
+                "athlete": {
+                    "id": athlete.strava_athlete_id,
+                    "firstname": athlete.strava_name.split(",")[0].strip() if athlete.strava_name else athlete.full_name,
+                    "lastname": ""
+                },
+                "name": ra.get("name", "Hoạt động Strava"),
+                "distance": dist_m,
+                "moving_time": mov_s,
+                "elapsed_time": float(ra.get("elapsed_time", 0.0)),
+                "total_elevation_gain": float(ra.get("total_elevation_gain", 0.0)),
+                "type": ra.get("type", "Run"),
+                "sport_type": ra.get("sport_type") or ra.get("type") or "Run",
+                "start_date_local": ra.get("start_date_local")
+            })
+            
+        print(f"Sync Engine (User API): Found {len(formatted_acts)} valid activities for {athlete.full_name}.")
+        return formatted_acts
+    except Exception as e:
+        print(f"Sync Engine (User API): Error fetching activities for {athlete.full_name}: {e}")
+        return []
+
 def _sync_single_event(db, configs, access_token, event) -> dict:
     """
     Đồng bộ hoạt động từ Strava Club của một giải đấu cụ thể.
@@ -296,20 +387,47 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
         result["error"] = f"Giải đấu '{event.title}' thiếu Club ID."
         return result
 
+    # 1. Đồng bộ các VĐV đã ủy quyền cá nhân qua API cá nhân của họ
+    user_api_activities = []
+    
+    # Lấy danh sách các VĐV đăng ký tham gia giải đấu này
+    registered_athletes = db.query(Athlete).join(
+        CompetitionRegistration,
+        Athlete.id == CompetitionRegistration.athlete_id
+    ).filter(
+        CompetitionRegistration.event_id == event_id,
+        Athlete.is_active == True
+    ).all()
+    
+    authorized_athletes = [a for a in registered_athletes if a.strava_refresh_token]
+    if authorized_athletes:
+        print(f"Sync Engine: Found {len(authorized_athletes)} authorized athletes. Syncing via personal APIs...")
+        for ath in authorized_athletes:
+            u_token = refresh_user_strava_token(db, ath, configs)
+            if u_token:
+                ath_acts = sync_athlete_activities_api(db, ath, u_token)
+                user_api_activities.extend(ath_acts)
+            else:
+                print(f"Sync Engine: Cannot refresh token for {ath.full_name}, skipping personal API sync.")
+                
+    # 2. Đồng bộ các hoạt động chung qua Club (API Club hoặc Scraper)
+    club_activities = []
     sync_method = configs.get("sync_method", "api")
     strava_cookie = configs.get("strava_cookie", "")
-    all_activities = []
     
     use_scraper = (sync_method == "scraper") or (not access_token and strava_cookie)
     
     if use_scraper:
         print(f"Sync Engine: Using Scraper to sync Event '{event.title}' (Club {club_id})...")
         try:
-            all_activities = scrape_club_activities_web(club_id, strava_cookie)
+            club_activities = scrape_club_activities_web(club_id, strava_cookie)
         except Exception as e:
-            result["status"] = "error"
-            result["error"] = f"Loi cao du lieu web: {str(e)}"
-            return result
+            if user_api_activities:
+                print(f"Sync Engine: Scraper failed ({e}) but personal API sync succeeded. Continuing with personal activities...")
+            else:
+                result["status"] = "error"
+                result["error"] = f"Loi cao du lieu web: {str(e)}"
+                return result
     else:
         # Gọi API Strava Club Activities
         print(f"Sync Engine: Starting API sync for Event '{event.title}' (Club {club_id})...")
@@ -322,13 +440,13 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
                 response = requests.get(url, headers=headers, params={"page": page, "per_page": per_page}, timeout=10)
                 if response.status_code == 403 and strava_cookie:
                     print(f"Sync Engine: API returned 403 Forbidden. Automatically falling back to Scraper Engine...")
-                    all_activities = scrape_club_activities_web(club_id, strava_cookie)
+                    club_activities = scrape_club_activities_web(club_id, strava_cookie)
                     break
                 response.raise_for_status()
                 chunk = response.json()
                 if not chunk:
                     break
-                all_activities.extend(chunk)
+                club_activities.extend(chunk)
                 if len(chunk) < per_page:
                     break
                 page += 1
@@ -342,17 +460,25 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
             if is_403 and strava_cookie:
                 print(f"Sync Engine: API failed with 403. Fallback to Scraper Engine: {api_err}")
                 try:
-                    all_activities = scrape_club_activities_web(club_id, strava_cookie)
+                    club_activities = scrape_club_activities_web(club_id, strava_cookie)
                 except Exception as scrap_ex:
-                    result["status"] = "error"
-                    result["error"] = f"API bi chan (403) va cao du phong that bai: {str(scrap_ex)}"
-                    return result
+                    if user_api_activities:
+                        print(f"Sync Engine: Fallback scraper failed ({scrap_ex}) but personal API sync succeeded. Continuing...")
+                    else:
+                        result["status"] = "error"
+                        result["error"] = f"API bi chan (403) va cao du phong that bai: {str(scrap_ex)}"
+                        return result
             else:
-                result["status"] = "error"
-                result["error"] = f"Loi goi API Strava: {str(api_err)}"
-                return result
+                if user_api_activities:
+                    print(f"Sync Engine: API failed ({api_err}) but personal API sync succeeded. Continuing...")
+                else:
+                    result["status"] = "error"
+                    result["error"] = f"Loi goi API Strava: {str(api_err)}"
+                    return result
 
-    print(f"Sync Engine: Downloaded {len(all_activities)} activities from Strava for event '{event.title}'.")
+    # Gộp tất cả hoạt động từ 2 luồng
+    all_activities = user_api_activities + club_activities
+    print(f"Sync Engine: Total downloaded activities to process: {len(all_activities)} (Personal API: {len(user_api_activities)}, Club/Scraper: {len(club_activities)}) for event '{event.title}'.")
     
     new_count = 0
     gmt7_now = datetime.utcnow() + timedelta(hours=7)
