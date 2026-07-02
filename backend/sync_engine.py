@@ -130,6 +130,18 @@ def parse_stat_distance(raw_val):
     except ValueError:
         return 0.0
 
+def convert_utc_to_gmt7(utc_str: str) -> str:
+    if not utc_str:
+        return None
+    import datetime
+    clean_str = utc_str.replace("Z", "")
+    try:
+        dt = datetime.datetime.fromisoformat(clean_str)
+        dt_gmt7 = dt + datetime.timedelta(hours=7)
+        return dt_gmt7.isoformat()
+    except Exception:
+        return utc_str
+
 def scrape_club_activities_web(club_id: str, cookie: str = "") -> list:
     """
     Cào hoạt động từ trang web Strava Club sử dụng session cookie.
@@ -263,7 +275,7 @@ def scrape_club_activities_web(club_id: str, cookie: str = "") -> list:
                 if elev_key and elev_key in stats_dict:
                     elevation_gain_m = parse_stat_distance(stats_dict[elev_key])
                     
-                start_date_local = activity_info.get("startDate")
+                start_date_local = convert_utc_to_gmt7(activity_info.get("startDate"))
                 
                 if distance_m == 0.0 and moving_time_s == 0.0:
                     continue
