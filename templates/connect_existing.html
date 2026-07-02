@@ -10,7 +10,7 @@
         </h2>
         
         <p style="color: var(--text-muted); margin-bottom: 2rem; font-size: 0.95rem; line-height: 1.6; text-align: center;">
-            Nếu bạn đã đăng ký tham gia giải chạy từ trước nhưng chưa kết nối Strava để đồng bộ tự động, vui lòng chọn tên của bạn bên dưới và bấm nút <strong>Liên kết ngay</strong>.
+            Nếu bạn đã đăng ký tham gia giải chạy từ trước nhưng chưa kết nối Strava để đồng bộ tự động, vui lòng chọn hoặc gõ tìm kiếm tên của bạn bên dưới và bấm nút <strong>Liên kết ngay</strong>.
         </p>
 
         {% if error %}
@@ -30,17 +30,18 @@
             </a>
         </div>
         {% else %}
-        <form action="/connect-existing" method="POST">
-            <div class="form-group" style="margin-bottom: 1.8rem;">
-                <label for="athlete_id" style="font-weight: 600; color: var(--color-primary); display: block; margin-bottom: 0.6rem;">
-                    Chọn tên vận động viên của bạn:
+        <form action="/connect-existing" method="POST" id="connect-form">
+            <div class="form-group" style="margin-bottom: 1.8rem; position: relative;">
+                <label for="athlete_search" style="font-weight: 600; color: var(--color-primary); display: block; margin-bottom: 0.6rem;">
+                    Nhập tên vận động viên của bạn:
                 </label>
-                <select id="athlete_id" name="athlete_id" class="form-control" required style="background: rgba(10, 8, 20, 0.8); color: var(--text-main); border: 1px solid rgba(255,255,255,0.15); height: 42px; border-radius: 8px; padding: 0 0.8rem; width: 100%;">
-                    <option value="" disabled selected>-- Chọn tên của bạn từ danh sách --</option>
-                    {% for a in athletes %}
-                    <option value="{{ a.id }}">{{ a.full_name }} ({{ a.department or "Chưa phân phòng" }})</option>
-                    {% endfor %}
-                </select>
+                
+                <div class="autocomplete-container">
+                    <input type="text" id="athlete_search" class="autocomplete-input" placeholder="Gõ để tìm kiếm tên của bạn..." autocomplete="off" required>
+                    <input type="hidden" id="athlete_id" name="athlete_id" required>
+                    <div id="autocomplete_list" class="autocomplete-items" style="display: none;"></div>
+                </div>
+
                 <small style="color: var(--text-muted); font-size: 0.8rem; display: block; margin-top: 0.5rem; line-height: 1.4;">
                     <i class="fa-solid fa-circle-info"></i> Danh sách trên chỉ hiển thị các VĐV đã đăng ký nhưng chưa liên kết Strava. Nếu bạn không tìm thấy tên mình, có thể tài khoản của bạn đã được liên kết thành công rồi.
                 </small>
@@ -55,6 +56,146 @@
                 </a>
             </div>
         </form>
+
+        <style>
+        .autocomplete-container {
+            position: relative;
+            width: 100%;
+        }
+        .autocomplete-input {
+            background: rgba(10, 8, 20, 0.8) !important;
+            color: var(--text-main) !important;
+            border: 1px solid rgba(255, 255, 255, 0.15) !important;
+            height: 45px;
+            border-radius: 8px;
+            padding: 0 1rem;
+            width: 100%;
+            font-size: 0.95rem;
+            transition: all 0.3s ease;
+            box-sizing: border-box;
+        }
+        .autocomplete-input:focus {
+            border-color: #ff5e36 !important;
+            box-shadow: 0 0 10px rgba(255, 94, 54, 0.2);
+            outline: none;
+        }
+        .autocomplete-items {
+            position: absolute;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            background: rgba(15, 12, 30, 0.95);
+            backdrop-filter: blur(15px);
+            border-radius: 8px;
+            z-index: 999;
+            top: 100%;
+            left: 0;
+            right: 0;
+            max-height: 220px;
+            overflow-y: auto;
+            margin-top: 5px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+        .autocomplete-item {
+            padding: 0.8rem 1rem;
+            cursor: pointer;
+            color: var(--text-main);
+            font-size: 0.92rem;
+            transition: all 0.2s ease;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            text-align: left;
+        }
+        .autocomplete-item:last-child {
+            border-bottom: none;
+        }
+        .autocomplete-item:hover {
+            background: linear-gradient(135deg, rgba(255, 94, 54, 0.15) 0%, rgba(255, 154, 60, 0.15) 100%);
+            color: #ff9a3c;
+        }
+        .autocomplete-no-result {
+            padding: 0.8rem 1rem;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            text-align: center;
+        }
+        </style>
+
+        <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            // Chuyển dữ liệu Jinja2 sang mảng Javascript
+            const athletes = [
+                {% for a in athletes %}
+                {
+                    id: {{ a.id }},
+                    name: "{{ a.full_name | escape }}",
+                    dept: "{{ (a.department or 'Chưa phân phòng') | escape }}"
+                },
+                {% endfor %}
+            ];
+
+            const searchInput = document.getElementById("athlete_search");
+            const idInput = document.getElementById("athlete_id");
+            const listContainer = document.getElementById("autocomplete_list");
+            const form = document.getElementById("connect-form");
+
+            // Hiển thị gợi ý dựa trên từ khoá nhập vào
+            function renderSuggestions(val) {
+                listContainer.innerHTML = "";
+                if (!val) {
+                    listContainer.style.display = "none";
+                    return;
+                }
+
+                const filtered = athletes.filter(a => 
+                    a.name.toLowerCase().includes(val.toLowerCase()) ||
+                    a.dept.toLowerCase().includes(val.toLowerCase())
+                );
+
+                if (filtered.length === 0) {
+                    listContainer.innerHTML = '<div class="autocomplete-no-result">Không tìm thấy vận động viên nào</div>';
+                } else {
+                    filtered.forEach(item => {
+                        const div = document.createElement("div");
+                        div.className = "autocomplete-item";
+                        div.innerHTML = `<strong>${item.name}</strong> <span style="font-size:0.8rem; color:var(--text-muted); margin-left:0.5rem;">(${item.dept})</span>`;
+                        div.addEventListener("click", function() {
+                            searchInput.value = item.name;
+                            idInput.value = item.id;
+                            listContainer.style.display = "none";
+                        });
+                        listContainer.appendChild(div);
+                    });
+                }
+                listContainer.style.display = "block";
+            }
+
+            // Lắng nghe sự kiện gõ phím
+            searchInput.addEventListener("input", function(e) {
+                // Xoá id cũ đi nếu người dùng gõ thay đổi
+                idInput.value = "";
+                renderSuggestions(this.value);
+            });
+
+            // Hiển thị toàn bộ danh sách khi click vào ô input
+            searchInput.addEventListener("focus", function() {
+                renderSuggestions(this.value || " ");
+            });
+
+            // Ẩn danh sách khi click ra ngoài
+            document.addEventListener("click", function(e) {
+                if (e.target !== searchInput && e.target !== listContainer && !listContainer.contains(e.target)) {
+                    listContainer.style.display = "none";
+                }
+            });
+
+            // Kiểm tra trước khi submit form
+            form.addEventListener("submit", function(e) {
+                if (!idInput.value) {
+                    e.preventDefault();
+                    alert("Vui lòng chọn chính xác tên vận động viên từ danh sách gợi ý!");
+                    searchInput.focus();
+                }
+            });
+        });
+        </script>
         {% endif %}
     </div>
 </div>
