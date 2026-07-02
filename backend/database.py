@@ -44,6 +44,11 @@ class Athlete(Base):
     is_active = Column(Boolean, default=True)
     avatar_url = Column(String, nullable=True)
     strava_athlete_id = Column(String, unique=True, index=True, nullable=True)
+    
+    # OAuth tokens cá nhân
+    strava_access_token = Column(String, nullable=True)
+    strava_refresh_token = Column(String, nullable=True)
+    strava_expires_at = Column(String, nullable=True)
 
     activities = relationship("Activity", back_populates="athlete")
 
