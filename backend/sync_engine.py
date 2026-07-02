@@ -258,7 +258,7 @@ def scrape_club_activities_web(club_id: str, cookie: str = "") -> list:
                     except Exception:
                         pass
                         
-                start_date_local = None
+                start_date_local = activity_info.get("startDateLocal") or activity_info.get("start_date_local") or activity_info.get("startDate") or activity_info.get("start_date")
                 
                 if distance_m == 0.0 and moving_time_s == 0.0:
                     continue
@@ -365,7 +365,7 @@ def sync_athlete_activities_api(db, athlete, access_token) -> list:
                 "total_elevation_gain": float(ra.get("total_elevation_gain", 0.0)),
                 "type": ra.get("type", "Run"),
                 "sport_type": ra.get("sport_type") or ra.get("type") or "Run",
-                "start_date_local": None
+                "start_date_local": ra.get("start_date_local")
             })
             
         print(f"Sync Engine (User API): Found {len(formatted_acts)} valid activities for {athlete.full_name}.")
