@@ -120,7 +120,7 @@ def scrape_club_activities_web(club_id: str, cookie: str = "") -> list:
     url = f"https://www.strava.com/clubs/{club_id}"
     
     headers = {
-        "User-Agent": random.choice(user_agents),
+        "User-Agent": user_agents[0],
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
         "Accept-Language": "vi-VN,vi;q=0.9,fr-FR;q=0.8,fr;q=0.7,en-US;q=0.6,en;q=0.5",
         "Accept-Encoding": "gzip, deflate, br",
