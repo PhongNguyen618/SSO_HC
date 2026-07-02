@@ -43,6 +43,7 @@ class Athlete(Base):
     strava_name = Column(String, unique=True, index=True)
     is_active = Column(Boolean, default=True)
     avatar_url = Column(String, nullable=True)
+    strava_athlete_id = Column(String, unique=True, index=True, nullable=True)
 
     activities = relationship("Activity", back_populates="athlete")
 
@@ -193,6 +194,30 @@ def init_db(excel_filepath: str = "TDTT_SSO.xlsx"):
         with engine.connect() as conn:
             conn.execute(text("ALTER TABLE athletes ADD COLUMN avatar_url TEXT"))
             conn.commit()
+            
+    if 'strava_athlete_id' not in athlete_columns:
+        print("Database Migration: Adding strava_athlete_id column to athletes table...")
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE athletes ADD COLUMN strava_athlete_id TEXT"))
+            conn.commit()
+            
+    if 'strava_access_token' not in athlete_columns:
+        print("Database Migration: Adding strava_access_token column to athletes table...")
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE athletes ADD COLUMN strava_access_token TEXT"))
+            conn.commit()
+
+    if 'strava_refresh_token' not in athlete_columns:
+        print("Database Migration: Adding strava_refresh_token column to athletes table...")
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE athletes ADD COLUMN strava_refresh_token TEXT"))
+            conn.commit()
+
+    if 'strava_expires_at' not in athlete_columns:
+        print("Database Migration: Adding strava_expires_at column to athletes table...")
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE athletes ADD COLUMN strava_expires_at TEXT"))
+            conn.commit()
 
     columns = [c['name'] for c in inspector.get_columns('activities')]
     if 'event_id' not in columns:
@@ -340,6 +365,8 @@ def init_db(excel_filepath: str = "TDTT_SSO.xlsx"):
         "strava_access_token": "",
         "strava_refresh_token": "",
         "strava_expires_at": "0",
+        "user_auth_banner_show": "false",
+        "user_auth_banner_text": "⚠️ Chú ý: Các VĐV chưa liên kết Strava vui lòng click vào đây để kết nối tài khoản ngay!",
         "rules_title": "GIẢI CHẠY BỘ SSO HC",
         "rules_version": "v1.0",
         "rules_description": "Chào mừng các Vận động viên tham gia giải chạy phong trào SSO HC! Giải đấu nhằm khuyến khích tinh thần rèn luyện sức khỏe, nâng cao sức bền và gắn kết tập thể giữa các phòng ban. Các hoạt động được đồng bộ tự động từ tài khoản Strava cá nhân đã liên kết và được quy đổi năng lượng tiêu thụ (KCAL) làm cơ sở xếp hạng thành tích.",

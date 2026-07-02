@@ -59,6 +59,35 @@
             <i class="fa-solid fa-circle-check"></i> {{ success }}
         </div>
         
+        {% if needs_strava_auth %}
+        <div class="glass-card" style="background: rgba(255, 94, 54, 0.05); border: 1px solid rgba(255, 94, 54, 0.3); text-align: center; padding: 2rem; margin-bottom: 2rem; border-radius: 12px; animation: fadeInUp 0.5s ease;">
+            <h3 style="font-family: 'Outfit'; color: #ff5e36; margin-bottom: 0.8rem; font-size: 1.3rem;">
+                <i class="fa-brands fa-strava"></i> LIÊN KẾT TÀI KHOẢN STRAVA
+            </h3>
+            <p style="font-size: 0.95rem; margin-bottom: 1.5rem; color: var(--text-main); line-height: 1.6;">
+                Để hệ thống tự động ghi nhận thành tích của bạn chính xác nhất, vui lòng click nút bên dưới để cấp quyền kết nối Strava cá nhân với ứng dụng SSO HC.
+            </p>
+            <a href="{{ auth_url }}" class="btn btn-primary" style="background: linear-gradient(135deg, #ff5e36 0%, #ff9a3c 100%); border: none; padding: 0.9rem 2rem; font-size: 1.05rem; font-weight: 700; border-radius: 50px; text-decoration: none; display: inline-flex; align-items: center; gap: 0.6rem; box-shadow: 0 5px 20px rgba(255, 94, 54, 0.4); transition: all 0.3s ease; width: auto; color: #fff;">
+                <i class="fa-brands fa-strava"></i> LIÊN KẾT TÀI KHOẢN STRAVA
+            </a>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 1.2rem;">
+                <i class="fa-solid fa-circle-info"></i> Hệ thống đang chuyển hướng tự động sang Strava sau <span id="countdown-timer" style="color: #ff5e36; font-weight: bold; font-size: 1.1rem;">3</span> giây...
+            </p>
+        </div>
+        <script>
+            let seconds = 3;
+            const timerSpan = document.getElementById('countdown-timer');
+            const interval = setInterval(() => {
+                seconds--;
+                if (timerSpan) timerSpan.textContent = seconds;
+                if (seconds <= 0) {
+                    clearInterval(interval);
+                    window.location.href = "{{ auth_url }}";
+                }
+            }, 1000);
+        </script>
+        {% endif %}
+        
         <!-- Khối hiển thị QR Group Zalo/Strava sau khi đăng ký thành công -->
         {% if app_configs.rules_group_qr %}
         <div class="glass-card" style="background: rgba(40, 167, 69, 0.05); border: 1px solid rgba(40, 167, 69, 0.2); text-align: center; padding: 1.8rem; margin-bottom: 2rem; border-radius: 12px; animation: fadeInUp 0.5s ease;">

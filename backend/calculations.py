@@ -45,10 +45,10 @@ def get_mets_value(sport_type: str, speed_kmh: float, db: Session, distance_km: 
     - Đối với Chạy bộ (Run) và Đi bộ (Walk): Áp dụng công thức chuẩn của Hiệp hội Y học Thể thao Hoa Kỳ (ACSM) tích hợp tốc độ và độ dốc.
     - Đối với các bộ môn khác: Áp dụng phương pháp Nội suy tuyến tính (Linear Interpolation) dựa trên các khoảng tốc độ trong DB.
     """
-    # 1. Áp dụng công thức ACSM cho Run và Walk (nếu có di chuyển)
-    if sport_type in ('Run', 'Walk') and speed_kmh > 0.0:
+    # 1. Áp dụng công thức ACSM cho Run và Walk (bất kể tốc độ nào)
+    if sport_type in ('Run', 'Walk'):
         # Tốc độ S tính bằng m/phút: 1 km/h = 1000m / 60phút = 16.6667 m/min
-        S = speed_kmh * 16.6667
+        S = max(speed_kmh, 0.0) * 16.6667
         
         # Độ dốc G (Grade): Độ cao (m) / Quãng đường (m). Giới hạn dốc tối đa 30% tránh nhiễu GPS
         G = 0.0

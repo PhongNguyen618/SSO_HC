@@ -58,6 +58,231 @@ def refresh_strava_token(db: Session, configs: dict) -> str:
         print(f"Sync Engine: Error refreshing token: {e}")
         return None
 
+def parse_time_str_to_seconds(time_str: str) -> float:
+    import re
+    time_str = time_str.strip().lower()
+    if not time_str:
+        return 0.0
+    if ":" in time_str:
+        parts = time_str.split(":")
+        try:
+            if len(parts) == 2:
+                return int(parts[0]) * 60 + int(parts[1])
+            elif len(parts) == 3:
+                return int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
+        except ValueError:
+            pass
+    total_seconds = 0.0
+    h_match = re.search(r'(\d+)\s*h', time_str)
+    if h_match:
+        total_seconds += int(h_match.group(1)) * 3600
+    m_match = re.search(r'(\d+)\s*m', time_str)
+    if m_match:
+        total_seconds += int(m_match.group(1)) * 60
+    s_match = re.search(r'(\d+)\s*s', time_str)
+    if s_match:
+        total_seconds += int(s_match.group(1))
+    if total_seconds == 0.0:
+        try:
+            total_seconds = float(time_str)
+        except ValueError:
+            pass
+    return total_seconds
+
+def scrape_club_activities_web(club_id: str, cookie: str = "") -> list:
+    """
+    Cào hoạt động từ trang web Strava Club sử dụng session cookie.
+    Trả về list dict hoạt động theo định dạng tương tự API Strava.
+    """
+    import requests
+    import re
+    import html
+    import json
+    import random
+    import time
+    
+    # 1. Thêm thời gian trễ ngẫu nhiên trước khi cào (Random Delay từ 3 đến 8 giây)
+    # để tránh việc gửi dồn dập request lên Strava khi đồng bộ nhiều club
+    delay = random.uniform(3.0, 8.0)
+    print(f"Sync Engine (Scraper): Sleeping for {delay:.2f}s to avoid rate limiting/IP ban...")
+    time.sleep(delay)
+    
+    # 2. Xoay vòng User-Agent ngẫu nhiên để giả lập các trình duyệt khác nhau
+    user_agents = [
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0",
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_1_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1.1 Mobile/15E148 Safari/604.1"
+    ]
+    
+    url = f"https://www.strava.com/clubs/{club_id}"
+    
+    headers = {
+        "User-Agent": random.choice(user_agents),
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "Accept-Language": "vi-VN,vi;q=0.9,fr-FR;q=0.8,fr;q=0.7,en-US;q=0.6,en;q=0.5",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Referer": "https://www.strava.com/dashboard",
+        "Upgrade-Insecure-Requests": "1",
+        "Sec-Ch-Ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+        "Sec-Ch-Ua-Mobile": "?0",
+        "Sec-Ch-Ua-Platform": '"Windows"',
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "same-origin",
+        "Sec-Fetch-User": "?1",
+        "Cache-Control": "max-age=0"
+    }
+    
+    if cookie:
+        if "=" not in cookie:
+            headers["Cookie"] = f"_strava4_session={cookie.strip()}"
+        else:
+            headers["Cookie"] = cookie.strip()
+            
+    print(f"Sync Engine (Scraper): Fetching web page for club {club_id}...")
+    response = requests.get(url, headers=headers, timeout=15)
+    response.raise_for_status()
+    
+    html_content = response.text
+    activities = []
+    
+    # 1. Thử parse qua Next.js JSON (__NEXT_DATA__)
+    next_data_match = re.search(r'<script id="__NEXT_DATA__" type="application/json">({.*?})</script>', html_content)
+    if next_data_match:
+        try:
+            data = json.loads(next_data_match.group(1))
+            props = data.get("props", {})
+            page_props = props.get("pageProps", {})
+            pre_fetched = page_props.get("preFetchedEntries") or []
+            
+            if not pre_fetched:
+                def find_entries(obj):
+                    if isinstance(obj, list):
+                        if obj and isinstance(obj[0], dict) and ("athlete" in obj[0] or "activity" in obj[0] or "activityName" in obj[0]):
+                            return obj
+                        for item in obj:
+                            res = find_entries(item)
+                            if res:
+                                return res
+                    elif isinstance(obj, dict):
+                        for k, v in obj.items():
+                            res = find_entries(v)
+                            if res:
+                                return res
+                    return None
+                pre_fetched = find_entries(page_props) or []
+                
+            print(f"Sync Engine (Scraper): Found {len(pre_fetched)} entries in Next.js props.")
+            
+            for entry in pre_fetched:
+                athlete_info = entry.get("athlete", {})
+                athlete_id_val = athlete_info.get("id") or athlete_info.get("athleteId")
+                firstname = athlete_info.get("firstName") or athlete_info.get("firstname") or ""
+                lastname = athlete_info.get("lastName") or athlete_info.get("lastname") or ""
+                if not firstname and not lastname:
+                    fullname = athlete_info.get("name") or entry.get("athleteName") or ""
+                    parts = fullname.strip().split()
+                    if len(parts) > 1:
+                        firstname = parts[0]
+                        lastname = " ".join(parts[1:])
+                    elif parts:
+                        firstname = parts[0]
+                        lastname = ""
+                
+                activity_info = entry.get("activity") or entry
+                act_name = activity_info.get("name") or entry.get("activityName") or "Hoạt động Strava"
+                act_type = activity_info.get("type") or activity_info.get("sportType") or entry.get("type") or "Run"
+                sport_type = activity_info.get("sportType") or activity_info.get("sport_type") or act_type
+                
+                # Parse distance
+                dist_val = activity_info.get("distance")
+                distance_m = 0.0
+                if dist_val is not None:
+                    try:
+                        if isinstance(dist_val, (int, float)):
+                            if dist_val > 100:
+                                distance_m = float(dist_val)
+                            else:
+                                distance_m = float(dist_val) * 1000.0
+                        else:
+                            dist_str = str(dist_val).strip().lower()
+                            num_match = re.search(r'([\d\.,]+)', dist_str)
+                            if num_match:
+                                num_val = float(num_match.group(1).replace(",", "."))
+                                if "km" in dist_str:
+                                    distance_m = num_val * 1000.0
+                                else:
+                                    distance_m = num_val
+                    except Exception:
+                        pass
+                
+                # Parse moving time
+                mov_val = activity_info.get("movingTime") or activity_info.get("moving_time")
+                moving_time_s = 0.0
+                if mov_val is not None:
+                    try:
+                        if isinstance(mov_val, (int, float)):
+                            moving_time_s = float(mov_val)
+                        else:
+                            moving_time_s = parse_time_str_to_seconds(str(mov_val))
+                    except Exception:
+                        pass
+                
+                # Parse elapsed time
+                ela_val = activity_info.get("elapsedTime") or activity_info.get("elapsed_time")
+                elapsed_time_s = moving_time_s
+                if ela_val is not None:
+                    try:
+                        if isinstance(ela_val, (int, float)):
+                            elapsed_time_s = float(ela_val)
+                        else:
+                            elapsed_time_s = parse_time_str_to_seconds(str(ela_val))
+                    except Exception:
+                        pass
+                
+                # Parse elevation
+                elev_val = activity_info.get("elevationGain") or activity_info.get("totalElevationGain") or activity_info.get("total_elevation_gain")
+                elevation_gain_m = 0.0
+                if elev_val is not None:
+                    try:
+                        if isinstance(elev_val, (int, float)):
+                            elevation_gain_m = float(elev_val)
+                        else:
+                            elev_str = str(elev_val).strip().lower()
+                            num_match = re.search(r'([\d\.,]+)', elev_str)
+                            if num_match:
+                                elevation_gain_m = float(num_match.group(1).replace(",", "."))
+                    except Exception:
+                        pass
+                        
+                start_date_local = activity_info.get("startDateLocal") or activity_info.get("start_date_local") or activity_info.get("startDate") or activity_info.get("start_date")
+                
+                if distance_m == 0.0 and moving_time_s == 0.0:
+                    continue
+                
+                activities.append({
+                    "athlete": {
+                        "id": athlete_id_val,
+                        "firstname": firstname,
+                        "lastname": lastname
+                    },
+                    "name": act_name,
+                    "distance": distance_m,
+                    "moving_time": moving_time_s,
+                    "elapsed_time": elapsed_time_s,
+                    "total_elevation_gain": elevation_gain_m,
+                    "type": act_type,
+                    "sport_type": sport_type,
+                    "start_date_local": start_date_local
+                })
+        except Exception as json_err:
+            print(f"Sync Engine (Scraper): Error parsing Next.js JSON: {json_err}")
+            
+    return activities
+
 def _sync_single_event(db, configs, access_token, event) -> dict:
     """
     Đồng bộ hoạt động từ Strava Club của một giải đấu cụ thể.
@@ -71,25 +296,61 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
         result["error"] = f"Giải đấu '{event.title}' thiếu Club ID."
         return result
 
-    # Gọi API Strava Club Activities
-    print(f"Sync Engine: Starting sync for Event '{event.title}' (Club {club_id})...")
-    url = f"https://www.strava.com/api/v3/clubs/{club_id}/activities"
-    headers = {"Authorization": f"Bearer {access_token}"}
-    
+    sync_method = configs.get("sync_method", "api")
+    strava_cookie = configs.get("strava_cookie", "")
     all_activities = []
-    page = 1
-    per_page = 200
     
-    while True:
-        response = requests.get(url, headers=headers, params={"page": page, "per_page": per_page}, timeout=10)
-        response.raise_for_status()
-        chunk = response.json()
-        if not chunk:
-            break
-        all_activities.extend(chunk)
-        if len(chunk) < per_page:
-            break
-        page += 1
+    use_scraper = (sync_method == "scraper") or (not access_token and strava_cookie)
+    
+    if use_scraper:
+        print(f"Sync Engine: Using Scraper to sync Event '{event.title}' (Club {club_id})...")
+        try:
+            all_activities = scrape_club_activities_web(club_id, strava_cookie)
+        except Exception as e:
+            result["status"] = "error"
+            result["error"] = f"Loi cao du lieu web: {str(e)}"
+            return result
+    else:
+        # Gọi API Strava Club Activities
+        print(f"Sync Engine: Starting API sync for Event '{event.title}' (Club {club_id})...")
+        url = f"https://www.strava.com/api/v3/clubs/{club_id}/activities"
+        headers = {"Authorization": f"Bearer {access_token}"}
+        page = 1
+        per_page = 200
+        try:
+            while True:
+                response = requests.get(url, headers=headers, params={"page": page, "per_page": per_page}, timeout=10)
+                if response.status_code == 403 and strava_cookie:
+                    print(f"Sync Engine: API returned 403 Forbidden. Automatically falling back to Scraper Engine...")
+                    all_activities = scrape_club_activities_web(club_id, strava_cookie)
+                    break
+                response.raise_for_status()
+                chunk = response.json()
+                if not chunk:
+                    break
+                all_activities.extend(chunk)
+                if len(chunk) < per_page:
+                    break
+                page += 1
+        except Exception as api_err:
+            is_403 = False
+            if hasattr(api_err, "response") and api_err.response is not None:
+                is_403 = (api_err.response.status_code == 403)
+            elif "403" in str(api_err):
+                is_403 = True
+                
+            if is_403 and strava_cookie:
+                print(f"Sync Engine: API failed with 403. Fallback to Scraper Engine: {api_err}")
+                try:
+                    all_activities = scrape_club_activities_web(club_id, strava_cookie)
+                except Exception as scrap_ex:
+                    result["status"] = "error"
+                    result["error"] = f"API bi chan (403) va cao du phong that bai: {str(scrap_ex)}"
+                    return result
+            else:
+                result["status"] = "error"
+                result["error"] = f"Loi goi API Strava: {str(api_err)}"
+                return result
 
     print(f"Sync Engine: Downloaded {len(all_activities)} activities from Strava for event '{event.title}'.")
     
@@ -101,7 +362,10 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
     # Cache danh sách vận động viên để đối khớp tốc độ cao (hỗ trợ nhiều tên cách nhau bằng dấu phẩy)
     athletes = db.query(Athlete).all()
     athlete_map = {}
+    id_map = {}
     for a in athletes:
+        if a.strava_athlete_id:
+            id_map[str(a.strava_athlete_id).strip()] = a
         if a.strava_name:
             for part in a.strava_name.split(","):
                 cleaned = part.strip().lower()
@@ -132,7 +396,21 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
             pace_min_km = round(moving_time_min / distance_km, 2)
 
         # Phân giải VĐV sớm để phục vụ kiểm tra trùng lặp
-        athlete = athlete_map.get(athlete_name_raw.lower())
+        athlete = None
+        strava_athlete_id_raw = str(athlete_data.get("id") or "").strip()
+        if strava_athlete_id_raw and strava_athlete_id_raw != "None" and strava_athlete_id_raw != "":
+            athlete = id_map.get(strava_athlete_id_raw)
+            
+        if not athlete:
+            athlete = athlete_map.get(athlete_name_raw.lower())
+            if athlete and strava_athlete_id_raw and strava_athlete_id_raw != "None" and strava_athlete_id_raw != "":
+                # Cập nhật ID VĐV vào DB
+                athlete.strava_athlete_id = strava_athlete_id_raw
+                db.commit()
+                # Cập nhật id_map trong bộ nhớ để các hoạt động tiếp theo của VĐV này được map nhanh
+                id_map[strava_athlete_id_raw] = athlete
+                print(f"Sync Engine: Automatically updated strava_athlete_id = {strava_athlete_id_raw} for athlete {athlete.full_name}")
+                
         athlete_id = athlete.id if athlete else None
 
         # --- Kiểm tra trùng lặp sớm (Early Dedup) cho Club API ---
@@ -457,11 +735,16 @@ def sync_club_activities(event_id: int = None) -> dict:
             return result
         
         # 3. Lấy Access Token hợp lệ (chỉ khi thực sự có giải đấu cần đồng bộ)
-        access_token = refresh_strava_token(db, configs)
-        if not access_token:
-            result["status"] = "error"
-            result["error"] = "Không thể lấy Access Token. Vui lòng cấu hình OAuth."
-            return result
+        sync_method = configs.get("sync_method", "api")
+        strava_cookie = configs.get("strava_cookie", "")
+        
+        access_token = None
+        if sync_method == "api":
+            access_token = refresh_strava_token(db, configs)
+            if not access_token and not strava_cookie:
+                result["status"] = "error"
+                result["error"] = "Không thể lấy Access Token. Vui lòng cấu hình OAuth."
+                return result
         
         total_new = 0
         all_success = True

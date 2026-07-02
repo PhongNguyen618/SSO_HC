@@ -1464,18 +1464,33 @@ def register_athlete(
                 # Liên kết các hoạt động cũ (chưa được liên kết trước đó) cho VĐV này
                 link_unlinked_activities(db, exists)
                 
+                configs = get_config_dict(db)
+                needs_auth = not exists.strava_refresh_token
+                auth_url = ""
+                if needs_auth:
+                    client_id = configs.get("strava_client_id")
+                    app_url = APP_URL
+                    if not app_url:
+                        host = request.headers.get("host", "localhost:8080")
+                        scheme = "https" if request.headers.get("x-forwarded-proto") == "https" else "http"
+                        app_url = f"{scheme}://{host}"
+                    redirect_uri = f"{app_url}/exchange_user_token"
+                    auth_url = f"https://www.strava.com/oauth/authorize?client_id={client_id}&response_type=code&redirect_uri={redirect_uri}&scope=activity:read_all,profile:read_all&state={exists.id}"
+
                 return templates.TemplateResponse(
                     request=request,
                     name="register.html",
                     context={
-                        "configs": get_config_dict(db),
+                        "configs": configs,
                         "departments": departments,
                         "active_competitions": active_competitions,
                         "selected_event_id": event_id,
                         "unlinked_athletes": unlinked_athletes,
                         "success": f"Đã cập nhật thông tin và đăng ký giải chạy thành công cho VĐV {exists.full_name}!",
                         "error": None,
-                        "already_exists": False
+                        "already_exists": False,
+                        "needs_strava_auth": needs_auth,
+                        "auth_url": auth_url
                     }
                 )
             except Exception as e:
@@ -1542,18 +1557,30 @@ def register_athlete(
         # Liên kết các hoạt động cũ (chưa được liên kết trước đó) sang VĐV mới này
         link_unlinked_activities(db, new_athlete)
         
+        configs = get_config_dict(db)
+        client_id = configs.get("strava_client_id")
+        app_url = APP_URL
+        if not app_url:
+            host = request.headers.get("host", "localhost:8080")
+            scheme = "https" if request.headers.get("x-forwarded-proto") == "https" else "http"
+            app_url = f"{scheme}://{host}"
+        redirect_uri = f"{app_url}/exchange_user_token"
+        auth_url = f"https://www.strava.com/oauth/authorize?client_id={client_id}&response_type=code&redirect_uri={redirect_uri}&scope=activity:read_all,profile:read_all&state={new_athlete.id}"
+
         return templates.TemplateResponse(
             request=request,
             name="register.html",
             context={
-                "configs": get_config_dict(db),
+                "configs": configs,
                 "departments": departments,
                 "active_competitions": active_competitions,
                 "selected_event_id": event_id,
                 "unlinked_athletes": unlinked_athletes,
-                "success": f"Vận động viên {full_name} đã đăng ký tham gia giải chạy thành công!",
+                "success": f"Vận động viên {full_name} đã đăng ký tham gia giải chạy thành công! Vui lòng liên kết Strava để hệ thống tự động ghi nhận hoạt động.",
                 "error": None,
-                "already_exists": False
+                "already_exists": False,
+                "needs_strava_auth": True,
+                "auth_url": auth_url
             }
         )
     except Exception as e:
@@ -2255,6 +2282,10 @@ async def update_configs(
     strava_client_secret: str = Form(...),
     strava_club_id: str = Form(...),
     sync_interval_hours: int = Form(...),
+    sync_method: str = Form("api"),
+    strava_cookie: str = Form(""),
+    user_auth_banner_show: str = Form("false"),
+    user_auth_banner_text: str = Form(""),
     rules_title: str = Form(...),
     rules_version: str = Form(...),
     rules_description: str = Form(...),
@@ -2304,6 +2335,10 @@ async def update_configs(
         update_config(db, "strava_client_id", strava_client_id)
         update_config(db, "strava_client_secret", strava_client_secret)
         update_config(db, "strava_club_id", club_id_extracted)
+        update_config(db, "sync_method", sync_method)
+        update_config(db, "strava_cookie", strava_cookie.strip())
+        update_config(db, "user_auth_banner_show", user_auth_banner_show)
+        update_config(db, "user_auth_banner_text", user_auth_banner_text.strip())
         
         
         
@@ -2631,6 +2666,112 @@ def update_admin_security(
         return response
     except Exception as e:
         return RedirectResponse(f"/admin?error=Lỗi cập nhật tài khoản: {str(e)}", status_code=303)
+
+@app.get("/connect-existing", response_class=HTMLResponse)
+def connect_existing_page(request: Request, error: Optional[str] = None, db: Session = Depends(get_db)):
+    """Trang liên kết Strava cho VĐV đã đăng ký từ trước."""
+    configs = get_config_dict(db)
+    # Lấy danh sách VĐV chưa liên kết (chưa có refresh_token)
+    athletes = db.query(Athlete).filter(
+        (Athlete.strava_refresh_token == None) | (Athlete.strava_refresh_token == '')
+    ).order_by(Athlete.full_name).all()
+    
+    return templates.TemplateResponse(
+        request=request,
+        name="connect_existing.html",
+        context={
+            "configs": configs,
+            "athletes": athletes,
+            "error": error
+        }
+    )
+
+@app.post("/connect-existing")
+def connect_existing_athlete(
+    request: Request,
+    athlete_id: int = Form(...),
+    db: Session = Depends(get_db)
+):
+    """Xử lý yêu cầu liên kết Strava, chuyển hướng VĐV sang trang OAuth."""
+    athlete = db.query(Athlete).filter(Athlete.id == athlete_id).first()
+    if not athlete:
+        return RedirectResponse("/connect-existing?error=Không tìm thấy VĐV", status_code=303)
+        
+    configs = get_config_dict(db)
+    client_id = configs.get("strava_client_id")
+    if not client_id:
+        return RedirectResponse("/connect-existing?error=Hệ thống chưa cấu hình Strava Client ID", status_code=303)
+        
+    app_url = APP_URL
+    if not app_url:
+        host = request.headers.get("host", "localhost:8080")
+        scheme = "https" if request.headers.get("x-forwarded-proto") == "https" else "http"
+        app_url = f"{scheme}://{host}"
+        
+    redirect_uri = f"{app_url}/exchange_user_token"
+    auth_url = f"https://www.strava.com/oauth/authorize?client_id={client_id}&response_type=code&redirect_uri={redirect_uri}&scope=activity:read_all,profile:read_all&state={athlete_id}"
+    
+    return RedirectResponse(auth_url, status_code=303)
+
+@app.get("/exchange_user_token")
+def exchange_user_token(
+    request: Request,
+    code: str = None,
+    state: str = None,
+    error: str = None,
+    db: Session = Depends(get_db)
+):
+    """Endpoint nhận callback từ Strava OAuth và lưu token cho VĐV."""
+    if error:
+        return RedirectResponse(f"/connect-existing?error=Lỗi ủy quyền từ Strava: {error}", status_code=303)
+    if not code or not state:
+        return RedirectResponse("/connect-existing?error=Thông tin xác thực không hợp lệ", status_code=303)
+        
+    try:
+        athlete_id = int(state)
+    except ValueError:
+        return RedirectResponse("/connect-existing?error=ID vận động viên không hợp lệ", status_code=303)
+        
+    athlete = db.query(Athlete).filter(Athlete.id == athlete_id).first()
+    if not athlete:
+        return RedirectResponse("/connect-existing?error=Vận động viên không tồn tại", status_code=303)
+        
+    configs = get_config_dict(db)
+    client_id = configs.get("strava_client_id")
+    client_secret = configs.get("strava_client_secret")
+    
+    try:
+        response = requests.post("https://www.strava.com/oauth/token", data={
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "code": code,
+            "grant_type": "authorization_code"
+        }, timeout=10)
+        response.raise_for_status()
+        token_data = response.json()
+        
+        # Lưu token cá nhân vào database
+        athlete.strava_access_token = token_data["access_token"]
+        athlete.strava_refresh_token = token_data["refresh_token"]
+        athlete.strava_expires_at = str(token_data["expires_at"])
+        
+        # Cập nhật thêm thông tin ID tài khoản Strava và ảnh đại diện
+        strava_athlete_data = token_data.get("athlete") or {}
+        strava_id = strava_athlete_data.get("id")
+        if strava_id:
+            athlete.strava_athlete_id = str(strava_id)
+            
+        profile_url = strava_athlete_data.get("profile")
+        if profile_url and "avatar/athlete" not in profile_url:
+            athlete.avatar_url = profile_url
+            
+        db.commit()
+        
+        # Chuyển hướng VĐV về trang cá nhân của họ kèm thông báo thành công
+        return RedirectResponse(f"/profile/{athlete.id}?success=Đã liên kết tài khoản Strava thành công!", status_code=303)
+    except Exception as e:
+        db.rollback()
+        return RedirectResponse(f"/connect-existing?error=Lỗi khi kết nối tài khoản: {str(e)}", status_code=303)
 
 @app.get("/exchange_token")
 def exchange_token(request: Request, code: str = None, error: str = None, db: Session = Depends(get_db)):

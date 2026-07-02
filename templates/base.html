@@ -54,6 +54,61 @@
         </div>
     </header>
 
+    <!-- Banner chạy nổi bật cho VĐV chưa liên kết Strava -->
+    {% if configs.get("user_auth_banner_show") == "true" %}
+    <div class="user-auth-banner-container">
+        <div class="user-auth-banner-content">
+            <i class="fa-solid fa-triangle-exclamation warning-icon-blink"></i>
+            <span>{{ configs.get("user_auth_banner_text", "Các VĐV chưa liên kết tài khoản Strava vui lòng liên kết để hệ thống tự động cập nhật hoạt động chạy bộ!") }}</span>
+            <a href="/connect-existing" class="user-auth-banner-link">Liên Kết Ngay <i class="fa-solid fa-arrow-right-long"></i></a>
+        </div>
+    </div>
+    <style>
+    .user-auth-banner-container {
+        background: linear-gradient(90deg, rgba(255, 94, 54, 0.15) 0%, rgba(255, 154, 60, 0.15) 100%);
+        backdrop-filter: blur(10px);
+        border-bottom: 1px solid rgba(255, 94, 54, 0.25);
+        padding: 0.5rem 1rem;
+        position: relative;
+        z-index: 99;
+        text-align: center;
+        font-size: 0.85rem;
+        font-family: 'Outfit', sans-serif;
+        color: var(--text-main);
+    }
+    .user-auth-banner-content {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.8rem;
+        flex-wrap: wrap;
+    }
+    .warning-icon-blink {
+        color: #ff5e36;
+        animation: pulse-icon 1.5s infinite ease-in-out;
+    }
+    .user-auth-banner-link {
+        color: #ff9a3c;
+        font-weight: 600;
+        text-decoration: none;
+        background: rgba(255, 94, 54, 0.1);
+        padding: 0.15rem 0.5rem;
+        border-radius: 4px;
+        border: 1px solid rgba(255, 94, 54, 0.25);
+        transition: all 0.3s ease;
+    }
+    .user-auth-banner-link:hover {
+        background: #ff5e36;
+        color: #fff;
+        box-shadow: 0 0 10px rgba(255, 94, 54, 0.4);
+    }
+    @keyframes pulse-icon {
+        0%, 100% { opacity: 0.4; transform: scale(0.95); }
+        50% { opacity: 1; transform: scale(1.1); }
+    }
+    </style>
+    {% endif %}
+
     <!-- Main Container -->
     <main class="main-content">
         {% block content %}{% endblock %}

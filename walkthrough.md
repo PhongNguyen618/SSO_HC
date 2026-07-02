@@ -121,4 +121,79 @@ Chạy dọn dẹp trùng lặp ở chế độ all (tất cả)...
 => Test Mode all thành công!
 
 => TẤT CẢ CÁC TEST CASE ĐÃ VƯỢT QUA THÀNH CÔNG!
+
+---
+
+## 5. Tích hợp Tool Cào Hoạt Động (Web Scraper Engine) qua Session Cookie
+
+Chúng tôi đã tích hợp thành công bộ cào dữ liệu từ trang web Strava Club (Web Scraper Engine) sử dụng session cookie nhằm khắc phục triệt để lỗi `403 Forbidden` khi gọi API Strava chính thức.
+
+### Chi tiết thay đổi:
+* **Scraper Engine (`backend/sync_engine.py`):**
+  * Xây dựng hàm `scrape_club_activities_web(club_id, cookie)`: Giả lập trình duyệt gửi request lấy trang HTML của Club kèm cookie `_strava4_session`.
+  * Trích xuất và phân giải dữ liệu JSON pre-load của Next.js (`__NEXT_DATA__`) một cách tự động và đệ quy để thu được danh sách các hoạt động chính xác từ máy chủ Strava.
+  * Tích hợp bộ parse thời gian linh hoạt `parse_time_str_to_seconds(time_str)` để tự động quy đổi các chuỗi hiển thị trên web (ví dụ: `"25:30"`, `"1h 15m"`) thành số giây thực tế.
+  * Thêm bộ lọc an toàn để bỏ qua các entry rác (như thông tin thành viên club) khi distance và moving time đều bằng 0.
+* **Cơ chế Fallback thông minh (`backend/sync_engine.py`):**
+  * Hàm `_sync_single_event` tự động chuyển đổi sang Scraper nếu `sync_method` được đặt là `"scraper"`, hoặc khi API chính thức gặp lỗi `403 Forbidden` nhưng có sẵn cookie trong DB.
+  * Hàm `sync_club_activities` cho phép chạy đồng bộ mà không cần kiểm tra quyền OAuth (bỏ qua check `access_token` nếu không dùng API).
+* **Giao diện cấu hình Admin (`templates/admin.html`):**
+  * Thêm dropdown cấu hình **Phương thức đồng bộ** (API Strava / Cào dữ liệu Web).
+  * Thêm ô nhập **Strava Session Cookie (`_strava4_session`)**.
+  * Bổ sung hướng dẫn F12 trực quan từng bước giúp Admin lấy cookie từ Chrome/Edge.
+* **Backend API (`backend/main.py`):**
+  * Cập nhật endpoint `/admin/config` nhận và lưu trữ 2 tham số cấu hình mới `sync_method` và `strava_cookie` vào DB.
+
+### Kết quả xác minh (Unit Tests):
+Chúng tôi đã viết script kiểm thử tự động `scratch/test_scraper_function.py` để kiểm chứng logic parser và scraper:
+* **Kiểm tra parse thời gian:** Quy đổi chính xác các chuỗi `"25:30"`, `"1:15:30"`, `"15m"`, v.v. thành giây -> **[ĐẠT]**.
+* **Kiểm tra Scraper ẩn danh:** Gọi thử cào ẩn danh đến Club công khai `1534169` -> **[ĐẠT]** (Tải trang HTML 200 thành công, tự động trích xuất props JSON Next.js và lọc bỏ an toàn các node thành viên).
+
+---
+
+## 6. Nâng cấp đối khớp VĐV thông minh (Cơ chế lai - Hybrid Mapping dùng Strava Athlete ID)
+
+Chúng tôi đã nâng cấp thành công cơ chế đối khớp (mapping) vận động viên từ so khớp tên hiển thị thô sang **đối khớp chính xác bằng Strava Athlete ID** mà không làm ảnh hưởng đến dữ liệu cũ.
+
+### Chi tiết thay đổi:
+* **Database Schema (`backend/database.py`):**
+  * Thêm cột `strava_athlete_id` (String, unique, index) vào bảng `Athlete`.
+  * Viết đoạn mã di trú schema tự động (Database Migration) bằng lệnh `ALTER TABLE` chạy trong `init_db()` để tạo mới cột này mà không cần xóa database hiện tại.
+* **Cơ chế đối khớp lai (`backend/sync_engine.py`):**
+  * **Ưu tiên 1 (Chính xác):** So khớp hoạt động cào được bằng `strava_athlete_id`. Nếu tìm thấy VĐV có ID trùng khớp -> Map hoạt động ngay lập tức.
+  * **Ưu tiên 2 (Fallback cho VĐV cũ):** Nếu chưa có ID, so khớp bằng tên hiển thị thô `strava_name` (giống cơ chế cũ).
+  * **Tự động lưu ID:** Khi so khớp theo tên hiển thị thành công, hệ thống tự động lưu `strava_athlete_id` cào được của hoạt động vào DB của VĐV đó. Từ lần đồng bộ tiếp theo, VĐV này sẽ được nhận diện bằng ID (đảm bảo an toàn tuyệt đối ngay cả khi họ đổi tên hiển thị trên Strava).
+* **Cập nhật Web Scraper:** Trích xuất thêm trường ID tài khoản Strava (`id`) của athlete từ JSON Next.js.
+
+### Kết quả xác minh (Unit Tests):
+Chúng tôi đã viết script kiểm thử tự động `scratch/test_hybrid_mapping.py` để kiểm chứng logic đối khớp lai:
+* **Lần 1: Đồng bộ bằng Tên và tự động lưu ID:** VĐV chưa có ID được map đúng bằng tên hiển thị và tự động cập nhật ID `"99999"` vào DB -> **[ĐẠT]**.
+* **Lần 2: Đồng bộ bằng ID khi VĐV đổi tên:** Thay đổi tên hiển thị của VĐV trên Strava, hệ thống vẫn nhận diện đúng VĐV bằng ID `"99999"` -> **[ĐẠT]**.
+
+---
+
+## 7. Bổ sung chức năng User Authorization & Banner Thông báo chạy nổi bật
+
+Chúng tôi đã bổ sung đầy đủ luồng uỷ quyền cá nhân (User Authorization) cho các VĐV đăng ký mới và hệ thống banner chạy nổi bật để hướng dẫn VĐV cũ liên kết tài khoản Strava.
+
+### Chi tiết thay đổi:
+* **Database Schema & Migrations (`backend/database.py`):**
+  * Thêm 3 cột mới vào bảng `Athlete`: `strava_access_token`, `strava_refresh_token`, `strava_expires_at` để quản lý quyền OAuth cá nhân.
+  * Tự động di trú (Migration ALTER TABLE) để cập nhật DB hiện tại mà không mất mát dữ liệu.
+  * Thêm cấu hình mặc định cho banner thông báo: `user_auth_banner_show = "false"`, `user_auth_banner_text = "..."`.
+* **Luồng Đăng ký & Ủy Quyền mới (`backend/main.py` & `templates/register.html`):**
+  * Khi VĐV mới đăng ký (hoặc cập nhật thông tin giải đấu mà chưa có refresh token), trang đăng ký thành công sẽ hiển thị **Hộp thoại liên kết Strava** nổi bật kèm nút kết nối.
+  * Tích hợp script đếm ngược 3 giây tự động chuyển hướng VĐV sang trang ủy quyền OAuth của Strava với `state={athlete_id}` để định danh đúng người chạy.
+* **Giao diện & Route Liên kết cho VĐV cũ (`templates/connect_existing.html`):**
+  * Xây dựng trang `/connect-existing` cho phép các VĐV đã đăng ký nhưng chưa kết nối Strava tự chọn tên mình từ danh sách dropdown và bấm "Liên kết ngay" để chuyển hướng sang Strava OAuth.
+  * Thêm callback route `@app.get("/exchange_user_token")` nhận Authorization Code từ Strava, trao đổi lấy token cá nhân, tự động lưu thông tin token, ID tài khoản, avatar url của VĐV vào DB, sau đó redirect về trang cá nhân `/profile/{id}` kèm thông báo thành công.
+* **Banner chạy nổi bật trên website (`templates/base.html`):**
+  * Tích hợp thanh banner chạy nổi bật màu vàng-cam phong cách Glassmorphism ở trên cùng mọi trang giao diện người dùng nếu cấu hình `user_auth_banner_show` được bật.
+  * Banner tự động hiển thị nội dung cấu hình và chứa link **"Liên Kết Ngay"** dẫn tới trang `/connect-existing`.
+* **Cấu hình trên trang quản trị Admin (`templates/admin.html`):**
+  * Thêm khối cấu hình **"Thông Báo Liên Kết Strava Cho VĐV"** gồm tuỳ chọn bật/tắt hiển thị và ô nhập nội dung thông báo tùy biến.
+
+### Kết quả xác minh (Unit Tests):
+Chúng tôi đã viết script kiểm thử tự động `scratch/test_user_oauth.py` để kiểm chứng luồng callback và lưu trữ:
+* **Kiểm tra callback trao đổi code và lưu DB:** Mock phản hồi từ Strava Token API, chạy logic callback với `athlete_id=1` -> **[ĐẠT]** (Lưu chính xác `access_token`, `refresh_token`, `expires_at`, ID số Strava `"987654321"` và cập nhật đúng URL ảnh đại diện).
 ```

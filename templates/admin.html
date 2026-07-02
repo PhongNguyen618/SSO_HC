@@ -284,6 +284,18 @@
                             <input type="number" id="sync_interval_hours" name="sync_interval_hours" class="form-control" value="{{ configs.sync_interval_hours }}" min="1" max="24" required>
                         </div>
                         
+                        <div class="form-group">
+                            <label for="sync_method">Phương thức đồng bộ</label>
+                            <select id="sync_method" name="sync_method" class="form-control" style="background: rgba(10, 8, 20, 0.8); color: var(--text-main); border: 1px solid rgba(255,255,255,0.15); height: 38px; border-radius: 6px; padding: 0 0.5rem; width: 100%;">
+                                <option value="api" {% if configs.get("sync_method", "api") == "api" %}selected{% endif %}>Sử dụng API Strava chính thức (OAuth)</option>
+                                <option value="scraper" {% if configs.get("sync_method", "api") == "scraper" %}selected{% endif %}>Sử dụng Cào dữ liệu Web (Scraper - Cần cookie)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="strava_cookie">Strava Session Cookie (_strava4_session)</label>
+                            <textarea id="strava_cookie" name="strava_cookie" class="form-control" rows="2" placeholder="Dán giá trị cookie _strava4_session tại đây..." style="background: rgba(10, 8, 20, 0.8); color: var(--text-main); border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; padding: 0.5rem; width: 100%; resize: vertical; font-family: inherit;">{{ configs.get("strava_cookie", "") }}</textarea>
+                        </div>
+                        
                         <!-- HƯỚNG DẪN LẤY THÔNG SỐ -->
                         <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 8px; padding: 1rem; margin-top: 1rem;">
                             <h5 style="color: var(--color-primary); font-family: 'Outfit'; margin-bottom: 0.5rem; font-size: 0.9rem;">
@@ -292,6 +304,7 @@
                             <ul style="color: var(--text-muted); font-size: 0.8rem; padding-left: 1.2rem; line-height: 1.5; list-style-type: decimal;">
                                 <li><strong>Client ID & Secret:</strong> Đăng nhập tài khoản Strava, truy cập <a href="https://www.strava.com/settings/api" target="_blank" style="color: var(--color-primary); text-decoration: underline;">Strava API Settings</a>. Tạo một ứng dụng và điền trường <code>Authorization Callback Domain</code> là <code>localhost</code> (hoặc domain web của bạn). Sau khi lưu, bạn sẽ thấy Client ID và Client Secret.</li>
                                 <li><strong>Club ID:</strong> Truy cập trang Câu lạc bộ của bạn trên website Strava. ID chính là dãy số cuối cùng nằm ở trên thanh địa chỉ URL của trình duyệt (Ví dụ: URL là <code>https://www.strava.com/clubs/1534169</code> thì Club ID của bạn là <code>1534169</code>).</li>
+                                <li><strong>Cách lấy Cookie Strava (dành cho bộ cào Web):</strong> Đăng nhập tài khoản Strava trên trình duyệt máy tính. Nhấn phím <code>F12</code> -> Chọn tab <code>Application</code> (Chrome/Edge) hoặc <code>Storage</code> (Firefox) -> Vào mục <code>Cookies</code> -> Bấm chọn <code>https://www.strava.com</code> -> Tìm cookie có tên <code>_strava4_session</code> -> Nhấp đúp chuột và copy toàn bộ giá trị của nó dán vào ô cấu hình phía trên.</li>
                             </ul>
                         </div>
                         
@@ -305,6 +318,22 @@
                             <a href="{{ auth_url }}" class="btn btn-secondary btn-sm" style="margin-top:0.8rem; width:100%; text-align:center;">
                                 <i class="fa-solid fa-key"></i> Bấm để Ủy quyền / Kết nối lại Strava
                             </a>
+                        </div>
+                    </div>
+
+                    <!-- Cấu hình Banner Nhắc Nhở VĐV Liên Kết Strava -->
+                    <div class="glass-card" style="margin-bottom:0; background: rgba(255,255,255,0.01);">
+                        <h3 class="admin-section-title">Thông Báo Liên Kết Strava Cho VĐV</h3>
+                        <div class="form-group">
+                            <label for="user_auth_banner_show">Hiển thị thông báo trên web</label>
+                            <select id="user_auth_banner_show" name="user_auth_banner_show" class="form-control" style="background: rgba(10, 8, 20, 0.8); color: var(--text-main); border: 1px solid rgba(255,255,255,0.15); height: 38px; border-radius: 6px; padding: 0 0.5rem; width: 100%;">
+                                <option value="true" {% if configs.get("user_auth_banner_show") == "true" %}selected{% endif %}>Bật - Hiển thị banner chữ chạy nổi bật</option>
+                                <option value="false" {% if configs.get("user_auth_banner_show") != "true" %}selected{% endif %}>Tắt - Ẩn banner thông báo</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="user_auth_banner_text">Nội dung thông báo hiển thị</label>
+                            <textarea id="user_auth_banner_text" name="user_auth_banner_text" class="form-control" rows="2" placeholder="Ví dụ: Chú ý: Các VĐV chưa liên kết Strava vui lòng kết nối tài khoản ngay!" style="background: rgba(10, 8, 20, 0.8); color: var(--text-main); border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; padding: 0.5rem; width: 100%; resize: vertical; font-family: inherit;">{{ configs.get("user_auth_banner_text", "⚠️ Chú ý: Các VĐV chưa liên kết Strava vui lòng click vào đây để kết nối tài khoản ngay!") }}</textarea>
                         </div>
                     </div>
 
@@ -986,7 +1015,7 @@
                         <input type="number" step="0.1" id="edit-act-ela-time" name="elapsed_time_min" class="form-control" required>
                     </div>
                     <div class="form-group" style="flex: 1; margin-bottom: 0;">
-                        <label for="edit-act-elev">Elevation Gain (m)</label>
+                        <label for="edit-act-elev">Độ cao đạt được (m)</label>
                         <input type="number" step="0.1" id="edit-act-elev" name="elevation_gain_m" class="form-control" required>
                     </div>
                 </div>
@@ -1534,7 +1563,7 @@
                                 <div style="display: flex; gap: 0.5rem; justify-content: center; flex-wrap: wrap;">
                                     {% if comp.strava_club_id %}
                                     <button onclick="syncCompetition(event, {{ comp.id }}, '{{ comp.title }}')" class="btn btn-secondary btn-sm" style="font-size: 0.75rem; padding: 0.3rem 0.6rem;">
-                                        <i class="fa-solid fa-rotate"></i> Sync
+                                        <i class="fa-solid fa-rotate"></i> Đồng bộ
                                     </button>
                                     {% endif %}
                                     <button onclick="toggleEditComp({{ comp.id }})" class="btn btn-secondary btn-sm" style="font-size: 0.75rem; padding: 0.3rem 0.6rem;">
@@ -2114,7 +2143,7 @@
         
         const btn = event.target.closest('button');
         const originalText = btn.innerHTML;
-        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang sync...';
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang đồng bộ...';
         btn.disabled = true;
         
         try {
