@@ -185,7 +185,7 @@ Chúng tôi đã bổ sung đầy đủ luồng uỷ quyền cá nhân (User Aut
   * Khi VĐV mới đăng ký (hoặc cập nhật thông tin giải đấu mà chưa có refresh token), trang đăng ký thành công sẽ hiển thị **Hộp thoại liên kết Strava** nổi bật kèm nút kết nối.
   * Tích hợp script đếm ngược 3 giây tự động chuyển hướng VĐV sang trang ủy quyền OAuth của Strava với `state={athlete_id}` để định danh đúng người chạy.
 * **Giao diện & Route Liên kết cho VĐV cũ (`templates/connect_existing.html`):**
-  * Xây dựng trang `/connect-existing` cho phép các VĐV đã đăng ký nhưng chưa kết nối Strava tự chọn tên mình từ danh sách dropdown và bấm "Liên kết ngay" để chuyển hướng sang Strava OAuth.
+  * Xây dựng trang `/connect-existing` cho phép các VĐV đã đăng ký nhưng chưa kết nối Strava tự tìm kiếm tên của mình thông qua **ô tìm kiếm gợi ý Autocomplete thông minh** (gõ và hiển thị gợi ý đẹp mắt bên dưới) và bấm "Liên kết ngay" để chuyển hướng sang Strava OAuth.
   * Thêm callback route `@app.get("/exchange_user_token")` nhận Authorization Code từ Strava, trao đổi lấy token cá nhân, tự động lưu thông tin token, ID tài khoản, avatar url của VĐV vào DB, sau đó redirect về trang cá nhân `/profile/{id}` kèm thông báo thành công.
 * **Banner chạy nổi bật trên website (`templates/base.html`):**
   * Tích hợp thanh banner chạy nổi bật màu vàng-cam phong cách Glassmorphism ở trên cùng mọi trang giao diện người dùng nếu cấu hình `user_auth_banner_show` được bật.
