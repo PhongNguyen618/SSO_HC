@@ -2338,6 +2338,21 @@ async def update_configs(
 
         club_id_extracted = extract_strava_club_id(strava_club_id)
         
+        # Tự động phát hiện đổi Client ID để reset toàn bộ token cũ vô tác dụng của VĐV & Admin
+        old_client_id_conf = db.query(Config).filter(Config.key == "strava_client_id").first()
+        old_client_id = old_client_id_conf.value if old_client_id_conf else ""
+        if old_client_id and old_client_id.strip() != strava_client_id.strip():
+            print(f"API Change Detected: Client ID changed from {old_client_id} to {strava_client_id}. Resetting all tokens...")
+            db.query(Athlete).update({
+                Athlete.strava_access_token: None,
+                Athlete.strava_refresh_token: None,
+                Athlete.strava_expires_at: None
+            })
+            update_config(db, "strava_access_token", "")
+            update_config(db, "strava_refresh_token", "")
+            update_config(db, "strava_expires_at", "0")
+            db.commit()
+
         update_config(db, "strava_client_id", strava_client_id)
         update_config(db, "strava_client_secret", strava_client_secret)
         update_config(db, "strava_club_id", club_id_extracted)
