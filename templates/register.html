@@ -60,35 +60,48 @@
         </div>
         
         {% if needs_strava_auth %}
+        <!-- Bước 1: Quét mã QR tham gia Câu lạc bộ (Nếu có QR cấu hình) -->
+        {% if app_configs.rules_group_qr %}
+        <div class="glass-card" style="background: rgba(40, 167, 69, 0.05); border: 1px solid rgba(40, 167, 69, 0.2); text-align: center; padding: 1.8rem; margin-bottom: 1.5rem; border-radius: 12px; animation: fadeInUp 0.5s ease;">
+            <h3 style="font-family: 'Outfit'; color: var(--color-green); margin-bottom: 0.8rem; font-size: 1.2rem;">
+                <span style="background: var(--color-green); color: #fff; padding: 2px 8px; border-radius: 20px; font-size: 0.8rem; font-weight: bold; margin-right: 6px; vertical-align: middle;">BƯỚC 1</span>
+                Tham Gia Nhóm / Câu Lạc Bộ Strava
+            </h3>
+            <p style="font-size: 0.92rem; margin-bottom: 1.2rem; color: var(--text-main); line-height: 1.5;">
+                Hãy quét mã QR dưới đây bằng điện thoại hoặc nhấp vào ảnh QR để tham gia vào **Câu lạc bộ (Club) Strava** của giải chạy trước khi thực hiện liên kết.
+            </p>
+            <div style="display: inline-block; padding: 0.8rem; background: #fff; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.2); margin-bottom: 1rem;">
+                <a href="https://www.strava.com/clubs/{{ app_configs.strava_club_id or '' }}" target="_blank">
+                    <img src="{{ app_configs.rules_group_qr }}" alt="Group QR Code" style="max-width: 180px; display: block; border-radius: 4px;">
+                </a>
+            </div>
+            <span style="display: block; font-size: 0.8rem; color: var(--text-muted);">
+                <i class="fa-solid fa-circle-info"></i> Hãy chắc chắn rằng tài khoản Strava của bạn đã tham gia câu lạc bộ (Club) để hoạt động được cào tự động.
+            </span>
+        </div>
+        {% endif %}
+
+        <!-- Bước 2: Liên kết uỷ quyền cá nhân -->
         <div class="glass-card" style="background: rgba(255, 94, 54, 0.05); border: 1px solid rgba(255, 94, 54, 0.3); text-align: center; padding: 2rem; margin-bottom: 2rem; border-radius: 12px; animation: fadeInUp 0.5s ease;">
             <h3 style="font-family: 'Outfit'; color: #ff5e36; margin-bottom: 0.8rem; font-size: 1.3rem;">
-                <i class="fa-brands fa-strava"></i> LIÊN KẾT TÀI KHOẢN STRAVA
+                {% if app_configs.rules_group_qr %}
+                <span style="background: #ff5e36; color: #fff; padding: 2px 8px; border-radius: 20px; font-size: 0.8rem; font-weight: bold; margin-right: 6px; vertical-align: middle;">BƯỚC 2</span>
+                {% endif %}
+                Liên Kết Tài Khoản Strava Cá Nhân
             </h3>
             <p style="font-size: 0.95rem; margin-bottom: 1.5rem; color: var(--text-main); line-height: 1.6;">
-                Để hệ thống tự động ghi nhận thành tích của bạn chính xác nhất, vui lòng click nút bên dưới để cấp quyền kết nối Strava cá nhân với ứng dụng SSO HC.
+                Sau khi đã tham gia nhóm ở trên, vui lòng bấm nút cam bên dưới để kết nối dữ liệu Strava cá nhân, hoàn tất đăng ký tự động ghi nhận thành tích.
             </p>
             <a href="{{ auth_url }}" class="btn btn-primary" style="background: linear-gradient(135deg, #ff5e36 0%, #ff9a3c 100%); border: none; padding: 0.9rem 2rem; font-size: 1.05rem; font-weight: 700; border-radius: 50px; text-decoration: none; display: inline-flex; align-items: center; gap: 0.6rem; box-shadow: 0 5px 20px rgba(255, 94, 54, 0.4); transition: all 0.3s ease; width: auto; color: #fff;">
-                <i class="fa-brands fa-strava"></i> LIÊN KẾT TÀI KHOẢN STRAVA
+                <i class="fa-brands fa-strava"></i> LIÊN KẾT TÀI KHOẢN STRAVA NGAY
             </a>
-            <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 1.2rem;">
-                <i class="fa-solid fa-circle-info"></i> Hệ thống đang chuyển hướng tự động sang Strava sau <span id="countdown-timer" style="color: #ff5e36; font-weight: bold; font-size: 1.1rem;">3</span> giây...
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 1.2rem;">
+                <i class="fa-solid fa-circle-info"></i> Hệ thống đã dừng chuyển hướng tự động để bạn có thời gian quét mã QR. Hãy nhấp nút khi đã sẵn sàng!
             </p>
         </div>
-        <script>
-            let seconds = 3;
-            const timerSpan = document.getElementById('countdown-timer');
-            const interval = setInterval(() => {
-                seconds--;
-                if (timerSpan) timerSpan.textContent = seconds;
-                if (seconds <= 0) {
-                    clearInterval(interval);
-                    window.location.href = "{{ auth_url }}";
-                }
-            }, 1000);
-        </script>
-        {% endif %}
+        {% else %}
         
-        <!-- Khối hiển thị QR Group Zalo/Strava sau khi đăng ký thành công -->
+        <!-- Trường hợp không cần uỷ quyền cá nhân, chỉ hiện QR Group Zalo/Strava -->
         {% if app_configs.rules_group_qr %}
         <div class="glass-card" style="background: rgba(40, 167, 69, 0.05); border: 1px solid rgba(40, 167, 69, 0.2); text-align: center; padding: 1.8rem; margin-bottom: 2rem; border-radius: 12px; animation: fadeInUp 0.5s ease;">
             <h3 style="font-family: 'Outfit'; color: var(--color-green); margin-bottom: 0.8rem; font-size: 1.2rem;">
@@ -104,6 +117,7 @@
                 <i class="fa-solid fa-circle-info"></i> Hãy chắc chắn rằng tài khoản Strava của bạn đã tham gia câu lạc bộ (Club) để hoạt động được cập nhật tự động.
             </span>
         </div>
+        {% endif %}
         {% endif %}
 
         <div style="margin-top: 2rem; display: flex; gap: 1rem;">
