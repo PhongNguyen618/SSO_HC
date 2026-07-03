@@ -1490,7 +1490,8 @@ def register_athlete(
                         "error": None,
                         "already_exists": False,
                         "needs_strava_auth": needs_auth,
-                        "auth_url": auth_url
+                        "auth_url": auth_url,
+                        "athlete_id": exists.id
                     }
                 )
             except Exception as e:
@@ -1580,7 +1581,8 @@ def register_athlete(
                 "error": None,
                 "already_exists": False,
                 "needs_strava_auth": True,
-                "auth_url": auth_url
+                "auth_url": auth_url,
+                "athlete_id": new_athlete.id
             }
         )
     except Exception as e:
@@ -4902,6 +4904,62 @@ async def api_submit_support(request: Request, db: Session = Depends(get_db)):
         return {"status": "success", "message": "Gửi phản hồi thành công! Cảm ơn bạn đã đóng góp ý kiến."}
     except Exception as e:
         return JSONResponse(status_code=500, content={"status": "error", "message": f"Lỗi hệ thống: {str(e)}"})
+
+# --- ATHLETE CONNECTION STATUS API ---
+@app.get("/api/athlete/status/{athlete_id}")
+def get_athlete_connection_status(athlete_id: int, db: Session = Depends(get_db)):
+    """API kiểm tra xem VĐV đã liên kết Strava cá nhân chưa."""
+    athlete = db.query(Athlete).filter(Athlete.id == athlete_id).first()
+    if not athlete:
+        return JSONResponse(status_code=404, content={"status": "error", "message": "Không tìm thấy vận động viên."})
+    
+    is_linked = bool(athlete.strava_refresh_token)
+    return {
+        "status": "success",
+        "id": athlete.id,
+        "full_name": athlete.full_name,
+        "is_linked": is_linked
+    }
+
+@app.get("/api/athlete/search-connection")
+def search_athlete_connection(q: str, request: Request, db: Session = Depends(get_db)):
+    """API tìm kiếm VĐV theo tên để kiểm tra trạng thái liên kết Strava."""
+    q = (q or "").strip()
+    if not q:
+        return {"status": "success", "results": []}
+        
+    # Tìm kiếm theo tên (không phân biệt hoa thường và tìm kiếm tương đối)
+    athletes = db.query(Athlete).filter(
+        Athlete.full_name.like(f"%{q}%")
+    ).limit(10).all()
+    
+    configs = get_config_dict(db)
+    client_id = configs.get("strava_client_id")
+    
+    # Lấy app_url để sinh redirect_uri
+    app_url = APP_URL
+    if not app_url:
+        host = request.headers.get("host", "localhost:8080")
+        scheme = "https" if request.headers.get("x-forwarded-proto") == "https" else "http"
+        app_url = f"{scheme}://{host}"
+    
+    results = []
+    for ath in athletes:
+        is_linked = bool(ath.strava_refresh_token)
+        auth_url = ""
+        if not is_linked and client_id:
+            redirect_uri = f"{app_url}/exchange_user_token"
+            auth_url = f"https://www.strava.com/oauth/authorize?client_id={client_id}&response_type=code&redirect_uri={redirect_uri}&scope=activity:read_all,profile:read_all&state={ath.id}"
+            
+        results.append({
+            "id": ath.id,
+            "full_name": ath.full_name,
+            "department": ath.department or "Chưa rõ",
+            "is_linked": is_linked,
+            "auth_url": auth_url
+        })
+        
+    return {"status": "success", "results": results}
 
 @app.get("/admin/api/support")
 def admin_list_support(request: Request, db: Session = Depends(get_db)):

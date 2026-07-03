@@ -59,6 +59,13 @@
             <i class="fa-solid fa-circle-check"></i> {{ success }}
         </div>
         
+        {% if athlete_id %}
+        <script>
+            localStorage.setItem('sso_athlete_id', '{{ athlete_id }}');
+            localStorage.setItem('sso_strava_linked', '{{ "false" if needs_strava_auth else "true" }}');
+        </script>
+        {% endif %}
+        
         {% if needs_strava_auth %}
         <!-- Bước 1: Quét mã QR tham gia Câu lạc bộ (Nếu có QR cấu hình) -->
         {% if app_configs.rules_group_qr %}

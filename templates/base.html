@@ -42,6 +42,9 @@
                 <a href="/avatar" class="nav-link {% if request.url.path == '/avatar' %}active{% endif %}">
                     <i class="fa-solid fa-user-circle"></i> Đồng bộ Avatar
                 </a>
+                <a href="javascript:void(0)" onclick="openCheckConnectionModal()" class="nav-link" style="color: #ff9a3c !important;">
+                    <i class="fa-brands fa-strava"></i> Kiểm tra kết nối
+                </a>
                 <a href="/admin" class="nav-link {% if request.url.path == '/admin' %}active{% endif %}">
                     <i class="fa-solid fa-lock"></i> Admin
                 </a>
@@ -379,6 +382,212 @@
         });
     </script>
     {% endif %}
+
+    <!-- Modal Kiểm Tra Kết Nối Strava -->
+    <div id="checkConnectionModal" class="support-feedback-modal-wrapper support-modal-overlay">
+        <div class="support-modal-content" style="max-width: 500px;">
+            <div class="support-modal-header" style="border-color: rgba(255, 94, 54, 0.2);">
+                <h3 style="color: #ff5e36; display: flex; align-items: center; gap: 0.5rem; margin: 0; font-family: 'Outfit';">
+                    <i class="fa-brands fa-strava" style="font-size: 1.4rem;"></i> Kiểm Tra Kết Nối Strava
+                </h3>
+                <button class="support-modal-close" onclick="closeCheckConnectionModal()">&times;</button>
+            </div>
+            <div class="support-modal-body" style="padding: 1.5rem 1.8rem 1.8rem 1.8rem;">
+                <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 1.2rem; line-height: 1.5;">
+                    Nhập Họ tên của bạn để kiểm tra nhanh trạng thái liên kết dữ liệu Strava cá nhân với giải chạy.
+                </p>
+                <div style="margin-bottom: 1.2rem; display: flex; gap: 0.5rem;">
+                    <input type="text" id="searchAthleteConnInput" placeholder="Nhập tên vận động viên..." class="form-control" style="margin-bottom: 0; flex: 1; height: 38px;" onkeyup="if(event.key === 'Enter') triggerSearchConnection()">
+                    <button class="btn btn-primary" onclick="triggerSearchConnection()" style="padding: 0 1.2rem; height: 38px; background: linear-gradient(135deg, #ff5e36 0%, #ff9a3c 100%); border: none; display: flex; align-items: center; justify-content: center;">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                    </button>
+                </div>
+                <div id="searchConnectionResults" style="max-height: 250px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.8rem;">
+                    <!-- Kết quả tìm kiếm render ở đây -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Popup Nhắc Nhở Tự Động (Smart Trigger Popup) -->
+    <div id="smartReminderModal" class="support-modal-overlay" style="z-index: 1000;">
+        <div class="support-modal-content" style="max-width: 450px; text-align: center; border-color: rgba(255, 94, 54, 0.3); background: rgba(10, 8, 20, 0.95); backdrop-filter: blur(15px); padding: 2.2rem 2rem;">
+            <div style="font-size: 3rem; color: #ff5e36; margin-bottom: 0.8rem; animation: pulse-icon 1.5s infinite ease-in-out;">
+                <i class="fa-brands fa-strava"></i>
+            </div>
+            <h3 style="font-family: 'Outfit'; color: #ff5e36; font-size: 1.35rem; margin-bottom: 0.8rem; font-weight: 700;">
+                KẾT NỐI STRAVA CỦA BẠN!
+            </h3>
+            <p style="font-size: 0.92rem; color: var(--text-main); line-height: 1.6; margin-bottom: 1.8rem; text-align: left;">
+                Chào bạn! Hệ thống nhận thấy bạn **chưa hoàn tất liên kết Strava cá nhân**. Hãy liên kết ngay để các hoạt động chạy bộ/đi bộ được tự động ghi nhận chính xác 100% lên bảng thành tích.
+            </p>
+            <div style="display: flex; flex-direction: column; gap: 0.8rem;">
+                <a id="smartReminderAuthBtn" href="#" class="btn btn-primary" style="background: linear-gradient(135deg, #ff5e36 0%, #ff9a3c 100%); border: none; padding: 0.8rem; font-weight: 700; border-radius: 10px; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; color: #fff; line-height: 1.5; font-size: 0.95rem;">
+                    <i class="fa-brands fa-strava"></i> LIÊN KẾT TÀI KHOẢN NGAY
+                </a>
+                <button class="btn btn-secondary" onclick="closeSmartReminderModal(true)" style="padding: 0.8rem; font-weight: 600; border-radius: 10px; line-height: 1.5; font-size: 0.9rem;">
+                    Nhắc tôi sau
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script Xử Lý Check Connection & Smart Reminder -->
+    <script>
+        // Mở Modal tìm kiếm liên kết
+        function openCheckConnectionModal() {
+            const modal = document.getElementById('checkConnectionModal');
+            if (modal) {
+                modal.classList.add('active');
+                document.body.style.overflow = 'hidden';
+                document.getElementById('searchAthleteConnInput').value = '';
+                document.getElementById('searchConnectionResults').innerHTML = '';
+            }
+        }
+
+        // Đóng Modal tìm kiếm
+        function closeCheckConnectionModal() {
+            const modal = document.getElementById('checkConnectionModal');
+            if (modal) {
+                modal.classList.remove('active');
+                document.body.style.overflow = '';
+            }
+        }
+
+        // Chạy tìm kiếm kết quả VĐV
+        async function triggerSearchConnection() {
+            const input = document.getElementById('searchAthleteConnInput');
+            const resultsDiv = document.getElementById('searchConnectionResults');
+            const q = input.value.trim();
+            
+            if (!q) {
+                resultsDiv.innerHTML = '<p style="text-align: center; color: var(--text-muted); font-size: 0.85rem; padding: 1rem;">Vui lòng nhập tên để tìm kiếm.</p>';
+                return;
+            }
+            
+            resultsDiv.innerHTML = '<p style="text-align: center; color: var(--text-muted); font-size: 0.85rem; padding: 1rem;"><i class="fa-solid fa-spinner fa-spin"></i> Đang tìm kiếm...</p>';
+            
+            try {
+                const response = await fetch(`/api/athlete/search-connection?q=${encodeURIComponent(q)}`);
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    const results = data.results || [];
+                    if (results.length === 0) {
+                        resultsDiv.innerHTML = '<p style="text-align: center; color: var(--text-muted); font-size: 0.85rem; padding: 1rem;">Không tìm thấy vận động viên nào khớp với tên này.</p>';
+                        return;
+                    }
+                    
+                    let html = '';
+                    results.forEach(r => {
+                        html += `
+                        <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.08); padding: 0.8rem; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; text-align: left;">
+                            <div>
+                                <strong style="color: var(--text-main); font-size: 0.9rem;">${escapeHtml(r.full_name)}</strong>
+                                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;"><i class="fa-solid fa-users"></i> ${escapeHtml(r.department)}</div>
+                            </div>
+                            <div>
+                                ${r.is_linked ? `
+                                    <span style="background: rgba(40, 167, 69, 0.1); color: #28a745; border: 1px solid rgba(40, 167, 69, 0.25); padding: 0.25rem 0.6rem; border-radius: 6px; font-size: 0.75rem; font-weight: 600; display: inline-flex; align-items: center; gap: 0.25rem;">
+                                        <i class="fa-solid fa-circle-check"></i> Đã liên kết
+                                    </span>
+                                ` : `
+                                    <a href="${r.auth_url}" class="btn btn-primary btn-sm" style="background: linear-gradient(135deg, #ff5e36 0%, #ff9a3c 100%); border: none; padding: 0.35rem 0.7rem; font-size: 0.75rem; font-weight: 700; border-radius: 6px; text-decoration: none; color: #fff; display: inline-flex; align-items: center; gap: 0.25rem; box-shadow: 0 4px 10px rgba(255, 94, 54, 0.3);">
+                                        <i class="fa-brands fa-strava"></i> Liên kết
+                                    </a>
+                                `}
+                            </div>
+                        </div>
+                        `;
+                    });
+                    resultsDiv.innerHTML = html;
+                } else {
+                    resultsDiv.innerHTML = '<p style="text-align: center; color: #ff5e36; font-size: 0.85rem; padding: 1rem;">Lỗi tìm kiếm dữ liệu.</p>';
+                }
+            } catch (err) {
+                resultsDiv.innerHTML = '<p style="text-align: center; color: #ff5e36; font-size: 0.85rem; padding: 1rem;">Lỗi kết nối hệ thống.</p>';
+            }
+        }
+
+        function escapeHtml(text) {
+            return text
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        // Đóng Smart Reminder Modal
+        function closeSmartReminderModal(setCooldown = false) {
+            const modal = document.getElementById('smartReminderModal');
+            if (modal) {
+                modal.classList.remove('active');
+                document.body.style.overflow = '';
+            }
+            if (setCooldown) {
+                // Lưu thời gian cooldown 12 tiếng
+                localStorage.setItem('sso_reminder_cooldown', (Date.now() + 12 * 60 * 60 * 1000).toString());
+            }
+        }
+
+        // Tự động kiểm tra nhắc nhở khi tải trang
+        window.addEventListener('DOMContentLoaded', async () => {
+            const isRulesPage = window.location.pathname === '/rules';
+            const isAdminPage = window.location.pathname.startsWith('/admin');
+            const isRegisterPage = window.location.pathname === '/register';
+            
+            if (isRulesPage || isAdminPage || isRegisterPage) return;
+            
+            const athleteId = localStorage.getItem('sso_athlete_id');
+            const isLinkedLocal = localStorage.getItem('sso_strava_linked');
+            
+            if (athleteId && isLinkedLocal === 'false') {
+                // Kiểm tra cooldown
+                const cooldown = localStorage.getItem('sso_reminder_cooldown');
+                if (cooldown && Date.now() < parseInt(cooldown)) {
+                    return;
+                }
+                
+                try {
+                    const response = await fetch(`/api/athlete/status/${athleteId}`);
+                    if (!response.ok) return;
+                    const data = await response.json();
+                    
+                    if (data.status === 'success') {
+                        if (data.is_linked) {
+                            localStorage.setItem('sso_strava_linked', 'true');
+                        } else {
+                            // Thực sự chưa liên kết, tìm auth_url để gán cho nút bấm
+                            const searchResponse = await fetch(`/api/athlete/search-connection?q=${encodeURIComponent(data.full_name)}`);
+                            const searchData = await searchResponse.json();
+                            
+                            if (searchData.status === 'success' && searchData.results && searchData.results.length > 0) {
+                                const match = searchData.results.find(r => r.id.toString() === athleteId.toString());
+                                if (match && match.auth_url) {
+                                    const authBtn = document.getElementById('smartReminderAuthBtn');
+                                    if (authBtn) {
+                                        authBtn.href = match.auth_url;
+                                    }
+                                    
+                                    // Hiển thị popup nhắc nhở sau 2 giây
+                                    setTimeout(() => {
+                                        const modal = document.getElementById('smartReminderModal');
+                                        if (modal) {
+                                            modal.classList.add('active');
+                                            document.body.style.overflow = 'hidden';
+                                        }
+                                    }, 2000);
+                                }
+                            }
+                        }
+                    }
+                } catch (err) {
+                    console.error("Error during smart connection check:", err);
+                }
+            }
+        });
+    </script>
 
     {% block scripts %}{% endblock %}
 </body>
