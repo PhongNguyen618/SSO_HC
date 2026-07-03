@@ -3930,6 +3930,35 @@ def delete_activity(activity_id: str, request: Request, db: Session = Depends(ge
         db.rollback()
         return JSONResponse(status_code=500, content={"error": f"Lỗi xóa hoạt động: {str(e)}"})
 
+@app.get("/admin/api/logs")
+def get_admin_logs(request: Request, db: Session = Depends(get_db)):
+    """API lấy nhật ký sao lưu và thay thế dữ liệu từ file jsonl (chỉ dành cho Admin)."""
+    admin_session = get_admin_session(request, db)
+    if not admin_session:
+        return JSONResponse(status_code=401, content={"error": "Chưa đăng nhập admin"})
+        
+    import os
+    import json
+    
+    backup_file = "static/uploads/deleted_activities_backup.jsonl"
+    logs = []
+    if os.path.exists(backup_file):
+        try:
+            with open(backup_file, "r", encoding="utf-8") as f:
+                for line in f:
+                    if line.strip():
+                        try:
+                            data = json.loads(line.strip())
+                            logs.append(data)
+                        except Exception:
+                            pass
+        except Exception as e:
+            return JSONResponse(status_code=500, content={"error": f"Lỗi đọc nhật ký: {str(e)}"})
+            
+    # Sắp xếp nhật ký theo thời gian backup mới nhất lên trước
+    logs = sorted(logs, key=lambda x: x.get("backup_time", ""), reverse=True)
+    return JSONResponse(content={"logs": logs})
+
 @app.get("/admin/api/activities")
 def get_activities_api(
     request: Request,
