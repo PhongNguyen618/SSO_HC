@@ -131,9 +131,14 @@
                 {% endif %}
             </div>
         </div>
-        <button id="btnManualSync" class="btn btn-primary btn-sm" style="height: 38px;">
-            <i class="fa-solid fa-cloud-arrow-down"></i> Đồng Bộ Thủ Công Ngay
-        </button>
+        <div style="display: flex; gap: 0.5rem;">
+            <button id="btnManualSync" class="btn btn-primary btn-sm" style="height: 38px;">
+                <i class="fa-solid fa-cloud-arrow-down"></i> Đồng Bộ Thủ Công Ngay
+            </button>
+            <button id="btnFixTimezone" class="btn btn-secondary btn-sm" style="height: 38px; border-color: #ff9f43; color: #ff9f43;">
+                <i class="fa-solid fa-clock"></i> Sửa Lệch Giờ UTC
+            </button>
+        </div>
     </div>
 
     <!-- Export Excel Data Bar -->
@@ -2966,6 +2971,45 @@
             .catch(err => {
                 btnSync.disabled = false;
                 btnSync.innerHTML = '<i class="fa-solid fa-cloud-arrow-down"></i> Đồng Bộ Thủ Công Ngay';
+                alert(`Lỗi hệ thống: ${err.message}`);
+            });
+        });
+    }
+
+    // --- FIX TIMEZONE AJAX LOGIC ---
+    const btnFix = document.getElementById('btnFixTimezone');
+    if (btnFix) {
+        btnFix.addEventListener('click', function() {
+            if (!confirm('Bạn có chắc chắn muốn quét và sửa lệch múi giờ (UTC -> GMT+7) cho toàn bộ hoạt động trong hệ thống?')) {
+                return;
+            }
+            
+            btnFix.disabled = true;
+            btnFix.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang xử lý...';
+            
+            fetch('/admin/fix-timezone', {
+                method: 'POST'
+            })
+            .then(response => {
+                if (response.status === 401) {
+                    throw new Error('Chưa đăng nhập quyền Admin');
+                }
+                return response.json();
+            })
+            .then(data => {
+                btnFix.disabled = false;
+                btnFix.innerHTML = '<i class="fa-solid fa-clock"></i> Sửa Lệch Giờ UTC';
+                
+                if (data.status === 'success') {
+                    alert(data.message);
+                    window.location.reload();
+                } else {
+                    alert(`Lỗi: ${data.error || 'Lỗi không xác định'}`);
+                }
+            })
+            .catch(err => {
+                btnFix.disabled = false;
+                btnFix.innerHTML = '<i class="fa-solid fa-clock"></i> Sửa Lệch Giờ UTC';
                 alert(`Lỗi hệ thống: ${err.message}`);
             });
         });

@@ -2824,6 +2824,84 @@ def trigger_sync(request: Request, db: Session = Depends(get_db)):
             
     return JSONResponse(content=res)
 
+@app.post("/admin/fix-timezone")
+def fix_timezone_endpoint(request: Request, db: Session = Depends(get_db)):
+    """API sửa đổi múi giờ UTC -> GMT+7 cho các hoạt động bị lệch."""
+    admin_session = get_admin_session(request, db)
+    if not admin_session:
+        return JSONResponse(status_code=401, content={"error": "Chưa đăng nhập admin"})
+        
+    import datetime
+    from backend.calculations import get_mets_value, calculate_kcal, get_multiplier_for_date
+    from backend.sync_engine import convert_utc_to_gmt7
+    
+    # 1. Tìm các hoạt động cần sửa
+    acts = db.query(Activity).filter(
+        Activity.activity_date >= "2026-06-15",
+        ~Activity.athlete_name_raw.in_(["David Schultz", "Rhiannon Bailey", "Jason Reckelhoff"])
+    ).all()
+    
+    fixed_count = 0
+    for a in acts:
+        name_lower = (a.name or "").lower()
+        time_str = a.activity_time
+        if not time_str:
+            continue
+            
+        try:
+            h, m = map(int, time_str.split(":"))
+        except ValueError:
+            continue
+            
+        is_mismatch = False
+        if ("sáng" in name_lower or "morning" in name_lower or "trưa" in name_lower or "lunch" in name_lower or "bơi" in name_lower or "walk" in name_lower or "run" in name_lower or "workout" in name_lower):
+            if (17 <= h <= 23) or (0 <= h <= 4):
+                is_mismatch = True
+                
+        if a.athlete_name_raw == "TRINH BUI VAN" and time_str == "02:58":
+            is_mismatch = True
+            
+        if is_mismatch:
+            # Cộng 7 tiếng
+            old_dt_str = f"{a.activity_date} {time_str}:00"
+            try:
+                dt = datetime.datetime.strptime(old_dt_str, "%Y-%m-%d %H:%M:%S")
+                dt_gmt7 = dt + datetime.timedelta(hours=7)
+                new_date_str = dt_gmt7.strftime("%Y-%m-%d")
+                new_time_str = dt_gmt7.strftime("%H:%M")
+                
+                a.activity_date = new_date_str
+                a.activity_time = new_time_str
+                
+                athlete = db.query(Athlete).filter(Athlete.id == a.athlete_id).first()
+                weight = athlete.weight if athlete else 60.0
+                speed_kmh = 0.0
+                if a.moving_time_min > 0:
+                    speed_kmh = a.distance_km / (a.moving_time_min / 60.0)
+                    
+                mets_value = get_mets_value(a.sport_type, speed_kmh, db, a.distance_km, a.elevation_gain_m, event_id=a.event_id)
+                a.mets_value = mets_value
+                
+                mult = get_multiplier_for_date(new_date_str, a.event_id, db)
+                a.multiplier = mult
+                
+                if a.athlete_id is not None:
+                    a.kcal_burned = calculate_kcal(mets_value, weight, a.moving_time_min, a.elevation_gain_m, a.sport_type, multiplier=mult)
+                
+                fixed_count += 1
+            except Exception as e:
+                print(f"Fix Timezone: Error fixing activity {a.id}: {e}")
+                
+    if fixed_count > 0:
+        try:
+            db.commit()
+            return JSONResponse(content={"status": "success", "message": f"Sửa lệch múi giờ thành công cho {fixed_count} hoạt động."})
+        except Exception as commit_err:
+            db.rollback()
+            return JSONResponse(status_code=500, content={"error": f"Lỗi lưu CSDL: {str(commit_err)}"})
+            
+    return JSONResponse(content={"status": "success", "message": "Không phát hiện hoạt động nào bị lệch múi giờ."})
+
 @app.get("/admin/db/backup/download")
 def download_db_backup(request: Request, db: Session = Depends(get_db)):
     """API tải bản sao lưu CSDL hiện tại dành cho Admin."""
