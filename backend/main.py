@@ -406,6 +406,44 @@ def deduplicate_activities_logic(db: Session, mode: str = "all", dry_run: bool =
         deleted_count = 0
         if to_delete:
             if not dry_run:
+                # BACKUP LOGIC: Lưu trữ bản sao của các hoạt động sắp bị xóa tự động vào file jsonl
+                try:
+                    import json
+                    import os
+                    backup_activities = db.query(Activity).filter(Activity.id.in_(to_delete)).all()
+                    backup_file = "static/uploads/deleted_activities_backup.jsonl"
+                    os.makedirs("static/uploads", exist_ok=True)
+                    
+                    with open(backup_file, "a", encoding="utf-8") as f:
+                        for act in backup_activities:
+                            act_dict = {
+                                "id": act.id,
+                                "athlete_id": act.athlete_id,
+                                "event_id": act.event_id,
+                                "athlete_name_raw": act.athlete_name_raw,
+                                "name": act.name,
+                                "type": act.type,
+                                "sport_type": act.sport_type,
+                                "distance_km": act.distance_km,
+                                "moving_time_min": act.moving_time_min,
+                                "elapsed_time_min": act.elapsed_time_min,
+                                "pace_min_km": act.pace_min_km,
+                                "elevation_gain_m": act.elevation_gain_m,
+                                "activity_date": act.activity_date,
+                                "activity_time": act.activity_time,
+                                "kcal_burned": act.kcal_burned,
+                                "mets_value": act.mets_value,
+                                "is_suspicious": act.is_suspicious,
+                                "suspicion_reason": act.suspicion_reason,
+                                "distance_km_raw": act.distance_km_raw,
+                                "kcal_burned_raw": act.kcal_burned_raw,
+                                "multiplier": act.multiplier,
+                                "backup_time": datetime.utcnow().isoformat()
+                            }
+                            f.write(json.dumps(act_dict, ensure_ascii=False) + "\n")
+                except Exception as backup_err:
+                    print(f"Deduplicate Backup Error: {backup_err}")
+                
                 deleted_count = db.query(Activity).filter(Activity.id.in_(to_delete)).delete(synchronize_session=False)
                 db.commit()
             else:
