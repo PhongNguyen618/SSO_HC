@@ -577,6 +577,9 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
             if u_token:
                 ath_acts = sync_athlete_activities_api(db, ath, u_token)
                 if ath_acts is not None:
+                    # Gán cờ để nhận biết đây là hoạt động API cá nhân
+                    for a_act in ath_acts:
+                        a_act["is_personal_api"] = True
                     user_api_activities.extend(ath_acts)
                     
                     # Tìm và dọn dẹp các hoạt động cào web cũ (ID dài đúng 64 ký tự) của VĐV này
@@ -769,9 +772,9 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
                 
         athlete_id = athlete.id if athlete else None
 
-        # Nếu hoạt động này đến từ Club/Scraper (không có id gốc từ Personal API)
+        # Nếu hoạt động này đến từ Club/Scraper (không có cờ is_personal_api)
         # nhưng VĐV đã ủy quyền API cá nhân, ta bỏ qua không xử lý hoạt động Club này.
-        is_from_club = not act.get("id")
+        is_from_club = not act.get("is_personal_api")
         if is_from_club and athlete and athlete.strava_refresh_token:
             continue
         # API Strava Club Activities KHÔNG trả về start_date_local (ngày giờ thực tế).
