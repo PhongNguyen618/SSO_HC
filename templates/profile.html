@@ -395,6 +395,46 @@
     </div>
 </div>
 
+<!-- Community & Support QRs Card -->
+{% if configs.get("zalo_group_qr") or (selected_event and selected_event.rules_group_qr) %}
+<div class="glass-card" style="margin-bottom: 2rem; border-color: rgba(0, 173, 181, 0.2); background: rgba(0, 173, 181, 0.01);">
+    <h3 class="card-title" style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.6rem; border-bottom: 1px solid rgba(255, 255, 255, 0.1); padding-bottom: 0.5rem; font-family: 'Outfit', sans-serif;">
+        <i class="fa-solid fa-qrcode" style="color: var(--color-orange);"></i> Cộng Đồng Giải Chạy & Hỗ Trợ Kỹ Thuật
+    </h3>
+    <div style="display: flex; gap: 1.5rem; flex-wrap: wrap; justify-content: center; text-align: center; padding: 0.5rem 0;">
+        <!-- QR Zalo Hỗ Trợ -->
+        {% if configs.get("zalo_group_qr") %}
+        <div style="background: rgba(255, 255, 255, 0.01); border: 1px solid rgba(255, 255, 255, 0.08); padding: 1.2rem; border-radius: 12px; max-width: 250px; flex: 1; min-width: 200px; display: flex; flex-direction: column; align-items: center; gap: 0.6rem;">
+            <span style="font-size: 0.85rem; color: var(--color-orange); font-weight: 600;">
+                <i class="fa-solid fa-comments"></i> Nhóm Zalo Hỗ Trợ
+            </span>
+            <div style="padding: 0.5rem; background: white; border-radius: 8px;">
+                <a href="{{ configs.get('zalo_group_qr') }}" target="_blank">
+                    <img src="{{ configs.get('zalo_group_qr') }}" alt="Zalo QR" style="width: 120px; height: 120px; object-fit: contain; border-radius: 4px; display: block;">
+                </a>
+            </div>
+            <span style="font-size: 0.75rem; color: var(--text-muted);">Quét hoặc nhấp để vào nhóm Zalo</span>
+        </div>
+        {% endif %}
+
+        <!-- QR Club Strava -->
+        {% if selected_event and selected_event.rules_group_qr %}
+        <div style="background: rgba(255, 255, 255, 0.01); border: 1px solid rgba(255, 255, 255, 0.08); padding: 1.2rem; border-radius: 12px; max-width: 250px; flex: 1; min-width: 200px; display: flex; flex-direction: column; align-items: center; gap: 0.6rem;">
+            <span style="font-size: 0.85rem; color: #ff5e36; font-weight: 600;">
+                <i class="fa-brands fa-strava"></i> CLB Strava Giải Đấu
+            </span>
+            <div style="padding: 0.5rem; background: white; border-radius: 8px;">
+                <a href="https://www.strava.com/clubs/{{ configs.get('strava_club_id') or '' }}" target="_blank">
+                    <img src="{{ selected_event.rules_group_qr }}" alt="Club QR" style="width: 120px; height: 120px; object-fit: contain; border-radius: 4px; display: block;">
+                </a>
+            </div>
+            <span style="font-size: 0.75rem; color: var(--text-muted);">Quét hoặc nhấp để vào Club Strava</span>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
 <!-- Badges Section -->
 <div class="glass-card" style="margin-bottom: 2rem;">
     <h3 class="card-title" style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.6rem; border-bottom: 1px solid rgba(255, 255, 255, 0.1); padding-bottom: 0.5rem; font-family: 'Outfit', sans-serif;">
