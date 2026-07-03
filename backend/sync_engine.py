@@ -509,6 +509,12 @@ def sync_athlete_activities_api(db, athlete, access_token, start_date_str: str =
             tz_vn = timezone(timedelta(hours=7))
             dt_vn = dt.replace(tzinfo=tz_vn)
             after_timestamp = int(dt_vn.timestamp())
+            
+            # Cắt mốc thời gian bắt đầu quét không được sớm hơn 16/06/2026 (giờ VN)
+            # nhằm tránh quét quá sâu về lịch sử 2025 làm mất các hoạt động mới do kịch trần 200 bản ghi.
+            min_timestamp = 1781542800  # Epoch tương ứng 2026-06-16 00:00:00 GMT+7
+            if after_timestamp < min_timestamp:
+                after_timestamp = min_timestamp
         except Exception as te:
             print(f"Sync Engine (User API): Error calculating after_timestamp: {te}")
 
