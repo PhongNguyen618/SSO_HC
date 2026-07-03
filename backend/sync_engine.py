@@ -573,6 +573,8 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
     if authorized_athletes:
         print(f"Sync Engine: Found {len(authorized_athletes)} authorized athletes. Syncing via personal APIs...")
         for ath in authorized_athletes:
+            # Nghỉ 1.5 giây giữa mỗi VĐV để tránh spam request làm khóa API/IP
+            time.sleep(1.5)
             u_token = refresh_user_strava_token(db, ath, configs)
             if u_token:
                 ath_acts = sync_athlete_activities_api(db, ath, u_token)
