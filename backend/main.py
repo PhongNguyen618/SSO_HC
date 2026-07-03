@@ -2843,6 +2843,11 @@ def fix_timezone_endpoint(request: Request, db: Session = Depends(get_db)):
     
     fixed_count = 0
     for a in acts:
+        # Chỉ sửa các hoạt động do Scraper cào về (ID dạng băm SHA256 dài 64 ký tự)
+        # Loại bỏ hoàn toàn các hoạt động đồng bộ bằng API Club cũ (ID số nguyên Strava ngắn)
+        if len(str(a.id)) != 64:
+            continue
+            
         name_lower = (a.name or "").lower()
         time_str = a.activity_time
         if not time_str:
