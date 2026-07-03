@@ -251,7 +251,40 @@
                     <i class="fa-solid fa-arrow-left"></i> Quay Về Trang Chủ
                 </a>
             </div>
-        </form>
+        <script>
+            document.addEventListener("DOMContentLoaded", function() {
+                const deptInput = document.getElementById("department");
+                const eventSelect = document.getElementById("event_id");
+                
+                if (!deptInput || !eventSelect) return;
+                
+                function filterEvents() {
+                    const val = deptInput.value.trim().toUpperCase();
+                    // Nếu trường phòng ban rỗng, cho phép xem tất cả; nếu không rỗng, kiểm tra xem có bắt đầu bằng 'SSO'
+                    const isSSO = val === "" || val.startsWith("SSO");
+                    
+                    for (let i = 0; i < eventSelect.options.length; i++) {
+                        const opt = eventSelect.options[i];
+                        if (opt.value === "1") { // ID 1 là giải đấu SSO's HC
+                            if (isSSO) {
+                                opt.style.display = "";
+                                opt.disabled = false;
+                            } else {
+                                opt.style.display = "none";
+                                opt.disabled = true;
+                                if (eventSelect.value === "1") {
+                                    eventSelect.value = "";
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                deptInput.addEventListener("input", filterEvents);
+                deptInput.addEventListener("change", filterEvents);
+                filterEvents();
+            });
+        </script>
         {% endif %}
         {% endif %}
     </div>

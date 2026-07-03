@@ -1418,8 +1418,49 @@ def register_athlete(
         "PHÒNG KINH DOANH", "PHÒNG TÀI CHÍNH KẾ TOÁN", "PHÒNG KHAI THÁC", "PHÒNG VẬN HÀNH"
     ]
     active_competitions = db.query(CompetitionEvent).filter(CompetitionEvent.is_active == True).order_by(CompetitionEvent.id).all()
+    configs = get_config_dict(db)
     full_name = full_name.strip()
     strava_name = strava_name.strip()
+    
+    # Kiểm tra ràng buộc giải đấu nội bộ (SSO's HC - ID 1) chỉ dành cho người thuộc khối SSO
+    if event_id == 1:
+        if not department.strip().upper().startswith("SSO"):
+            unlinked_names = db.query(Activity.athlete_name_raw)\
+                .filter(Activity.athlete_id == None)\
+                .group_by(Activity.athlete_name_raw).all()
+            registered_names = set()
+            for a in db.query(Athlete).all():
+                if a.strava_name:
+                    for part in a.strava_name.split(","):
+                        cleaned = part.strip().lower()
+                        if cleaned:
+                            registered_names.add(cleaned)
+            unlinked_athletes = [name[0] for name in unlinked_names if name[0] and name[0].strip().lower() not in registered_names]
+            
+            return templates.TemplateResponse(
+                request=request,
+                name="register.html",
+                context={
+                    "configs": configs,
+                    "departments": departments,
+                    "active_competitions": active_competitions,
+                    "selected_event_id": event_id,
+                    "unlinked_athletes": unlinked_athletes,
+                    "success": None,
+                    "error": "Giải đấu SSO's HC là giải đấu nội bộ, chỉ dành riêng cho nhân viên thuộc khối SSO (tên phòng ban bắt đầu bằng chữ SSO). Vui lòng chọn đúng giải đấu của bạn.",
+                    "already_exists": False,
+                    "needs_strava_auth": False,
+                    "auth_url": "",
+                    "form_data": {
+                        "full_name": full_name,
+                        "gender": gender,
+                        "weight": weight,
+                        "department": department,
+                        "strava_name": strava_name,
+                        "event_id": event_id
+                    }
+                }
+            )
     
     # Lấy danh sách tên Strava chưa liên kết để hiển thị gợi ý khi xảy ra lỗi/cập nhật
     unlinked_names = db.query(Activity.athlete_name_raw)\
