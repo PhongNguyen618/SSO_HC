@@ -138,6 +138,9 @@
             <button id="btnFixTimezone" class="btn btn-secondary btn-sm" style="height: 38px; border-color: #ff9f43; color: #ff9f43;">
                 <i class="fa-solid fa-clock"></i> Sửa Lệch Giờ UTC
             </button>
+            <button id="btnUnlinkMismatched" class="btn btn-secondary btn-sm" style="height: 38px; border-color: #ff3366; color: #ff3366;">
+                <i class="fa-solid fa-unlink"></i> Dọn Liên Kết Sai
+            </button>
         </div>
     </div>
 
@@ -3054,6 +3057,45 @@
             .catch(err => {
                 btnFix.disabled = false;
                 btnFix.innerHTML = '<i class="fa-solid fa-clock"></i> Sửa Lệch Giờ UTC';
+                alert(`Lỗi hệ thống: ${err.message}`);
+            });
+        });
+    }
+
+    // --- UNLINK MISMATCHED ATHLETES AJAX LOGIC ---
+    const btnUnlink = document.getElementById('btnUnlinkMismatched');
+    if (btnUnlink) {
+        btnUnlink.addEventListener('click', function() {
+            if (!confirm('Bạn có chắc chắn muốn quét và hủy liên kết đối với các tài khoản VĐV không trùng khớp với Client ID/Secret hiện tại? Quá trình này sẽ gọi API Strava để kiểm tra xác thực từng người.')) {
+                return;
+            }
+            
+            btnUnlink.disabled = true;
+            btnUnlink.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang dọn...';
+            
+            fetch('/admin/unlink-mismatched-athletes', {
+                method: 'POST'
+            })
+            .then(response => {
+                if (response.status === 401) {
+                    throw new Error('Chưa đăng nhập quyền Admin');
+                }
+                return response.json();
+            })
+            .then(data => {
+                btnUnlink.disabled = false;
+                btnUnlink.innerHTML = '<i class="fa-solid fa-unlink"></i> Dọn Liên Kết Sai';
+                
+                if (data.status === 'success') {
+                    alert(data.message);
+                    window.location.reload();
+                } else {
+                    alert(`Lỗi: ${data.error || 'Lỗi không xác định'}`);
+                }
+            })
+            .catch(err => {
+                btnUnlink.disabled = false;
+                btnUnlink.innerHTML = '<i class="fa-solid fa-unlink"></i> Dọn Liên Kết Sai';
                 alert(`Lỗi hệ thống: ${err.message}`);
             });
         });

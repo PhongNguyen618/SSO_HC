@@ -2338,16 +2338,11 @@ async def update_configs(
 
         club_id_extracted = extract_strava_club_id(strava_club_id)
         
-        # Tự động phát hiện đổi Client ID để reset toàn bộ token cũ vô tác dụng của VĐV & Admin
+        # Tự động phát hiện đổi Client ID để reset token cũ của Admin (buộc Admin kết nối lại với App mới)
         old_client_id_conf = db.query(Config).filter(Config.key == "strava_client_id").first()
         old_client_id = old_client_id_conf.value if old_client_id_conf else ""
         if old_client_id and old_client_id.strip() != strava_client_id.strip():
-            print(f"API Change Detected: Client ID changed from {old_client_id} to {strava_client_id}. Resetting all tokens...")
-            db.query(Athlete).update({
-                Athlete.strava_access_token: None,
-                Athlete.strava_refresh_token: None,
-                Athlete.strava_expires_at: None
-            })
+            print(f"API Change Detected: Client ID changed from {old_client_id} to {strava_client_id}. Resetting Admin tokens...")
             update_config(db, "strava_access_token", "")
             update_config(db, "strava_refresh_token", "")
             update_config(db, "strava_expires_at", "0")
@@ -2931,6 +2926,70 @@ def fix_timezone_endpoint(request: Request, db: Session = Depends(get_db)):
             return JSONResponse(status_code=500, content={"error": f"Lỗi lưu CSDL: {str(commit_err)}"})
             
     return JSONResponse(content={"status": "success", "message": "Không phát hiện hoạt động nào bị lệch múi giờ."})
+
+@app.post("/admin/unlink-mismatched-athletes")
+def unlink_mismatched_athletes(request: Request, db: Session = Depends(get_db)):
+    """API quét và hủy liên kết Strava cho những VĐV có token không trùng khớp/không hợp lệ với ID/Secret hiện tại."""
+    admin_session = get_admin_session(request, db)
+    if not admin_session:
+        return JSONResponse(status_code=401, content={"error": "Chưa đăng nhập quyền Admin"})
+        
+    configs = get_config_dict(db)
+    client_id = configs.get("strava_client_id")
+    client_secret = configs.get("strava_client_secret")
+    
+    if not client_id or not client_secret:
+        return JSONResponse(status_code=400, content={"error": "Chưa cấu hình Client ID hoặc Client Secret trong hệ thống."})
+        
+    athletes = db.query(Athlete).filter(
+        Athlete.strava_refresh_token != None,
+        Athlete.strava_refresh_token != ""
+    ).all()
+    
+    checked = 0
+    unlinked = 0
+    kept = 0
+    
+    for ath in athletes:
+        checked += 1
+        try:
+            res = requests.post("https://www.strava.com/oauth/token", data={
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "grant_type": "refresh_token",
+                "refresh_token": ath.strava_refresh_token
+            }, timeout=8)
+            
+            # Nếu trả về 400 Bad Request hoặc 401 Unauthorized, nghĩa là Client ID/Secret không khớp hoặc bị hết hiệu lực
+            if res.status_code in [400, 401]:
+                ath.strava_access_token = None
+                ath.strava_refresh_token = None
+                ath.strava_expires_at = None
+                ath.strava_athlete_id = None
+                unlinked += 1
+            elif res.status_code == 200:
+                # Cập nhật luôn token mới nếu thành công
+                token_data = res.json()
+                ath.strava_access_token = token_data.get("access_token")
+                ath.strava_refresh_token = token_data.get("refresh_token")
+                ath.strava_expires_at = str(token_data.get("expires_at"))
+                kept += 1
+            else:
+                # Các lỗi khác (ví dụ: 429 rate limit, 500,...) giữ nguyên để tránh hủy nhầm khi Strava lỗi mạng
+                kept += 1
+        except Exception as e:
+            print(f"Verify token error for {ath.full_name}: {e}")
+            kept += 1
+            
+    try:
+        db.commit()
+        return JSONResponse(content={
+            "status": "success",
+            "message": f"Đã quét xong {checked} VĐV. Giữ lại {kept} VĐV hợp lệ. Đã hủy liên kết {unlinked} VĐV có token không trùng khớp với API hiện tại."
+        })
+    except Exception as commit_err:
+        db.rollback()
+        return JSONResponse(status_code=500, content={"error": f"Lỗi lưu CSDL: {str(commit_err)}"})
 
 @app.get("/admin/db/backup/download")
 def download_db_backup(request: Request, db: Session = Depends(get_db)):
