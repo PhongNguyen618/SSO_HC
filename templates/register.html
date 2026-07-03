@@ -129,6 +129,7 @@
             </a>
         </div>
         {% else %}
+        {% if not already_exists %}
         <h2 class="card-title">
             <i class="fa-solid fa-user-plus"></i> Đăng Ký Tham Gia Giải Thể Thao
         </h2>
@@ -226,6 +227,7 @@
                 </a>
             </div>
         </form>
+        {% endif %}
         {% endif %}
     </div>
 </div>
