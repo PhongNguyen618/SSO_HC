@@ -131,7 +131,7 @@
                 {% endif %}
             </div>
         </div>
-        <div style="display: flex; gap: 0.5rem;">
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
             <button id="btnManualSync" class="btn btn-primary btn-sm" style="height: 38px;">
                 <i class="fa-solid fa-cloud-arrow-down"></i> Đồng Bộ Thủ Công Ngay
             </button>
@@ -140,6 +140,9 @@
             </button>
             <button id="btnUnlinkMismatched" class="btn btn-secondary btn-sm" style="height: 38px; border-color: #ff3366; color: #ff3366;">
                 <i class="fa-solid fa-unlink"></i> Dọn Liên Kết Sai
+            </button>
+            <button id="btnCleanupOldIds" class="btn btn-secondary btn-sm" style="height: 38px; border-color: #9b59b6; color: #9b59b6;">
+                <i class="fa-solid fa-broom"></i> Dọn ID Số Cũ
             </button>
         </div>
     </div>
@@ -3252,6 +3255,45 @@
             .catch(err => {
                 btnUnlink.disabled = false;
                 btnUnlink.innerHTML = '<i class="fa-solid fa-unlink"></i> Dọn Liên Kết Sai';
+                alert(`Lỗi hệ thống: ${err.message}`);
+            });
+        });
+    }
+
+    // --- CLEANUP OLD NUMERIC IDS AJAX LOGIC ---
+    const btnCleanupOldIds = document.getElementById('btnCleanupOldIds');
+    if (btnCleanupOldIds) {
+        btnCleanupOldIds.addEventListener('click', function() {
+            if (!confirm('Bạn có chắc chắn muốn dọn dẹp các hoạt động sử dụng ID số cũ từ đợt quét lỗi trước? Việc này sẽ sao lưu các hoạt động cũ vào file nhật ký hệ thống để bạn quét đồng bộ lại an toàn.')) {
+                return;
+            }
+            
+            btnCleanupOldIds.disabled = true;
+            btnCleanupOldIds.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang dọn...';
+            
+            fetch('/admin/cleanup-old-numeric-ids', {
+                method: 'POST'
+            })
+            .then(response => {
+                if (response.status === 401) {
+                    throw new Error('Chưa đăng nhập quyền Admin');
+                }
+                return response.json();
+            })
+            .then(data => {
+                btnCleanupOldIds.disabled = false;
+                btnCleanupOldIds.innerHTML = '<i class="fa-solid fa-broom"></i> Dọn ID Số Cũ';
+                
+                if (data.status === 'success') {
+                    alert(data.message);
+                    window.location.reload();
+                } else {
+                    alert(`Lỗi: ${data.error || 'Lỗi không xác định'}`);
+                }
+            })
+            .catch(err => {
+                btnCleanupOldIds.disabled = false;
+                btnCleanupOldIds.innerHTML = '<i class="fa-solid fa-broom"></i> Dọn ID Số Cũ';
                 alert(`Lỗi hệ thống: ${err.message}`);
             });
         });

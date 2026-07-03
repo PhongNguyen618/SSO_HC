@@ -3077,6 +3077,70 @@ def unlink_mismatched_athletes(request: Request, db: Session = Depends(get_db)):
         db.rollback()
         return JSONResponse(status_code=500, content={"error": f"Lỗi lưu CSDL: {str(commit_err)}"})
 
+@app.post("/admin/cleanup-old-numeric-ids")
+def cleanup_old_numeric_ids_endpoint(request: Request, db: Session = Depends(get_db)):
+    """API dọn dẹp các hoạt động có ID số thuần túy cũ (chỉ dành cho Admin)."""
+    admin_session = get_admin_session(request, db)
+    if not admin_session:
+        return JSONResponse(status_code=401, content={"error": "Chưa đăng nhập admin"})
+        
+    try:
+        to_delete = []
+        all_acts = db.query(Activity).all()
+        for act in all_acts:
+            # Nếu ID là số thuần túy (không chứa dấu gạch dưới '_' và không phải chuỗi hash 64 ký tự)
+            if act.id.isdigit() and len(act.id) < 25:
+                to_delete.append(act.id)
+                
+        if to_delete:
+            import json
+            import os
+            backup_file = "static/uploads/deleted_activities_backup.jsonl"
+            os.makedirs(os.path.dirname(backup_file), exist_ok=True)
+            
+            # Ghi log backup trước khi xóa
+            with open(backup_file, "a", encoding="utf-8") as f:
+                for act_id in to_delete:
+                    act_item = db.query(Activity).filter(Activity.id == act_id).first()
+                    if act_item:
+                        act_dict = {
+                            "id": act_item.id,
+                            "athlete_id": act_item.athlete_id,
+                            "event_id": act_item.event_id,
+                            "athlete_name_raw": act_item.athlete_name_raw,
+                            "name": act_item.name,
+                            "type": act_item.type,
+                            "sport_type": act_item.sport_type,
+                            "distance_km": act_item.distance_km,
+                            "moving_time_min": act_item.moving_time_min,
+                            "elapsed_time_min": act_item.elapsed_time_min,
+                            "pace_min_km": act_item.pace_min_km,
+                            "elevation_gain_m": act_item.elevation_gain_m,
+                            "activity_date": act_item.activity_date,
+                            "activity_time": act_item.activity_time,
+                            "kcal_burned": act_item.kcal_burned,
+                            "mets_value": act_item.mets_value,
+                            "is_suspicious": act_item.is_suspicious,
+                            "suspicion_reason": act_item.suspicion_reason,
+                            "distance_km_raw": act_item.distance_km_raw,
+                            "kcal_burned_raw": act_item.kcal_burned_raw,
+                            "multiplier": act_item.multiplier,
+                            "backup_time": datetime.utcnow().isoformat(),
+                            "reason": "Dọn dẹp ID số thuần túy của code cũ qua nút Admin"
+                        }
+                        f.write(json.dumps(act_dict, ensure_ascii=False) + "\n")
+            
+            # Xóa các hoạt động ID số cũ khỏi DB
+            db.query(Activity).filter(Activity.id.in_(to_delete)).delete(synchronize_session=False)
+            db.commit()
+            return JSONResponse(content={"status": "success", "message": f"Đã dọn dẹp và sao lưu thành công {len(to_delete)} hoạt động dùng ID số cũ."})
+        else:
+            return JSONResponse(content={"status": "success", "message": "Không có hoạt động nào dùng ID số cũ cần dọn dẹp."})
+            
+    except Exception as e:
+        db.rollback()
+        return JSONResponse(status_code=500, content={"error": f"Lỗi dọn dẹp ID cũ: {str(e)}"})
+
 @app.get("/admin/db/backup/download")
 def download_db_backup(request: Request, db: Session = Depends(get_db)):
     """API tải bản sao lưu CSDL hiện tại dành cho Admin."""
