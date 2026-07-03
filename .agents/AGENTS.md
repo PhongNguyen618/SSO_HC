@@ -18,3 +18,10 @@ Tài liệu này ghi lại các lỗi đã xảy ra và các bài học kinh ngh
   - Trang đăng ký thành công có mã QR Group Zalo/Strava không được phép tự động redirect sau 3 giây. Người dùng cần thời gian để quét QR. Trình bày quy trình 2 bước Step-by-Step và để người dùng chủ động click nút "Liên kết Strava".
 - **Ẩn form nhập liệu khi có cảnh báo trùng:**
   - Khi người dùng bị báo trùng thông tin và hiển thị hộp thoại xác nhận cập nhật, form đăng ký trống bên dưới phải được ẩn hoàn toàn để tránh làm rối mắt và gây hiểu nhầm.
+
+## 3. Ràng buộc thời gian diễn ra giải đấu (Date Range Constraints)
+- **Luôn kiểm tra khoảng thời gian giải đấu khi đồng bộ:**
+  - Khi đồng bộ hoạt động từ bất kỳ nguồn nào (API cá nhân, API Club cũ, hay Scraper cào Web), hệ thống **bắt buộc** phải so khớp ngày chạy của hoạt động (`activity_date`) nằm trong khoảng thời gian diễn ra giải đấu: `event.start_date <= activity_date <= event.end_date`.
+  - Các hoạt động ngoài khoảng thời gian này phải bị bỏ qua ngay lập tức để tránh việc các hoạt động lịch sử trước đây (ví dụ hoạt động từ năm 2019, 2020, 2024, 2025) bị nạp nhầm vào giải chạy mới khi quét CLB.
+- **Cơ chế dọn dẹp (Cleanup):**
+  - Tích hợp tính năng tự động dọn dẹp các hoạt động nằm ngoài mốc thời gian của giải đấu đang hoạt động vào nút dọn dẹp hệ thống trên trang quản trị Admin để xử lý nhanh sự cố dữ liệu.
