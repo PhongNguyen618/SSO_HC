@@ -16,6 +16,20 @@
     {% block head %}{% endblock %}
 </head>
 <body>
+    <!-- Webview Warning Banner -->
+    <div id="webviewWarningBanner" style="display: none; background: linear-gradient(135deg, #ff9a3c 0%, #ff5e36 100%); color: #0a0814; padding: 0.8rem 1.2rem; font-family: 'Outfit', sans-serif; font-size: 0.9rem; font-weight: 600; text-align: left; position: sticky; top: 0; z-index: 9999; box-shadow: 0 4px 15px rgba(0,0,0,0.3); align-items: flex-start; gap: 0.8rem;">
+        <div style="font-size: 1.5rem; line-height: 1; flex-shrink: 0;">
+            <i class="fa-solid fa-triangle-exclamation" style="color: #fff;"></i>
+        </div>
+        <div style="flex: 1; min-width: 0; line-height: 1.45;">
+            <strong style="color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.3); font-size: 0.95rem;">Cảnh báo: Đang mở trong ứng dụng!</strong><br>
+            Để tránh lỗi đăng nhập Strava bằng tài khoản Google (Lỗi 403 disallowed_useragent), vui lòng bấm vào nút **3 chấm ở góc trên bên phải** và chọn **"Mở bằng trình duyệt"** (Chrome hoặc Safari).
+        </div>
+        <button onclick="document.getElementById('webviewWarningBanner').style.display='none'" style="background: none; border: none; color: #0a0814; font-size: 1.5rem; cursor: pointer; padding: 0; margin-left: 0.5rem; line-height: 1; opacity: 0.7; font-weight: bold;">
+            &times;
+        </button>
+    </div>
+
     <!-- Background Elements for Visual Richness -->
     <div class="bg-blur bg-blur-1"></div>
     <div class="bg-blur bg-blur-2"></div>
@@ -672,7 +686,32 @@
             });
         }
 
-        document.addEventListener('DOMContentLoaded', initQuickAccess);
+        // Kiểm tra xem trình duyệt có phải là In-App Webview (Zalo, FB, Instagram, etc.) hay không
+        function checkInAppWebview() {
+            const ua = navigator.userAgent || navigator.vendor || window.opera;
+            const isInApp = (
+                /zalo/i.test(ua) || 
+                /FBAN/i.test(ua) || 
+                /FBAV/i.test(ua) || 
+                /Instagram/i.test(ua) || 
+                /Messenger/i.test(ua) || 
+                /GSA/i.test(ua) || // Google Search App iOS
+                (/iPhone|iPad|iPod/i.test(ua) && !/Safari/i.test(ua) && !/CriOS/i.test(ua)) || // iOS webview
+                (/Android/i.test(ua) && /Version\/[0-9.]+/i.test(ua) && !/Chrome/i.test(ua)) // Android webview
+            );
+            
+            if (isInApp) {
+                const banner = document.getElementById('webviewWarningBanner');
+                if (banner) {
+                    banner.style.display = 'flex';
+                }
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initQuickAccess();
+            checkInAppWebview();
+        });
     </script>
 
     {% block scripts %}{% endblock %}
