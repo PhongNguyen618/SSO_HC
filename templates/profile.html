@@ -185,6 +185,53 @@
     <i class="fa-solid fa-arrow-left"></i> Quay lại Bảng xếp hạng
 </a>
 
+{% if request.query_params.get("success") %}
+<div class="glass-card" style="border-color: rgba(60, 186, 146, 0.4); background: rgba(60, 186, 146, 0.03); padding: 1.8rem; border-radius: 16px; margin-bottom: 2rem; animation: fadeInUp 0.5s ease; text-align: center;">
+    <div style="font-size: 2.5rem; color: var(--color-green); margin-bottom: 0.8rem; animation: pulse 1.5s infinite ease-in-out;">
+        <i class="fa-solid fa-circle-check"></i>
+    </div>
+    <h3 style="font-family: 'Outfit', sans-serif; color: var(--color-green); font-size: 1.35rem; margin-bottom: 0.5rem; font-weight: 700;">
+        KẾT NỐI STRAVA THÀNH CÔNG!
+    </h3>
+    <p style="font-size: 0.92rem; color: var(--text-main); line-height: 1.6; max-width: 600px; margin: 0 auto 1.5rem auto;">
+        Chúc mừng **{{ athlete.full_name }}**! Tài khoản Strava cá nhân đã được liên kết chính chủ và đồng bộ dữ liệu tức thì. 
+        Hãy hoàn tất bước cuối cùng bên dưới để tham gia cộng đồng giải chạy:
+    </p>
+    
+    <div style="display: flex; gap: 1.5rem; flex-wrap: wrap; justify-content: center; margin-top: 1rem;">
+        <!-- QR Zalo Hỗ Trợ -->
+        {% if configs.get("zalo_group_qr") %}
+        <div style="background: rgba(255, 255, 255, 0.01); border: 1px solid rgba(255, 255, 255, 0.08); padding: 1.2rem; border-radius: 12px; max-width: 250px; flex: 1; min-width: 200px; display: flex; flex-direction: column; align-items: center; gap: 0.6rem;">
+            <span style="font-size: 0.85rem; color: var(--color-orange); font-weight: 600;">
+                <i class="fa-solid fa-comments"></i> 1. Nhóm Zalo Hỗ Trợ
+            </span>
+            <div style="padding: 0.5rem; background: white; border-radius: 8px;">
+                <a href="{{ configs.get('zalo_group_qr') }}" target="_blank">
+                    <img src="{{ configs.get('zalo_group_qr') }}" alt="Zalo QR" style="width: 120px; height: 120px; object-fit: contain; border-radius: 4px; display: block;">
+                </a>
+            </div>
+            <span style="font-size: 0.75rem; color: var(--text-muted);">Quét hoặc nhấp để vào nhóm Zalo</span>
+        </div>
+        {% endif %}
+
+        <!-- QR Club Strava -->
+        {% if selected_event and selected_event.rules_group_qr %}
+        <div style="background: rgba(255, 255, 255, 0.01); border: 1px solid rgba(255, 255, 255, 0.08); padding: 1.2rem; border-radius: 12px; max-width: 250px; flex: 1; min-width: 200px; display: flex; flex-direction: column; align-items: center; gap: 0.6rem;">
+            <span style="font-size: 0.85rem; color: #ff5e36; font-weight: 600;">
+                <i class="fa-brands fa-strava"></i> 2. CLB Strava Giải Đấu
+            </span>
+            <div style="padding: 0.5rem; background: white; border-radius: 8px;">
+                <a href="https://www.strava.com/clubs/{{ configs.get('strava_club_id') or '' }}" target="_blank">
+                    <img src="{{ selected_event.rules_group_qr }}" alt="Club QR" style="width: 120px; height: 120px; object-fit: contain; border-radius: 4px; display: block;">
+                </a>
+            </div>
+            <span style="font-size: 0.75rem; color: var(--text-muted);">Quét hoặc nhấp để vào Club Strava</span>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
 <!-- Profile Header -->
 <div class="profile-header">
     <div class="profile-avatar-container" style="position: relative; width: 80px; height: 80px; flex-shrink: 0;">

@@ -1514,6 +1514,7 @@ def register_athlete(
                         app_url = f"{scheme}://{host}"
                     redirect_uri = f"{app_url}/exchange_user_token"
                     auth_url = f"https://www.strava.com/oauth/authorize?client_id={client_id}&response_type=code&redirect_uri={redirect_uri}&scope=activity:read_all,profile:read_all&state={exists.id}"
+                    return RedirectResponse(auth_url, status_code=303)
 
                 return templates.TemplateResponse(
                     request=request,
@@ -1527,8 +1528,8 @@ def register_athlete(
                         "success": f"Đã cập nhật thông tin và đăng ký giải chạy thành công cho VĐV {exists.full_name}!",
                         "error": None,
                         "already_exists": False,
-                        "needs_strava_auth": needs_auth,
-                        "auth_url": auth_url,
+                        "needs_strava_auth": False,
+                        "auth_url": "",
                         "athlete_id": exists.id
                     }
                 )
@@ -1606,23 +1607,8 @@ def register_athlete(
         redirect_uri = f"{app_url}/exchange_user_token"
         auth_url = f"https://www.strava.com/oauth/authorize?client_id={client_id}&response_type=code&redirect_uri={redirect_uri}&scope=activity:read_all,profile:read_all&state={new_athlete.id}"
 
-        return templates.TemplateResponse(
-            request=request,
-            name="register.html",
-            context={
-                "configs": configs,
-                "departments": departments,
-                "active_competitions": active_competitions,
-                "selected_event_id": event_id,
-                "unlinked_athletes": unlinked_athletes,
-                "success": f"Vận động viên {full_name} đã đăng ký tham gia giải chạy thành công! Vui lòng liên kết Strava để hệ thống tự động ghi nhận hoạt động.",
-                "error": None,
-                "already_exists": False,
-                "needs_strava_auth": True,
-                "auth_url": auth_url,
-                "athlete_id": new_athlete.id
-            }
-        )
+        # Tự động chuyển hướng thẳng sang Strava OAuth để liên kết tài khoản
+        return RedirectResponse(auth_url, status_code=303)
     except Exception as e:
         db.rollback()
         return templates.TemplateResponse(
