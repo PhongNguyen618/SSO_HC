@@ -127,6 +127,23 @@
         {% endif %}
         {% endif %}
 
+        <!-- Hỗ trợ / Group Zalo nếu có cấu hình -->
+        {% if app_configs.get("zalo_group_qr") %}
+        <div class="glass-card" style="background: rgba(0, 104, 255, 0.03); border: 1px solid rgba(0, 104, 255, 0.15); text-align: center; padding: 1.5rem; margin-bottom: 2.0rem; border-radius: 12px; animation: fadeInUp 0.5s ease;">
+            <h3 style="font-family: 'Outfit'; color: #0068ff; margin-bottom: 0.6rem; font-size: 1.15rem;">
+                <i class="fa-solid fa-comments"></i> Hỗ Trợ Kỹ Thuật (Group Zalo)
+            </h3>
+            <p style="font-size: 0.88rem; margin-bottom: 1rem; color: var(--text-main); line-height: 1.5;">
+                Quét mã QR dưới đây bằng điện thoại hoặc nhấp vào ảnh để tham gia nhóm Zalo hỗ trợ kỹ thuật giải chạy khi gặp khó khăn:
+            </p>
+            <div style="display: inline-block; padding: 0.6rem; background: #fff; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); margin-bottom: 0.5rem;">
+                <a href="{{ app_configs.get('zalo_group_qr') }}" target="_blank">
+                    <img src="{{ app_configs.get('zalo_group_qr') }}" alt="Zalo Group QR Code" style="max-width: 140px; display: block; border-radius: 4px;">
+                </a>
+            </div>
+        </div>
+        {% endif %}
+
         <div style="margin-top: 2rem; display: flex; gap: 1rem;">
             <a href="/" class="btn btn-primary" style="flex: 1; text-align: center; padding: 0.7rem; font-size: 0.95rem; line-height: 1.6;">
                 <i class="fa-solid fa-house"></i> Quay Về Trang Chủ
