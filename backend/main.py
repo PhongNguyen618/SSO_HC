@@ -1530,7 +1530,8 @@ def register_athlete(
                         "already_exists": False,
                         "needs_strava_auth": False,
                         "auth_url": "",
-                        "athlete_id": exists.id
+                        "athlete_id": exists.id,
+                        "athlete_name": exists.full_name
                     }
                 )
             except Exception as e:

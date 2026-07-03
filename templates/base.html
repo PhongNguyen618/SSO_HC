@@ -600,6 +600,81 @@
         });
     </script>
 
+    <!-- Floating Quick Access Bar -->
+    <div id="quickAccessBar" style="display: none; position: fixed; bottom: 0; left: 0; right: 0; z-index: 1000; background: rgba(10, 8, 20, 0.92); backdrop-filter: blur(20px); border-top: 1px solid rgba(143, 205, 240, 0.25); padding: 0.6rem 1rem; box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4); animation: slideUpBar 0.4s ease;">
+        <div style="max-width: 900px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 0.6rem; flex: 1; min-width: 0;">
+                <div id="quickAccessAvatar" style="width: 32px; height: 32px; border-radius: 50%; background: var(--primary-gradient); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.85rem; color: #0a0814; flex-shrink: 0;"></div>
+                <div style="min-width: 0;">
+                    <span style="font-size: 0.78rem; color: var(--text-muted); display: block; line-height: 1;">Xin chào</span>
+                    <span id="quickAccessName" style="font-size: 0.92rem; color: var(--text-main); font-weight: 600; font-family: 'Outfit', sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; max-width: 200px;"></span>
+                </div>
+            </div>
+            <div style="display: flex; gap: 0.5rem; flex-shrink: 0;">
+                <a id="quickAccessProfileBtn" href="#" style="background: var(--primary-gradient); color: #0a0814; padding: 0.4rem 0.8rem; border-radius: 20px; font-size: 0.8rem; font-weight: 700; text-decoration: none; display: inline-flex; align-items: center; gap: 0.3rem; transition: all 0.3s ease;">
+                    <i class="fa-solid fa-user"></i> Hồ sơ
+                </a>
+                <button onclick="clearQuickAccess()" style="background: none; border: 1px solid rgba(255,255,255,0.15); color: var(--text-muted); padding: 0.4rem 0.5rem; border-radius: 20px; font-size: 0.7rem; cursor: pointer; transition: all 0.3s ease;" title="Đăng xuất phiên truy cập nhanh">
+                    <i class="fa-solid fa-right-from-bracket"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+    <style>
+        @keyframes slideUpBar { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        #quickAccessBar a:hover { box-shadow: 0 0 12px rgba(143, 205, 240, 0.4); transform: scale(1.05); }
+        #quickAccessBar button:hover { border-color: rgba(255,100,100,0.5); color: #ff6b6b; }
+        /* Thêm padding-bottom cho body để tránh nội dung bị che bởi floating bar */
+        body.has-quick-access { padding-bottom: 60px; }
+    </style>
+    <script>
+        function initQuickAccess() {
+            const athleteId = localStorage.getItem('sso_athlete_id');
+            const athleteName = localStorage.getItem('sso_athlete_name');
+            if (!athleteId || !athleteName) return;
+
+            const bar = document.getElementById('quickAccessBar');
+            const nameEl = document.getElementById('quickAccessName');
+            const avatarEl = document.getElementById('quickAccessAvatar');
+            const profileBtn = document.getElementById('quickAccessProfileBtn');
+
+            nameEl.textContent = athleteName;
+            avatarEl.textContent = athleteName.charAt(0).toUpperCase();
+            profileBtn.href = '/profile/' + athleteId;
+            bar.style.display = 'block';
+            document.body.classList.add('has-quick-access');
+
+            // Tự động highlight hàng VĐV trên BXH (nếu đang ở trang chủ)
+            setTimeout(() => {
+                const rows = document.querySelectorAll('tr[data-athlete-id]');
+                rows.forEach(row => {
+                    if (row.getAttribute('data-athlete-id') === athleteId) {
+                        row.style.background = 'rgba(143, 205, 240, 0.08)';
+                        row.style.borderLeft = '3px solid #8fcdf0';
+                        row.style.boxShadow = '0 0 10px rgba(143, 205, 240, 0.1)';
+                    }
+                });
+            }, 300);
+        }
+
+        function clearQuickAccess() {
+            localStorage.removeItem('sso_athlete_id');
+            localStorage.removeItem('sso_athlete_name');
+            localStorage.removeItem('sso_strava_linked');
+            const bar = document.getElementById('quickAccessBar');
+            bar.style.display = 'none';
+            document.body.classList.remove('has-quick-access');
+            // Bỏ highlight hàng VĐV trên BXH
+            document.querySelectorAll('tr[data-athlete-id]').forEach(row => {
+                row.style.background = '';
+                row.style.borderLeft = '';
+                row.style.boxShadow = '';
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', initQuickAccess);
+    </script>
+
     {% block scripts %}{% endblock %}
 </body>
 </html>

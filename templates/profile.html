@@ -180,6 +180,12 @@
 {% endblock %}
 
 {% block content %}
+<!-- Lưu session VĐV vào localStorage khi truy cập trang cá nhân -->
+<script>
+    localStorage.setItem('sso_athlete_id', '{{ athlete.id }}');
+    localStorage.setItem('sso_athlete_name', '{{ athlete.full_name }}');
+    localStorage.setItem('sso_strava_linked', '{{ "true" if athlete.strava_refresh_token else "false" }}');
+</script>
 <!-- Back button -->
 <a href="/?event_id={{ selected_event_id or '' }}" class="btn btn-secondary btn-sm" style="margin-bottom: 1.5rem; display: inline-flex; align-items: center; gap: 0.4rem;">
     <i class="fa-solid fa-arrow-left"></i> Quay lại Bảng xếp hạng

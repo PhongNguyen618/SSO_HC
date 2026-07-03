@@ -62,6 +62,7 @@
         {% if athlete_id %}
         <script>
             localStorage.setItem('sso_athlete_id', '{{ athlete_id }}');
+            localStorage.setItem('sso_athlete_name', '{{ athlete_name | default("") }}');
             localStorage.setItem('sso_strava_linked', '{{ "false" if needs_strava_auth else "true" }}');
         </script>
         {% endif %}
