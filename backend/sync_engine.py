@@ -875,6 +875,14 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
                         print(f"Sync Engine: Tu dong lui ngay hoat dong cua {athlete_name_raw} ('{name}') tu {gmt7_now.strftime('%Y-%m-%d')} ve {yesterday_str} "
                               f"do {reason}, ngay hom truoc co he so nhan cao hon ({mult_yesterday} > {mult_today}) va quet truoc {grace_hours}h.")
 
+        # Rất quan trọng: Chỉ lưu các hoạt động diễn ra trong khoảng thời gian diễn ra giải đấu (từ start_date đến end_date)
+        if event.start_date and act_date_str < event.start_date:
+            print(f"Sync Engine: Skip '{name}' of {athlete_name_raw} - activity date {act_date_str} is before event start date {event.start_date}")
+            continue
+        if event.end_date and act_date_str > event.end_date:
+            print(f"Sync Engine: Skip '{name}' of {athlete_name_raw} - activity date {act_date_str} is after event end date {event.end_date}")
+            continue
+
         # Sử dụng ID số chuẩn kết hợp event_id từ Personal API nếu có, ngược lại tạo mã băm cho Club Scraper
         original_id = act.get("id")
         if original_id:
@@ -1528,6 +1536,12 @@ def sync_single_athlete_all_events(db: Session, athlete):
                     act_time_str = start_date_local[11:16]
             else:
                 act_date_str = start_date
+                
+            # Rất quan trọng: Chỉ lưu các hoạt động diễn ra trong khoảng thời gian diễn ra giải đấu (từ start_date đến end_date)
+            if event.start_date and act_date_str < event.start_date:
+                continue
+            if event.end_date and act_date_str > event.end_date:
+                continue
                 
             original_id = act.get("id")
             act_id = f"{original_id}_{event_id}" if original_id else f"{athlete.full_name}_{act_date_str}"

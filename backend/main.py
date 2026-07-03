@@ -3093,10 +3093,25 @@ def cleanup_old_numeric_ids_endpoint(request: Request, db: Session = Depends(get
         
     try:
         to_delete = []
+        
+        # 1. Tìm các hoạt động dùng ID số cũ (từ đợt quét lỗi trước)
         all_acts = db.query(Activity).all()
         for act in all_acts:
-            # Nếu ID là số thuần túy (không chứa dấu gạch dưới '_' và không phải chuỗi hash 64 ký tự)
             if act.id.isdigit() and len(act.id) < 25:
+                to_delete.append(act.id)
+                
+        # 2. Tìm các hoạt động nằm ngoài khoảng thời gian diễn ra của giải đấu đang hoạt động
+        out_of_bounds_acts = db.query(Activity).join(
+            CompetitionEvent,
+            Activity.event_id == CompetitionEvent.id
+        ).filter(
+            CompetitionEvent.is_active == True,
+            (Activity.activity_date < CompetitionEvent.start_date) |
+            ((CompetitionEvent.end_date != None) & (Activity.activity_date > CompetitionEvent.end_date))
+        ).all()
+        
+        for act in out_of_bounds_acts:
+            if act.id not in to_delete:
                 to_delete.append(act.id)
                 
         if to_delete:
@@ -3133,16 +3148,16 @@ def cleanup_old_numeric_ids_endpoint(request: Request, db: Session = Depends(get
                             "kcal_burned_raw": act_item.kcal_burned_raw,
                             "multiplier": act_item.multiplier,
                             "backup_time": datetime.utcnow().isoformat(),
-                            "reason": "Dọn dẹp ID số thuần túy của code cũ qua nút Admin"
+                            "reason": "Dọn dẹp ID số cũ hoặc ngoài khoảng thời gian giải đấu"
                         }
                         f.write(json.dumps(act_dict, ensure_ascii=False) + "\n")
             
-            # Xóa các hoạt động ID số cũ khỏi DB
+            # Xóa các hoạt động khỏi DB
             db.query(Activity).filter(Activity.id.in_(to_delete)).delete(synchronize_session=False)
             db.commit()
-            return JSONResponse(content={"status": "success", "message": f"Đã dọn dẹp và sao lưu thành công {len(to_delete)} hoạt động dùng ID số cũ."})
+            return JSONResponse(content={"status": "success", "message": f"Đã dọn dẹp và sao lưu thành công {len(to_delete)} hoạt động (ID số cũ hoặc ngoài khoảng thời gian giải)."})
         else:
-            return JSONResponse(content={"status": "success", "message": "Không có hoạt động nào dùng ID số cũ cần dọn dẹp."})
+            return JSONResponse(content={"status": "success", "message": "Không phát hiện hoạt động rác hoặc sai ngày nào cần dọn dẹp."})
             
     except Exception as e:
         db.rollback()

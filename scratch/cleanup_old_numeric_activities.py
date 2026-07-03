@@ -7,14 +7,28 @@ from backend.database import SessionLocal, Activity
 
 def cleanup_old_numeric_ids():
     db = SessionLocal()
+    from backend.database import CompetitionEvent
     to_delete = []
     
     try:
-        # Lấy tất cả hoạt động
+        # 1. Lấy tất cả hoạt động dùng ID số cũ
         all_acts = db.query(Activity).all()
         for act in all_acts:
-            # Nếu ID là số thuần túy (không chứa dấu gạch dưới '_' và không phải chuỗi hash 64 ký tự)
             if act.id.isdigit() and len(act.id) < 25:
+                to_delete.append(act.id)
+                
+        # 2. Tìm các hoạt động nằm ngoài khoảng thời gian giải đấu đang hoạt động
+        out_of_bounds_acts = db.query(Activity).join(
+            CompetitionEvent,
+            Activity.event_id == CompetitionEvent.id
+        ).filter(
+            CompetitionEvent.is_active == True,
+            (Activity.activity_date < CompetitionEvent.start_date) |
+            ((CompetitionEvent.end_date != None) & (Activity.activity_date > CompetitionEvent.end_date))
+        ).all()
+        
+        for act in out_of_bounds_acts:
+            if act.id not in to_delete:
                 to_delete.append(act.id)
                 
         if to_delete:
@@ -49,16 +63,16 @@ def cleanup_old_numeric_ids():
                             "kcal_burned_raw": act.kcal_burned_raw,
                             "multiplier": act.multiplier,
                             "backup_time": "2026-07-03T13:45:00Z",
-                            "reason": "Don dep ID so thuan tuy cua code loi cu de nap lai composite ID"
+                            "reason": "Don dep ID so cu hoac hoat dong ngoai khoang thoi gian giai dau"
                         }
                         f.write(json.dumps(act_dict, ensure_ascii=False) + "\n")
             
-            # Xóa các hoạt động ID số cũ khỏi DB
+            # Xóa các hoạt động khỏi DB
             db.query(Activity).filter(Activity.id.in_(to_delete)).delete(synchronize_session=False)
             db.commit()
-            print(f"Đã dọn dẹp thành công {len(to_delete)} hoạt động dùng ID số cũ.")
+            print(f"Đã dọn dẹp thành công {len(to_delete)} hoạt động dùng ID số cũ hoặc ngoài khoảng thời gian giải.")
         else:
-            print("Không có hoạt động nào dùng ID số cũ cần dọn dẹp.")
+            print("Không có hoạt động rác hoặc ngoài ngày diễn ra giải cần dọn dẹp.")
             
     except Exception as e:
         db.rollback()
