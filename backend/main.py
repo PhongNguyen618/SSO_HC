@@ -2288,6 +2288,10 @@ async def update_configs(
     strava_cookie: str = Form(""),
     user_auth_banner_show: str = Form("false"),
     user_auth_banner_text: str = Form(""),
+    user_auth_popup_show: str = Form("true"),
+    user_auth_popup_title: str = Form(""),
+    user_auth_popup_desc: str = Form(""),
+    user_auth_popup_cooldown: str = Form("12"),
     rules_title: str = Form(...),
     rules_version: str = Form(...),
     rules_description: str = Form(...),
@@ -2341,6 +2345,10 @@ async def update_configs(
         update_config(db, "strava_cookie", strava_cookie.strip())
         update_config(db, "user_auth_banner_show", user_auth_banner_show)
         update_config(db, "user_auth_banner_text", user_auth_banner_text.strip())
+        update_config(db, "user_auth_popup_show", user_auth_popup_show)
+        update_config(db, "user_auth_popup_title", user_auth_popup_title.strip())
+        update_config(db, "user_auth_popup_desc", user_auth_popup_desc.strip())
+        update_config(db, "user_auth_popup_cooldown", user_auth_popup_cooldown)
         
         
         

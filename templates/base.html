@@ -416,10 +416,10 @@
                 <i class="fa-brands fa-strava"></i>
             </div>
             <h3 style="font-family: 'Outfit'; color: #ff5e36; font-size: 1.35rem; margin-bottom: 0.8rem; font-weight: 700;">
-                KẾT NỐI STRAVA CỦA BẠN!
+                {{ configs.get("user_auth_popup_title", "KẾT NỐI STRAVA CỦA BẠN!") }}
             </h3>
-            <p style="font-size: 0.92rem; color: var(--text-main); line-height: 1.6; margin-bottom: 1.8rem; text-align: left;">
-                Chào bạn! Hệ thống nhận thấy bạn **chưa hoàn tất liên kết Strava cá nhân**. Hãy liên kết ngay để các hoạt động chạy bộ/đi bộ được tự động ghi nhận chính xác 100% lên bảng thành tích.
+            <p style="font-size: 0.92rem; color: var(--text-main); line-height: 1.6; margin-bottom: 1.8rem; text-align: left; white-space: pre-line;">
+                {{ configs.get("user_auth_popup_desc", "Chào bạn! Hệ thống nhận thấy bạn chưa hoàn tất liên kết Strava cá nhân. Hãy liên kết ngay để các hoạt động chạy bộ/đi bộ được tự động ghi nhận chính xác 100% lên bảng thành tích.") }}
             </p>
             <div style="display: flex; flex-direction: column; gap: 0.8rem;">
                 <a id="smartReminderAuthBtn" href="#" class="btn btn-primary" style="background: linear-gradient(135deg, #ff5e36 0%, #ff9a3c 100%); border: none; padding: 0.8rem; font-weight: 700; border-radius: 10px; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; color: #fff; line-height: 1.5; font-size: 0.95rem;">
@@ -526,8 +526,9 @@
                 document.body.style.overflow = '';
             }
             if (setCooldown) {
-                // Lưu thời gian cooldown 12 tiếng
-                localStorage.setItem('sso_reminder_cooldown', (Date.now() + 12 * 60 * 60 * 1000).toString());
+                // Đọc thời gian cooldown từ cấu hình DB (tính bằng giờ, mặc định là 12)
+                const cooldownHours = parseFloat('{{ configs.get("user_auth_popup_cooldown", "12") }}') || 12;
+                localStorage.setItem('sso_reminder_cooldown', (Date.now() + cooldownHours * 60 * 60 * 1000).toString());
             }
         }
 
@@ -538,6 +539,10 @@
             const isRegisterPage = window.location.pathname === '/register';
             
             if (isRulesPage || isAdminPage || isRegisterPage) return;
+            
+            // Kiểm tra cấu hình bật/tắt popup nhắc nhở
+            const isPopupEnabled = '{{ configs.get("user_auth_popup_show", "true") }}' === 'true';
+            if (!isPopupEnabled) return;
             
             const athleteId = localStorage.getItem('sso_athlete_id');
             const isLinkedLocal = localStorage.getItem('sso_strava_linked');

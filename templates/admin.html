@@ -337,8 +337,40 @@
                             </select>
                         </div>
                         <div class="form-group">
-                            <label for="user_auth_banner_text">Nội dung thông báo hiển thị</label>
+                            <label for="user_auth_banner_text">Nội dung thông báo hiển thị (Chạy chữ)</label>
                             <textarea id="user_auth_banner_text" name="user_auth_banner_text" class="form-control" rows="2" placeholder="Ví dụ: Chú ý: Các VĐV chưa liên kết Strava vui lòng kết nối tài khoản ngay!" style="background: rgba(10, 8, 20, 0.8); color: var(--text-main); border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; padding: 0.5rem; width: 100%; resize: vertical; font-family: inherit;">{{ configs.get("user_auth_banner_text", "⚠️ Chú ý: Các VĐV chưa liên kết Strava vui lòng click vào đây để kết nối tài khoản ngay!") }}</textarea>
+                        </div>
+                        
+                        <!-- Cấu hình Popup Nhắc Nhở Thông Minh -->
+                        <div style="border-top: 1px solid rgba(255,255,255,0.08); margin-top: 1.5rem; padding-top: 1.2rem;">
+                            <h4 style="font-family: 'Outfit'; color: var(--color-orange); margin-bottom: 1rem; font-size: 1rem;"><i class="fa-solid fa-window-restore"></i> Cấu hình Popup Nhắc Nhở Thông Minh</h4>
+                            <div class="form-group">
+                                <label for="user_auth_popup_show">Tự động hiện popup to nhắc nhở VĐV chưa liên kết</label>
+                                <select id="user_auth_popup_show" name="user_auth_popup_show" class="form-control" style="background: rgba(10, 8, 20, 0.8); color: var(--text-main); border: 1px solid rgba(255,255,255,0.15); height: 38px; border-radius: 6px; padding: 0 0.5rem; width: 100%;">
+                                    <option value="true" {% if configs.get("user_auth_popup_show") == "true" %}selected{% endif %}>Bật - Hiện popup màu cam nổi bật</option>
+                                    <option value="false" {% if configs.get("user_auth_popup_show") != "true" %}selected{% endif %}>Tắt - Ẩn popup nhắc nhở</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="user_auth_popup_title">Tiêu đề của Popup</label>
+                                <input type="text" id="user_auth_popup_title" name="user_auth_popup_title" class="form-control" value="{{ configs.get('user_auth_popup_title', 'KẾT NỐI STRAVA CỦA BẠN!') }}" style="background: rgba(10, 8, 20, 0.8); color: var(--text-main); border: 1px solid rgba(255,255,255,0.15); height: 38px; border-radius: 6px; padding: 0 0.5rem; width: 100%;">
+                            </div>
+                            <div class="form-group">
+                                <label for="user_auth_popup_desc">Nội dung mô tả chi tiết của Popup</label>
+                                <textarea id="user_auth_popup_desc" name="user_auth_popup_desc" class="form-control" rows="3" style="background: rgba(10, 8, 20, 0.8); color: var(--text-main); border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; padding: 0.5rem; width: 100%; resize: vertical; font-family: inherit;">{{ configs.get("user_auth_popup_desc", "Chào bạn! Hệ thống nhận thấy bạn chưa hoàn tất liên kết Strava cá nhân. Hãy liên kết ngay để các hoạt động chạy bộ/đi bộ được tự động ghi nhận chính xác 100% lên bảng thành tích.") }}</textarea>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label for="user_auth_popup_cooldown">Thời gian chờ hiện lại (nếu bấm "Nhắc tôi sau")</label>
+                                <select id="user_auth_popup_cooldown" name="user_auth_popup_cooldown" class="form-control" style="background: rgba(10, 8, 20, 0.8); color: var(--text-main); border: 1px solid rgba(255,255,255,0.15); height: 38px; border-radius: 6px; padding: 0 0.5rem; width: 100%;">
+                                    <option value="1" {% if configs.get("user_auth_popup_cooldown") == "1" %}selected{% endif %}>1 tiếng</option>
+                                    <option value="3" {% if configs.get("user_auth_popup_cooldown") == "3" %}selected{% endif %}>3 tiếng</option>
+                                    <option value="6" {% if configs.get("user_auth_popup_cooldown") == "6" %}selected{% endif %}>6 tiếng</option>
+                                    <option value="12" {% if configs.get("user_auth_popup_cooldown") == "12" or not configs.get("user_auth_popup_cooldown") %}selected{% endif %}>12 tiếng (Mặc định)</option>
+                                    <option value="24" {% if configs.get("user_auth_popup_cooldown") == "24" %}selected{% endif %}>24 tiếng (1 ngày)</option>
+                                    <option value="48" {% if configs.get("user_auth_popup_cooldown") == "48" %}selected{% endif %}>48 tiếng (2 ngày)</option>
+                                    <option value="168" {% if configs.get("user_auth_popup_cooldown") == "168" %}selected{% endif %}>168 tiếng (1 tuần)</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
 
