@@ -527,6 +527,7 @@ def sync_athlete_activities_api(db, athlete, access_token) -> list:
                     "firstname": athlete.strava_name.split(",")[0].strip() if athlete.strava_name else athlete.full_name,
                     "lastname": ""
                 },
+                "id": str(ra.get("id")) if ra.get("id") else None,
                 "name": ra.get("name", "Hoạt động Strava"),
                 "distance": dist_m,
                 "moving_time": mov_s,
@@ -575,7 +576,67 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
             u_token = refresh_user_strava_token(db, ath, configs)
             if u_token:
                 ath_acts = sync_athlete_activities_api(db, ath, u_token)
-                user_api_activities.extend(ath_acts)
+                if ath_acts is not None:
+                    user_api_activities.extend(ath_acts)
+                    
+                    # Tìm và dọn dẹp các hoạt động cào web cũ (ID dài đúng 64 ký tự) của VĐV này
+                    # từ ngày bắt đầu giải chạy để thay thế hoàn toàn bằng dữ liệu API cá nhân
+                    try:
+                        from sqlalchemy import func as sa_func
+                        import json
+                        import os
+                        
+                        start_date = event.start_date if event.start_date else "2026-06-16"
+                        club_acts = db.query(Activity).filter(
+                            Activity.athlete_id == ath.id,
+                            Activity.event_id == event_id,
+                            Activity.activity_date >= start_date,
+                            sa_func.length(Activity.id) == 64
+                        ).all()
+                        
+                        if club_acts:
+                            backup_file = "static/uploads/deleted_activities_backup.jsonl"
+                            os.makedirs("static/uploads", exist_ok=True)
+                            with open(backup_file, "a", encoding="utf-8") as f:
+                                for act in club_acts:
+                                    act_dict = {
+                                        "id": act.id,
+                                        "athlete_id": act.athlete_id,
+                                        "event_id": act.event_id,
+                                        "athlete_name_raw": act.athlete_name_raw,
+                                        "name": act.name,
+                                        "type": act.type,
+                                        "sport_type": act.sport_type,
+                                        "distance_km": act.distance_km,
+                                        "moving_time_min": act.moving_time_min,
+                                        "elapsed_time_min": act.elapsed_time_min,
+                                        "pace_min_km": act.pace_min_km,
+                                        "elevation_gain_m": act.elevation_gain_m,
+                                        "activity_date": act.activity_date,
+                                        "activity_time": act.activity_time,
+                                        "kcal_burned": act.kcal_burned,
+                                        "mets_value": act.mets_value,
+                                        "is_suspicious": act.is_suspicious,
+                                        "suspicion_reason": act.suspicion_reason,
+                                        "distance_km_raw": act.distance_km_raw,
+                                        "kcal_burned_raw": act.kcal_burned_raw,
+                                        "multiplier": act.multiplier,
+                                        "backup_time": datetime.utcnow().isoformat(),
+                                        "reason": f"Nang cap len API ca nhan cho {ath.full_name}"
+                                    }
+                                    f.write(json.dumps(act_dict, ensure_ascii=False) + "\n")
+                                    
+                            # Xóa khỏi DB để chuẩn bị ghi đè dữ liệu API mới
+                            db.query(Activity).filter(
+                                Activity.athlete_id == ath.id,
+                                Activity.event_id == event_id,
+                                Activity.activity_date >= start_date,
+                                sa_func.length(Activity.id) == 64
+                            ).delete(synchronize_session=False)
+                            db.commit()
+                            print(f"Sync Engine: Backed up and cleared {len(club_acts)} old Club-sourced activities for authorized athlete {ath.full_name} since {start_date}.")
+                    except Exception as clean_err:
+                        print(f"Sync Engine: Error clearing old Club activities for {ath.full_name}: {clean_err}")
             else:
                 print(f"Sync Engine: Cannot refresh token for {ath.full_name}, skipping personal API sync.")
                 
@@ -708,7 +769,11 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
                 
         athlete_id = athlete.id if athlete else None
 
-        # --- Kiểm tra trùng lặp sớm (Early Dedup) cho Club API ---
+        # Nếu hoạt động này đến từ Club/Scraper (không có id gốc từ Personal API)
+        # nhưng VĐV đã ủy quyền API cá nhân, ta bỏ qua không xử lý hoạt động Club này.
+        is_from_club = not act.get("id")
+        if is_from_club and athlete and athlete.strava_refresh_token:
+            continue
         # API Strava Club Activities KHÔNG trả về start_date_local (ngày giờ thực tế).
         # Nếu hoạt động đã được sync ở lần trước (với ngày đúng), phải phát hiện
         # và bỏ qua TRƯỚC KHI thuật toán grace period gán nhầm ngày.
@@ -790,9 +855,12 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
                         print(f"Sync Engine: Tu dong lui ngay hoat dong cua {athlete_name_raw} ('{name}') tu {gmt7_now.strftime('%Y-%m-%d')} ve {yesterday_str} "
                               f"do {reason}, ngay hom truoc co he so nhan cao hon ({mult_yesterday} > {mult_today}) va quet truoc {grace_hours}h.")
 
-        # Tạo mã định danh duy nhất bao gồm event_id và ngày hoạt động thực tế để chống trùng lặp
-        unique_str = f"{athlete_name_raw}_{act_date_str}_{name}_{act_type}_{distance_km}_{moving_time_min}_{elapsed_time_min}_{elevation_gain_m}_{event_id}"
-        act_id = hashlib.sha256(unique_str.encode("utf-8")).hexdigest()
+        # Sử dụng ID số chuẩn từ Personal API nếu có, ngược lại tạo mã băm cho Club Scraper
+        act_id = act.get("id")
+        if not act_id:
+            # Tạo mã định danh duy nhất bao gồm event_id và ngày hoạt động thực tế để chống trùng lặp
+            unique_str = f"{athlete_name_raw}_{act_date_str}_{name}_{act_type}_{distance_km}_{moving_time_min}_{elapsed_time_min}_{elevation_gain_m}_{event_id}"
+            act_id = hashlib.sha256(unique_str.encode("utf-8")).hexdigest()
         
         # Lọc trùng lặp in-memory trong cùng một lượt tải từ Strava
         if act_id in seen_ids:
