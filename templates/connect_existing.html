@@ -57,6 +57,26 @@
             </div>
         </form>
 
+        <!-- QR Zalo Hỗ Trợ cho VĐV đã đăng ký -->
+        {% if configs.get("zalo_group_qr") %}
+        <div style="margin-top: 2rem; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 1.5rem; text-align: center;">
+            <h4 style="font-family: 'Outfit', sans-serif; color: #0068ff; margin-bottom: 0.8rem; font-size: 1.05rem;">
+                <i class="fa-solid fa-comments"></i> Tham Gia Nhóm Zalo Hỗ Trợ
+            </h4>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem; line-height: 1.5;">
+                Quét mã QR bên dưới hoặc nhấp vào ảnh để vào nhóm Zalo hỗ trợ kỹ thuật khi gặp vấn đề trong quá trình liên kết hoặc tham gia giải chạy:
+            </p>
+            <div style="display: inline-block; padding: 0.6rem; background: #fff; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+                <a href="{{ configs.get('zalo_group_qr') }}" target="_blank">
+                    <img src="{{ configs.get('zalo_group_qr') }}" alt="Zalo Group QR" style="width: 140px; height: 140px; object-fit: contain; border-radius: 4px; display: block;">
+                </a>
+            </div>
+            <span style="display: block; font-size: 0.75rem; color: var(--text-muted); margin-top: 0.5rem;">
+                <i class="fa-solid fa-circle-info"></i> Nhóm Zalo để hỗ trợ kỹ thuật & cập nhật thông tin giải đấu
+            </span>
+        </div>
+        {% endif %}
+
         <style>
         .autocomplete-container {
             position: relative;
