@@ -541,7 +541,7 @@
                                 {{ ath.full_name[:1] }}
                             </div>
                             {% endif %}
-                            <a href="/profile/{{ ath.id }}" style="color: var(--text-main); text-decoration: none; font-weight: 600;" class="hover-underline">
+                            <a href="/profile/{{ ath.id }}?event_id={{ selected_event_id or '' }}" style="color: var(--text-main); text-decoration: none; font-weight: 600;" class="hover-underline">
                                 {{ ath.full_name }}
                             </a>
                         </td>
@@ -625,7 +625,7 @@
                                        </span>
                                    </span>
                                </td>
-                               <td><a href="/profile/{{ ath.id }}" style="color: var(--text-main); font-weight: 600; text-decoration: none;">{{ ath.full_name }}</a></td>
+                               <td><a href="/profile/{{ ath.id }}?event_id={{ selected_event_id or '' }}" style="color: var(--text-main); font-weight: 600; text-decoration: none;">{{ ath.full_name }}</a></td>
                                <td style="text-align: right;" class="col-sport-dist">{{ ath.total_dist }} km</td>
                                <td style="text-align: right; color: var(--text-muted);" class="col-sport-time">{{ ath.total_time }} giờ</td>
                                <td style="text-align: right; color: var(--color-orange); font-weight: 600;" class="col-sport-kcal">{{ "{:,}".format(ath.total_kcal).replace(".", "_").replace(",", ".").replace("_", ",") }}</td>
@@ -667,7 +667,7 @@
                                        </span>
                                    </span>
                                </td>
-                               <td><a href="/profile/{{ ath.id }}" style="color: var(--text-main); font-weight: 600; text-decoration: none;">{{ ath.full_name }}</a></td>
+                               <td><a href="/profile/{{ ath.id }}?event_id={{ selected_event_id or '' }}" style="color: var(--text-main); font-weight: 600; text-decoration: none;">{{ ath.full_name }}</a></td>
                                <td style="text-align: right;" class="col-sport-dist">{{ ath.total_dist }} km</td>
                                <td style="text-align: right; color: var(--text-muted);" class="col-sport-time">{{ ath.total_time }} giờ</td>
                                <td style="text-align: right; color: var(--color-orange); font-weight: 600;" class="col-sport-kcal">{{ "{:,}".format(ath.total_kcal).replace(".", "_").replace(",", ".").replace("_", ",") }}</td>
@@ -776,7 +776,7 @@
                                             </span>
                                         </span>
                                     </td>
-                                    <td><a href="/profile/{{ ath.id }}" style="color: var(--text-main); font-weight: 600; text-decoration: none;">{{ ath.full_name }}</a></td>
+                                    <td><a href="/profile/{{ ath.id }}?event_id={{ selected_event_id or '' }}" style="color: var(--text-main); font-weight: 600; text-decoration: none;">{{ ath.full_name }}</a></td>
                                     <td style="text-align: right;" class="col-sport-dist">{{ ath.total_dist }} km</td>
                                     <td style="text-align: right; color: var(--text-muted);" class="col-sport-time">{{ ath.total_time }} giờ</td>
                                     <td style="text-align: right; color: var(--color-orange); font-weight: 600;" class="col-sport-kcal">{{ "{:,}".format(ath.total_kcal).replace(",", ".") }}</td>
@@ -824,7 +824,7 @@
                                             </span>
                                         </span>
                                     </td>
-                                    <td><a href="/profile/{{ ath.id }}" style="color: var(--text-main); font-weight: 600; text-decoration: none;">{{ ath.full_name }}</a></td>
+                                    <td><a href="/profile/{{ ath.id }}?event_id={{ selected_event_id or '' }}" style="color: var(--text-main); font-weight: 600; text-decoration: none;">{{ ath.full_name }}</a></td>
                                     <td style="text-align: right;" class="col-sport-dist">{{ ath.total_dist }} km</td>
                                     <td style="text-align: right; color: var(--text-muted);" class="col-sport-time">{{ ath.total_time }} giờ</td>
                                     <td style="text-align: right; color: var(--color-orange); font-weight: 600;" class="col-sport-kcal">{{ "{:,}".format(ath.total_kcal).replace(",", ".") }}</td>
@@ -1010,7 +1010,7 @@
                     <span class="athlete-dept">${a.dept}</span>
                 `;
                 item.addEventListener('click', () => {
-                    window.location.href = `/profile/${a.id}`;
+                    window.location.href = `/profile/${a.id}?event_id={{ selected_event_id or '' }}`;
                 });
                 searchResults.appendChild(item);
             });

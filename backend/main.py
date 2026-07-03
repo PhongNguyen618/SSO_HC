@@ -1619,7 +1619,10 @@ def profile_page(
     registered_events = db.query(CompetitionEvent).join(
         CompetitionRegistration,
         CompetitionEvent.id == CompetitionRegistration.event_id
-    ).filter(CompetitionRegistration.athlete_id == athlete.id).order_by(CompetitionEvent.id).all()
+    ).filter(CompetitionRegistration.athlete_id == athlete.id).all()
+    
+    # Sắp xếp danh sách giải đấu theo ID giảm dần để hiển thị tab mới nhất trước
+    registered_events = sorted(registered_events, key=lambda x: x.id, reverse=True)
     
     # Parse event_id safely to avoid 422 errors for empty queries like event_id=
     parsed_event_id = None
@@ -1640,12 +1643,33 @@ def profile_page(
             selected_event = db.query(CompetitionEvent).filter(CompetitionEvent.id == parsed_event_id).first()
             
     if not selected_event and registered_events:
-        selected_event = registered_events[0]
+        # Ưu tiên chọn:
+        # 1. Các giải đang hoạt động (is_active == True) và ID != 1 (mới), sắp xếp theo ID giảm dần
+        # 2. Giải đang hoạt động ID = 1
+        # 3. Các giải đã đóng, sắp xếp theo ID giảm dần
+        active_new = [e for e in registered_events if e.is_active and e.id != 1]
+        active_default = [e for e in registered_events if e.is_active and e.id == 1]
+        closed_events = [e for e in registered_events if not e.is_active]
         
+        if active_new:
+            selected_event = sorted(active_new, key=lambda x: x.id, reverse=True)[0]
+        elif active_default:
+            selected_event = active_default[0]
+        elif closed_events:
+            selected_event = sorted(closed_events, key=lambda x: x.id, reverse=True)[0]
+        else:
+            selected_event = registered_events[0]
+            
     if not selected_event:
-        # Fallback nếu chưa đăng ký giải nào, lấy giải hoạt động đầu tiên
-        selected_event = db.query(CompetitionEvent).filter(CompetitionEvent.is_active == True).order_by(CompetitionEvent.id).first()
-        
+        # Fallback nếu chưa đăng ký giải nào, lấy giải đang hoạt động mới nhất giống trang chủ
+        active_competitions = db.query(CompetitionEvent).filter(CompetitionEvent.is_active == True).all()
+        if active_competitions:
+            new_active = [c for c in active_competitions if c.id != 1]
+            if new_active:
+                selected_event = sorted(new_active, key=lambda x: x.id, reverse=True)[0]
+            else:
+                selected_event = active_competitions[0]
+                
     selected_event_id = selected_event.id if selected_event else None
 
     # Lấy các giải đấu đang mở mà VĐV chưa đăng ký
