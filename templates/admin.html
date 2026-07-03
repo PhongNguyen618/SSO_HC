@@ -374,6 +374,27 @@
                                     <option value="168" {% if configs.get("user_auth_popup_cooldown") == "168" %}selected{% endif %}>168 tiếng (1 tuần)</option>
                                 </select>
                             </div>
+                            
+                            <div class="form-group" style="margin-top: 1.2rem; margin-bottom: 0;">
+                                <label for="zalo_group_qr_file">Hình ảnh mã QR Group Zalo hỗ trợ (Tùy chọn)</label>
+                                <input type="file" id="zalo_group_qr_file" name="zalo_group_qr_file" accept="image/*" class="form-control" style="background: rgba(10, 8, 20, 0.8); color: var(--text-main); border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; padding: 0.35rem 0.5rem; width: 100%;">
+                                <small style="color: var(--text-muted); font-size: 0.8rem; display: block; margin-top: 0.3rem;">
+                                    Tải lên ảnh QR nhóm Zalo hỗ trợ để VĐV quét tham gia trực tiếp trên popup nhắc nhở.
+                                </small>
+                                <div id="zalo_group_qr_preview_container" style="margin-top: 0.8rem;">
+                                    {% if configs.get("zalo_group_qr") %}
+                                        <div style="border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 0.8rem; display: flex; align-items: center; gap: 1rem; background: rgba(255,255,255,0.01); max-width: 400px;">
+                                            <img src="{{ configs.get('zalo_group_qr') }}" alt="Current Zalo QR" style="max-height: 80px; border-radius: 6px; object-fit: contain; border: 1px solid rgba(255,255,255,0.1); background: white; padding: 2px;">
+                                            <div style="flex: 1;">
+                                                <span style="font-size: 0.8rem; color: var(--color-orange); font-weight: 600; display: block; margin-bottom: 2px;"><i class="fa-solid fa-circle-check"></i> Ảnh QR Zalo hiện tại</span>
+                                                <span style="font-size: 0.72rem; color: var(--text-muted); display: block; word-break: break-all; font-family: monospace;">{{ configs.get('zalo_group_qr') }}</span>
+                                            </div>
+                                        </div>
+                                    {% else %}
+                                        <span style="font-size: 0.8rem; color: var(--text-muted); font-style: italic;"><i class="fa-solid fa-circle-info"></i> Chưa cấu hình ảnh mã QR Group Zalo.</span>
+                                    {% endif %}
+                                </div>
+                            </div>
                         </div>
                     </div>
 

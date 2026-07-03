@@ -376,6 +376,7 @@ def init_db(excel_filepath: str = "TDTT_SSO.xlsx"):
         "user_auth_popup_title": "KẾT NỐI STRAVA CỦA BẠN!",
         "user_auth_popup_desc": "Chào bạn! Hệ thống nhận thấy bạn chưa hoàn tất liên kết Strava cá nhân. Hãy liên kết ngay để các hoạt động chạy bộ/đi bộ được tự động ghi nhận chính xác 100% lên bảng thành tích.",
         "user_auth_popup_cooldown": "12",
+        "zalo_group_qr": "",
         "rules_title": "GIẢI CHẠY BỘ SSO HC",
         "rules_version": "v1.0",
         "rules_description": "Chào mừng các Vận động viên tham gia giải chạy phong trào SSO HC! Giải đấu nhằm khuyến khích tinh thần rèn luyện sức khỏe, nâng cao sức bền và gắn kết tập thể giữa các phòng ban. Các hoạt động được đồng bộ tự động từ tài khoản Strava cá nhân đã liên kết và được quy đổi năng lượng tiêu thụ (KCAL) làm cơ sở xếp hạng thành tích.",

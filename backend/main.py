@@ -2299,6 +2299,7 @@ async def update_configs(
     rules_general_text: str = Form(...),
     banner_file: UploadFile = File(None),
     group_qr_file: UploadFile = File(None),
+    zalo_group_qr_file: UploadFile = File(None),
     rules_banner_mode: str = Form("version"),
     rules_banner_reset_days: str = Form("1"),
     apply_to_event_id: str = Form("active"),
@@ -2457,7 +2458,30 @@ async def update_configs(
                 if target_event:
                     target_event.rules_group_qr = f"/static/uploads/{filename}"
                     
-        pass
+        # Xử lý upload ảnh QR Group Zalo tùy chỉnh
+        if zalo_group_qr_file and zalo_group_qr_file.filename:
+            ext = os.path.splitext(zalo_group_qr_file.filename)[1].lower()
+            if ext in [".png", ".jpg", ".jpeg", ".webp", ".gif"]:
+                filename = f"zalo_group_qr_{int(time.time())}{ext}"
+                upload_dir = "static/uploads"
+                os.makedirs(upload_dir, exist_ok=True)
+                file_path = os.path.join(upload_dir, filename)
+                
+                with open(file_path, "wb") as f:
+                    content = await zalo_group_qr_file.read()
+                    f.write(content)
+                
+                # Xóa file Zalo QR cũ
+                old_zalo_qr = db.query(Config).filter(Config.key == "zalo_group_qr").first()
+                if old_zalo_qr and old_zalo_qr.value:
+                    old_path = old_zalo_qr.value.lstrip("/")
+                    if os.path.exists(old_path) and "static/uploads/" in old_path:
+                        try:
+                            os.remove(old_path)
+                        except Exception as ex:
+                            print(f"Error removing old Zalo QR file: {ex}")
+                            
+                update_config(db, "zalo_group_qr", f"/static/uploads/{filename}")
         
         # Cập nhật quy tắc gian lận
         update_config(db, "rule_run_pace_min", rule_run_pace_min)
