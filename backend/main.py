@@ -2873,6 +2873,13 @@ def exchange_user_token(
             
         db.commit()
         
+        # Đồng bộ và thay thế tức thì dữ liệu cào Club bằng API cá nhân cho VĐV vừa liên kết
+        try:
+            from backend.sync_engine import sync_single_athlete_all_events
+            sync_single_athlete_all_events(db, athlete)
+        except Exception as sync_err:
+            print(f"Error triggering instant sync for athlete {athlete.id}: {sync_err}")
+        
         # Chuyển hướng VĐV về trang cá nhân của họ kèm thông báo thành công
         return RedirectResponse(f"/profile/{athlete.id}?success=Đã liên kết tài khoản Strava thành công!", status_code=303)
     except Exception as e:

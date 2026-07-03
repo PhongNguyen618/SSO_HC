@@ -1404,3 +1404,187 @@ async def import_excel_files(files: list[UploadFile], db: Session, event_id: int
         "skipped_count": skipped_count,
         "errors": errors
     }
+
+def sync_single_athlete_all_events(db: Session, athlete):
+    """
+    Đồng bộ ngay lập tức toàn bộ hoạt động của 1 VĐV vừa mới ủy quyền.
+    Thực hiện dọn dẹp các hoạt động cào Club/Scraper cũ của họ và thay thế bằng dữ liệu API cá nhân.
+    """
+    from backend.database import CompetitionEvent, CompetitionRegistration, Activity
+    from sqlalchemy import func as sa_func
+    import json
+    import os
+    
+    # 1. Tìm các giải đấu đang hoạt động mà VĐV này đã đăng ký
+    registered_events = db.query(CompetitionEvent).join(
+        CompetitionRegistration,
+        CompetitionEvent.id == CompetitionRegistration.event_id
+    ).filter(
+        CompetitionRegistration.athlete_id == athlete.id,
+        CompetitionEvent.is_active == True
+    ).all()
+    
+    if not registered_events:
+        print(f"Sync Single Athlete: {athlete.full_name} is not registered in any active events.")
+        return
+        
+    configs = get_config_dict(db)
+    
+    # 2. Làm mới access token của VĐV
+    u_token = refresh_user_strava_token(db, athlete, configs)
+    if not u_token:
+        print(f"Sync Single Athlete: Cannot refresh token for {athlete.full_name}")
+        return
+        
+    for event in registered_events:
+        event_id = event.id
+        start_date = event.start_date if event.start_date else "2026-06-16"
+        
+        # Gọi API lấy các hoạt động kể cả ngày bắt đầu giải (bị cap mốc tối thiểu 16/06/2026)
+        ath_acts = sync_athlete_activities_api(db, athlete, u_token, start_date)
+        if ath_acts is None:
+            continue
+            
+        print(f"Sync Single Athlete: Found {len(ath_acts)} activities for {athlete.full_name} in event '{event.title}'.")
+        
+        # Dọn dẹp hoạt động cũ (ID 64 ký tự)
+        try:
+            club_acts = db.query(Activity).filter(
+                Activity.athlete_id == athlete.id,
+                Activity.event_id == event_id,
+                Activity.activity_date >= start_date,
+                sa_func.length(Activity.id) == 64
+            ).all()
+            
+            if club_acts:
+                backup_file = "static/uploads/deleted_activities_backup.jsonl"
+                os.makedirs(os.path.dirname(backup_file), exist_ok=True)
+                with open(backup_file, "a", encoding="utf-8") as f:
+                    for act in club_acts:
+                        act_dict = {
+                            "id": act.id,
+                            "athlete_id": act.athlete_id,
+                            "event_id": act.event_id,
+                            "athlete_name_raw": act.athlete_name_raw,
+                            "name": act.name,
+                            "type": act.type,
+                            "sport_type": act.sport_type,
+                            "distance_km": act.distance_km,
+                            "moving_time_min": act.moving_time_min,
+                            "elapsed_time_min": act.elapsed_time_min,
+                            "pace_min_km": act.pace_min_km,
+                            "elevation_gain_m": act.elevation_gain_m,
+                            "activity_date": act.activity_date,
+                            "activity_time": act.activity_time,
+                            "kcal_burned": act.kcal_burned,
+                            "mets_value": act.mets_value,
+                            "is_suspicious": act.is_suspicious,
+                            "suspicion_reason": act.suspicion_reason,
+                            "distance_km_raw": act.distance_km_raw,
+                            "kcal_burned_raw": act.kcal_burned_raw,
+                            "multiplier": act.multiplier,
+                            "backup_time": datetime.utcnow().isoformat(),
+                            "reason": f"Nang cap tuc thi khi vua uy quyen cho {athlete.full_name}"
+                        }
+                        f.write(json.dumps(act_dict, ensure_ascii=False) + "\n")
+                
+                db.query(Activity).filter(
+                    Activity.athlete_id == athlete.id,
+                    Activity.event_id == event_id,
+                    Activity.activity_date >= start_date,
+                    sa_func.length(Activity.id) == 64
+                ).delete(synchronize_session=False)
+                db.commit()
+                print(f"Sync Single Athlete: Cleared {len(club_acts)} old Club acts for {athlete.full_name}.")
+        except Exception as clean_err:
+            print(f"Sync Single Athlete: Error clearing old Club acts: {clean_err}")
+            
+        # Nạp dữ liệu mới vào DB
+        new_count = 0
+        
+        for act in ath_acts:
+            # Lấy thông số
+            name = act.get("name", "Hoạt động Strava")
+            act_type = act.get("type", "Run")
+            sport_type = act.get("sport_type", "Run")
+            distance_m = float(act.get("distance", 0.0))
+            moving_time_s = float(act.get("moving_time", 0.0))
+            elapsed_time_s = float(act.get("elapsed_time", 0.0))
+            elevation_gain_m = float(act.get("total_elevation_gain", 0.0))
+            
+            distance_km = round(distance_m / 1000.0, 2)
+            moving_time_min = round(moving_time_s / 60.0, 1)
+            elapsed_time_min = round(elapsed_time_s / 60.0, 1)
+            
+            pace_min_km = 0.0
+            if distance_km > 0:
+                pace_min_km = round(moving_time_min / distance_km, 2)
+                
+            start_date_local = act.get("start_date_local")
+            act_time_str = None
+            if start_date_local:
+                act_date_str = start_date_local[:10]
+                if len(start_date_local) >= 16:
+                    act_time_str = start_date_local[11:16]
+            else:
+                act_date_str = start_date
+                
+            original_id = act.get("id")
+            act_id = f"{original_id}_{event_id}" if original_id else f"{athlete.full_name}_{act_date_str}"
+            
+            # Kiểm tra xem hoạt động đã có chưa
+            exists = db.query(Activity).filter(Activity.id == act_id).first()
+            if exists:
+                continue
+                
+            # Tính toán METs & KCAL
+            speed_kmh = (distance_km / (moving_time_min / 60.0)) if moving_time_min > 0 else 0.0
+            actual_time_min = elapsed_time_min if moving_time_min < 1.0 else moving_time_min
+            
+            mets_value = get_mets_value(sport_type, speed_kmh, db, distance_km, elevation_gain_m, event_id=event_id)
+            mult = get_multiplier_for_date(act_date_str, event_id, db)
+            kcal_burned = calculate_kcal(mets_value, athlete.weight, actual_time_min, elevation_gain_m, sport_type, multiplier=mult)
+            
+            is_suspicious, suspicion_reason = check_suspicious_activity(
+                sport_type=sport_type,
+                distance_km=distance_km,
+                pace_min_km=pace_min_km,
+                elevation_gain_m=elevation_gain_m,
+                configs=configs
+            )
+            
+            activity_multiplier = get_multiplier_for_date(act_date_str, event_id, db)
+            kcal_burned_raw = round(kcal_burned / activity_multiplier) if activity_multiplier > 0 else kcal_burned
+            
+            new_activity = Activity(
+                id=act_id,
+                athlete_id=athlete.id,
+                event_id=event_id,
+                athlete_name_raw=athlete.full_name,
+                name=name,
+                type=act_type,
+                sport_type=sport_type,
+                distance_km=round(distance_km * activity_multiplier, 2),
+                distance_km_raw=distance_km,
+                moving_time_min=moving_time_min,
+                elapsed_time_min=elapsed_time_min,
+                pace_min_km=pace_min_km,
+                elevation_gain_m=elevation_gain_m,
+                activity_date=act_date_str,
+                activity_time=act_time_str,
+                kcal_burned=kcal_burned,
+                kcal_burned_raw=kcal_burned_raw,
+                mets_value=mets_value,
+                multiplier=activity_multiplier,
+                is_suspicious=is_suspicious,
+                suspicion_reason=suspicion_reason
+            )
+            db.add(new_activity)
+            new_count += 1
+            
+        try:
+            db.commit()
+            print(f"Sync Single Athlete: Saved {new_count} new activities for {athlete.full_name} in event '{event.title}'.")
+        except Exception as e:
+            db.rollback()
+            print(f"Sync Single Athlete: Error saving new activities: {e}")
