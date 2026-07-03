@@ -478,7 +478,7 @@ def refresh_user_strava_token(db, athlete, configs) -> str:
         print(f"Sync Engine: Error refreshing user token for {athlete.full_name}: {e}")
         return None
 
-def sync_athlete_activities_api(db, athlete, access_token) -> list:
+def sync_athlete_activities_api(db, athlete, access_token, start_date_str: str = None) -> list:
     """
     Gọi API Strava cá nhân lấy các hoạt động mới nhất của VĐV.
     """
@@ -488,20 +488,29 @@ def sync_athlete_activities_api(db, athlete, access_token) -> list:
     url = "https://www.strava.com/api/v3/athlete/activities"
     headers = {"Authorization": f"Bearer {access_token}"}
     
-    # Tìm ngày bắt đầu sớm nhất của giải đấu đang hoạt động để lấy hết lịch sử
+    # Tìm ngày bắt đầu để lấy lịch sử hoạt động phù hợp
     after_timestamp = int(time.time()) - 30 * 24 * 60 * 60 # Mặc định 30 ngày trước
-    try:
-        active_event = db.query(CompetitionEvent).filter(CompetitionEvent.is_active == True).order_by(CompetitionEvent.start_date).first()
-        if active_event and active_event.start_date:
+    target_start_date = start_date_str
+    
+    if not target_start_date:
+        try:
+            active_event = db.query(CompetitionEvent).filter(CompetitionEvent.is_active == True).order_by(CompetitionEvent.start_date).first()
+            if active_event:
+                target_start_date = active_event.start_date
+        except Exception as te:
+            print(f"Sync Engine (User API): Error finding earliest active event: {te}")
+            
+    if target_start_date:
+        try:
             # Ví dụ: start_date = "2026-06-16"
-            # Cần lấy đúng 00:00:00 ngày 16/6 theo giờ Việt Nam (GMT+7)
+            # Cần lấy đúng 00:00:00 ngày start_date theo giờ Việt Nam (GMT+7)
             from datetime import timezone
-            dt = datetime.strptime(active_event.start_date, "%Y-%m-%d")
+            dt = datetime.strptime(target_start_date, "%Y-%m-%d")
             tz_vn = timezone(timedelta(hours=7))
             dt_vn = dt.replace(tzinfo=tz_vn)
             after_timestamp = int(dt_vn.timestamp())
-    except Exception as te:
-        print(f"Sync Engine (User API): Error calculating after_timestamp: {te}")
+        except Exception as te:
+            print(f"Sync Engine (User API): Error calculating after_timestamp: {te}")
 
     params = {
         "after": after_timestamp,
@@ -577,7 +586,7 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
             time.sleep(1.5)
             u_token = refresh_user_strava_token(db, ath, configs)
             if u_token:
-                ath_acts = sync_athlete_activities_api(db, ath, u_token)
+                ath_acts = sync_athlete_activities_api(db, ath, u_token, event.start_date)
                 if ath_acts is not None:
                     # Gán cờ để nhận biết đây là hoạt động API cá nhân
                     for a_act in ath_acts:
