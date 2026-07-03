@@ -869,9 +869,11 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
                         print(f"Sync Engine: Tu dong lui ngay hoat dong cua {athlete_name_raw} ('{name}') tu {gmt7_now.strftime('%Y-%m-%d')} ve {yesterday_str} "
                               f"do {reason}, ngay hom truoc co he so nhan cao hon ({mult_yesterday} > {mult_today}) va quet truoc {grace_hours}h.")
 
-        # Sử dụng ID số chuẩn từ Personal API nếu có, ngược lại tạo mã băm cho Club Scraper
-        act_id = act.get("id")
-        if not act_id:
+        # Sử dụng ID số chuẩn kết hợp event_id từ Personal API nếu có, ngược lại tạo mã băm cho Club Scraper
+        original_id = act.get("id")
+        if original_id:
+            act_id = f"{original_id}_{event_id}"
+        else:
             # Tạo mã định danh duy nhất bao gồm event_id và ngày hoạt động thực tế để chống trùng lặp
             unique_str = f"{athlete_name_raw}_{act_date_str}_{name}_{act_type}_{distance_km}_{moving_time_min}_{elapsed_time_min}_{elevation_gain_m}_{event_id}"
             act_id = hashlib.sha256(unique_str.encode("utf-8")).hexdigest()
