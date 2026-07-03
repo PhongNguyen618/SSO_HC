@@ -822,6 +822,7 @@
                             <th>Phòng ban</th>
                             <th style="text-align: right;">Cân nặng</th>
                             <th>Strava Name</th>
+                            <th style="text-align: center; white-space: nowrap;">Kết Nối Strava</th>
                             <th style="text-align: center;">Trạng thái</th>
                             <th style="text-align: center; white-space: nowrap;">Ngày đăng ký</th>
                             <th style="text-align: center;">Hành động</th>
@@ -848,6 +849,17 @@
                                 </td>
                                 <td>
                                     <input type="text" name="strava_name" class="form-control" value="{{ ath.strava_name }}" placeholder="Ví dụ: Tên Mới, Tên Cũ" title="Nếu đổi tên Strava, nhập các tên cách nhau bởi dấu phẩy" style="padding:0.4rem; font-size:0.85rem;" required>
+                                </td>
+                                <td style="text-align: center; vertical-align: middle;">
+                                    {% if ath.strava_refresh_token %}
+                                    <span class="badge" style="background: rgba(255, 94, 54, 0.12); color: #ff5e36; border: 1px solid rgba(255, 94, 54, 0.25); padding: 0.25rem 0.6rem; border-radius: 6px; font-weight: 600; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 0.35rem;" title="VĐV đã cấp quyền OAuth cá nhân, hoạt động được đồng bộ trực tiếp qua API chính xác 100%">
+                                        <i class="fa-brands fa-strava"></i> Đã Liên Kết API
+                                    </span>
+                                    {% else %}
+                                    <span class="badge" style="background: rgba(255, 255, 255, 0.04); color: var(--text-muted); border: 1px solid rgba(255, 255, 255, 0.08); padding: 0.25rem 0.6rem; border-radius: 6px; font-weight: 500; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 0.35rem;" title="Chưa cấp quyền cá nhân. Hệ thống đang đồng bộ hoạt động bằng bộ cào web tự động qua Club">
+                                        <i class="fa-solid fa-cloud"></i> Cào Web (Club)
+                                    </span>
+                                    {% endif %}
                                 </td>
                                 <td style="text-align: center;">
                                     <select name="is_active" class="form-control" style="padding:0.4rem; font-size:0.85rem; width:100px;">
