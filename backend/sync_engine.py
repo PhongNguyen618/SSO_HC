@@ -488,7 +488,24 @@ def sync_athlete_activities_api(db, athlete, access_token) -> list:
     url = "https://www.strava.com/api/v3/athlete/activities"
     headers = {"Authorization": f"Bearer {access_token}"}
     
-    params = {"page": 1, "per_page": 30}
+    # Tìm ngày bắt đầu sớm nhất của giải đấu đang hoạt động để lấy hết lịch sử
+    after_timestamp = int(time.time()) - 30 * 24 * 60 * 60 # Mặc định 30 ngày trước
+    try:
+        active_event = db.query(CompetitionEvent).filter(CompetitionEvent.is_active == True).order_by(CompetitionEvent.start_date).first()
+        if active_event and active_event.start_date:
+            # Ví dụ: start_date = "2026-06-16"
+            dt = datetime.strptime(active_event.start_date, "%Y-%m-%d")
+            # Trừ hao thêm 1 ngày cho chắc chắn múi giờ
+            dt = dt - timedelta(days=1)
+            after_timestamp = int(dt.timestamp())
+    except Exception as te:
+        print(f"Sync Engine (User API): Error calculating after_timestamp: {te}")
+
+    params = {
+        "after": after_timestamp,
+        "page": 1,
+        "per_page": 200 # Tăng lên tối đa 200 hoạt động để bao quát toàn bộ từ khi bắt đầu giải
+    }
     
     try:
         response = requests.get(url, headers=headers, params=params, timeout=10)
