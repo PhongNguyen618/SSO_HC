@@ -1422,8 +1422,10 @@ def register_athlete(
     full_name = full_name.strip()
     strava_name = strava_name.strip()
     
-    # Kiểm tra ràng buộc giải đấu nội bộ (SSO's HC - ID 1) chỉ dành cho người thuộc khối SSO
-    if event_id == 1:
+    # Kiểm tra ràng buộc giải đấu nội bộ (SSO's HC) chỉ dành cho người thuộc khối SSO
+    chosen_event = db.query(CompetitionEvent).filter(CompetitionEvent.id == event_id).first()
+    is_sso_hc = chosen_event and ("SSO'S HC" in chosen_event.title.upper() or "SSO’S HC" in chosen_event.title.upper())
+    if is_sso_hc:
         if not department.strip().upper().startswith("SSO"):
             unlinked_names = db.query(Activity.athlete_name_raw)\
                 .filter(Activity.athlete_id == None)\
