@@ -1426,9 +1426,7 @@ def register_athlete(
     chosen_event = db.query(CompetitionEvent).filter(CompetitionEvent.id == event_id).first()
     is_sso_hc = chosen_event and ("SSO'S HC" in chosen_event.title.upper() or "SSO’S HC" in chosen_event.title.upper())
     if is_sso_hc:
-        dept_upper = department.strip().upper()
-        is_internal = any(dept_upper.startswith(prefix) for prefix in ["SSO", "NSMO", "NSO", "CSO"])
-        if not is_internal:
+        if not department.strip().upper().startswith("SSO"):
             unlinked_names = db.query(Activity.athlete_name_raw)\
                 .filter(Activity.athlete_id == None)\
                 .group_by(Activity.athlete_name_raw).all()
