@@ -1447,7 +1447,7 @@ def register_athlete(
                     "selected_event_id": event_id,
                     "unlinked_athletes": unlinked_athletes,
                     "success": None,
-                    "error": "Giải đấu SSO's HC là giải đấu nội bộ, chỉ dành riêng cho nhân viên thuộc khối SSO (tên phòng ban bắt đầu bằng chữ SSO). Vui lòng chọn đúng giải đấu của bạn.",
+                    "error": "Giải đấu SSO's HC là giải đấu nội bộ, chỉ dành riêng cho nhân viên thuộc khối SSO. Vui lòng chọn đúng giải đấu của bạn.",
                     "already_exists": False,
                     "needs_strava_auth": False,
                     "auth_url": "",
