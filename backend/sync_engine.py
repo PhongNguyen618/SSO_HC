@@ -494,10 +494,12 @@ def sync_athlete_activities_api(db, athlete, access_token) -> list:
         active_event = db.query(CompetitionEvent).filter(CompetitionEvent.is_active == True).order_by(CompetitionEvent.start_date).first()
         if active_event and active_event.start_date:
             # Ví dụ: start_date = "2026-06-16"
+            # Cần lấy đúng 00:00:00 ngày 16/6 theo giờ Việt Nam (GMT+7)
+            from datetime import timezone
             dt = datetime.strptime(active_event.start_date, "%Y-%m-%d")
-            # Trừ hao thêm 1 ngày cho chắc chắn múi giờ
-            dt = dt - timedelta(days=1)
-            after_timestamp = int(dt.timestamp())
+            tz_vn = timezone(timedelta(hours=7))
+            dt_vn = dt.replace(tzinfo=tz_vn)
+            after_timestamp = int(dt_vn.timestamp())
     except Exception as te:
         print(f"Sync Engine (User API): Error calculating after_timestamp: {te}")
 
