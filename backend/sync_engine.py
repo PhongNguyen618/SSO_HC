@@ -58,6 +58,48 @@ def refresh_strava_token(db: Session, configs: dict) -> str:
         print(f"Sync Engine: Error refreshing token: {e}")
         return None
 
+def backup_db_file(reason: str = "auto"):
+    """
+    Tạo bản sao lưu CSDL vật lý trước các thao tác chỉnh sửa dữ liệu quan trọng.
+    Chỉ giữ lại tối đa 5 bản sao lưu gần nhất để tránh đầy ổ cứng VPS.
+    """
+    import os
+    import shutil
+    from datetime import datetime
+    
+    db_path = "SSO_HC.db"
+    if not os.path.exists(db_path):
+        return
+        
+    backup_dir = os.path.join("static", "uploads", "backups")
+    os.makedirs(backup_dir, exist_ok=True)
+    
+    time_str = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    backup_filename = f"SSO_HC_link_backup_{time_str}_{reason}.db"
+    backup_path = os.path.join(backup_dir, backup_filename)
+    
+    try:
+        shutil.copyfile(db_path, backup_path)
+        print(f"Backup Engine: Created instant DB backup at {backup_path} for reason: {reason}")
+        
+        # Xoay vòng bản sao lưu (Rotate): Giữ lại tối đa 5 bản backup loại link_backup
+        backups = [
+            os.path.join(backup_dir, f) 
+            for f in os.listdir(backup_dir) 
+            if f.startswith("SSO_HC_link_backup_") and f.endswith(".db")
+        ]
+        backups.sort(key=os.path.getmtime)
+        
+        while len(backups) > 5:
+            oldest = backups.pop(0)
+            try:
+                os.remove(oldest)
+                print(f"Backup Engine: Removed oldest link backup to save space: {oldest}")
+            except Exception as e:
+                print(f"Backup Engine: Error removing old backup {oldest}: {e}")
+    except Exception as e:
+        print(f"Backup Engine: Error creating DB backup: {e}")
+
 def parse_time_str_to_seconds(time_str: str) -> float:
     import re
     time_str = time_str.strip().lower()
@@ -1451,6 +1493,9 @@ def sync_single_athlete_all_events(db: Session, athlete):
         return
         
     configs = get_config_dict(db)
+    
+    # Backup CSDL truoc khi thuc hien de phong sai sot
+    backup_db_file(reason=f"oauth_link_{athlete.id}")
     
     # 2. Làm mới access token của VĐV
     u_token = refresh_user_strava_token(db, athlete, configs)
