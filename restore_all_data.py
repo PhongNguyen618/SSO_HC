@@ -9,20 +9,42 @@ def normalize_name(name):
     return name.replace("*", "").strip().lower()
 
 def restore_all():
-    # 1. Find the latest auto backup database
-    backups_dir = os.path.join("static", "uploads", "backups")
-    backup_db = None
-    
-    if os.path.exists(backups_dir):
-        files = sorted([f for f in os.listdir(backups_dir) if f.endswith(".db")])
-        if files:
-            backup_db = os.path.join(backups_dir, files[-1])
+    # 1. Tìm tất cả các file CSDL backup và chọn file có nhiều hoạt động nhất (chứa đầy đủ dữ liệu lịch sử)
+    db_files = []
+    # Quét thư mục gốc
+    for f in os.listdir("."):
+        if f.endswith(".db") and f != "SSO_HC.db" and f != "test_sync_grace.db":
+            db_files.append(f)
             
-    if not backup_db or not os.path.exists(backup_db):
-        print("[Loi] Khong tim thay file CSDL backup tu dong trong: static/uploads/backups/")
+    # Quét thư mục backup tự động
+    backups_dir = os.path.join("static", "uploads", "backups")
+    if os.path.exists(backups_dir):
+        for f in os.listdir(backups_dir):
+            if f.endswith(".db"):
+                db_files.append(os.path.join(backups_dir, f))
+                
+    backup_db = None
+    max_activities = -1
+    
+    for db_path in db_files:
+        try:
+            conn_test = sqlite3.connect(db_path)
+            cur_test = conn_test.cursor()
+            cur_test.execute("SELECT COUNT(*) FROM activities")
+            count = cur_test.fetchone()[0]
+            conn_test.close()
+            
+            if count > max_activities:
+                max_activities = count
+                backup_db = db_path
+        except Exception:
+            continue
+            
+    if not backup_db:
+        print("[Loi] Khong tim thay bat ky file CSDL backup nao trong he thong!")
         return
 
-    print(f"[*] File backup su dung: {backup_db}")
+    print(f"[*] File backup co nhieu du lieu nhat duoc su dung: {backup_db} ({max_activities} hoat dong)")
     
     # 2. Read athletes and activities from backup
     conn_b = sqlite3.connect(backup_db)
