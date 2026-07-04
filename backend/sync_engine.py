@@ -509,6 +509,11 @@ def sync_athlete_activities_api(db, athlete, access_token, start_date_str: str =
             tz_vn = timezone(timedelta(hours=7))
             dt_vn = dt.replace(tzinfo=tz_vn)
             after_timestamp = int(dt_vn.timestamp())
+            
+            # Giới hạn cứng không lấy dữ liệu trước ngày 16/06/2026 cho cả 2 giải
+            min_timestamp = 1781542800  # Epoch tương ứng 2026-06-16 00:00:00 GMT+7
+            if after_timestamp < min_timestamp:
+                after_timestamp = min_timestamp
         except Exception as te:
             print(f"Sync Engine (User API): Error calculating after_timestamp: {te}")
 
@@ -599,7 +604,10 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
             time.sleep(1.5)
             u_token = refresh_user_strava_token(db, ath, configs)
             if u_token:
-                ath_acts = sync_athlete_activities_api(db, ath, u_token, event.start_date)
+                start_date = event.start_date if event.start_date else "2026-06-16"
+                if start_date < "2026-06-16":
+                    start_date = "2026-06-16"
+                ath_acts = sync_athlete_activities_api(db, ath, u_token, start_date)
                 if ath_acts is not None:
                     # Gán cờ để nhận biết đây là hoạt động API cá nhân
                     for a_act in ath_acts:
@@ -613,7 +621,6 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
                         import json
                         import os
                         
-                        start_date = event.start_date if event.start_date else "2026-06-16"
                         club_acts = db.query(Activity).filter(
                             Activity.athlete_id == ath.id,
                             Activity.event_id == event_id,
@@ -1454,6 +1461,8 @@ def sync_single_athlete_all_events(db: Session, athlete):
     for event in registered_events:
         event_id = event.id
         start_date = event.start_date if event.start_date else "2026-06-16"
+        if start_date < "2026-06-16":
+            start_date = "2026-06-16"
         
         # Gọi API lấy các hoạt động kể cả ngày bắt đầu giải (bị cap mốc tối thiểu 16/06/2026)
         ath_acts = sync_athlete_activities_api(db, athlete, u_token, start_date)
