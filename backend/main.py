@@ -3115,6 +3115,19 @@ def restore_backup_data_endpoint(request: Request, db: Session = Depends(get_db)
                     multiplier=act["multiplier"]
                 )
                 db.add(new_act)
+                
+                # Tự động đăng ký giải đấu cho VĐV nếu họ chưa có bản ghi đăng ký
+                reg_exists = db.query(CompetitionRegistration).filter(
+                    CompetitionRegistration.athlete_id == new_id,
+                    CompetitionRegistration.event_id == act["event_id"]
+                ).first()
+                if not reg_exists:
+                    new_reg = CompetitionRegistration(
+                        athlete_id=new_id,
+                        event_id=act["event_id"]
+                    )
+                    db.add(new_reg)
+                    
                 total_restored += 1
                 
         db.commit()
