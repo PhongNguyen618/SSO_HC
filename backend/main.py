@@ -2974,6 +2974,124 @@ def trigger_sync(request: Request, background_tasks: BackgroundTasks, db: Sessio
         "message": "Yêu cầu đồng bộ thủ công đã được gửi! Hệ thống đang tải dữ liệu ngầm dưới nền để tránh quá tải/timeout proxy. Vui lòng đợi khoảng 1-2 phút rồi tải lại trang để xem kết quả cập nhật."
     })
 
+@app.post("/admin/restore-backup-data")
+def restore_backup_data_endpoint(request: Request, db: Session = Depends(get_db)):
+    """API khôi phục hoạt động lịch sử trước 16/06/2026 từ file backup tự động gần nhất."""
+    admin_session = get_admin_session(request, db)
+    if not admin_session:
+        return JSONResponse(status_code=401, content={"error": "Chưa đăng nhập admin"})
+        
+    import sqlite3
+    
+    # 1. Tìm file backup tự động mới nhất
+    backups_dir = os.path.join("static", "uploads", "backups")
+    backup_db = None
+    
+    if os.path.exists(backups_dir):
+        files = sorted([f for f in os.listdir(backups_dir) if f.endswith(".db")])
+        if files:
+            backup_db = os.path.join(backups_dir, files[-1])
+            
+    if not backup_db or not os.path.exists(backup_db):
+        return JSONResponse(content={
+            "status": "error",
+            "error": "Không tìm thấy file CSDL backup tự động trong thư mục static/uploads/backups/"
+        })
+        
+    # 2. Đọc các hoạt động từ backup và chỉ lọc hoạt động trước ngày 16/06/2026
+    conn_b = sqlite3.connect(backup_db)
+    cur_b = conn_b.cursor()
+    try:
+        cur_b.execute("SELECT id, full_name, strava_name FROM athletes")
+        backup_athletes = cur_b.fetchall()
+        
+        backup_data = {}
+        for a_id, name, s_name in backup_athletes:
+            cur_b.execute("SELECT * FROM activities WHERE athlete_id = ? AND activity_date < '2026-06-16'", (a_id,))
+            col_names = [desc[0] for desc in cur_b.description]
+            rows = cur_b.fetchall()
+            backup_data[a_id] = {
+                "name": name,
+                "strava_name": s_name,
+                "activities": [dict(zip(col_names, r)) for r in rows]
+            }
+    except Exception as e:
+        return JSONResponse(content={
+            "status": "error",
+            "error": f"Lỗi khi đọc CSDL backup: {str(e)}"
+        })
+    finally:
+        conn_b.close()
+        
+    # 3. Thực hiện khôi phục
+    try:
+        live_athletes = db.query(Athlete).all()
+        
+        def normalize_name(name):
+            if not name:
+                return ""
+            return name.replace("*", "").strip().lower()
+            
+        live_name_map = {normalize_name(ath.full_name): ath.id for ath in live_athletes}
+        
+        total_restored = 0
+        
+        for old_id, info in backup_data.items():
+            name = info["name"]
+            acts = info["activities"]
+            if not acts:
+                continue
+                
+            norm_name = normalize_name(name)
+            if norm_name not in live_name_map:
+                continue
+                
+            new_id = live_name_map[norm_name]
+            
+            for act in acts:
+                # Kiểm tra xem hoạt động đã tồn tại trong DB chưa
+                existing = db.query(Activity).filter(Activity.id == act["id"]).first()
+                if existing:
+                    continue
+                    
+                new_act = Activity(
+                    id=act["id"],
+                    athlete_id=new_id,
+                    event_id=act["event_id"],
+                    athlete_name_raw=act["athlete_name_raw"],
+                    name=act["name"],
+                    type=act["type"],
+                    sport_type=act["sport_type"],
+                    distance_km=act["distance_km"],
+                    moving_time_min=act["moving_time_min"],
+                    elapsed_time_min=act["elapsed_time_min"],
+                    pace_min_km=act["pace_min_km"],
+                    elevation_gain_m=act["elevation_gain_m"],
+                    activity_date=act["activity_date"],
+                    activity_time=act["activity_time"],
+                    kcal_burned=act["kcal_burned"],
+                    mets_value=act["mets_value"],
+                    is_suspicious=act["is_suspicious"],
+                    suspicion_reason=act["suspicion_reason"],
+                    distance_km_raw=act["distance_km_raw"],
+                    kcal_burned_raw=act["kcal_burned_raw"],
+                    multiplier=act["multiplier"]
+                )
+                db.add(new_act)
+                total_restored += 1
+                
+        db.commit()
+        return JSONResponse(content={
+            "status": "success",
+            "message": f"Khôi phục thành công! Đã khôi phục {total_restored} hoạt động lịch sử (trước ngày 16/06/2026) của các vận động viên vào CSDL chính."
+        })
+    except Exception as e:
+        db.rollback()
+        return JSONResponse(content={
+            "status": "error",
+            "error": f"Lỗi trong quá trình khôi phục: {str(e)}"
+        })
+
 @app.post("/admin/fix-timezone")
 def fix_timezone_endpoint(request: Request, db: Session = Depends(get_db)):
     """API sửa đổi múi giờ UTC -> GMT+7 cho các hoạt động bị lệch."""

@@ -144,6 +144,9 @@
             <button id="btnCleanupOldIds" class="btn btn-secondary btn-sm" style="height: 38px; border-color: #9b59b6; color: #9b59b6;">
                 <i class="fa-solid fa-broom"></i> Dọn ID Số Cũ
             </button>
+            <button id="btnRestoreBackup" class="btn btn-secondary btn-sm" style="height: 38px; border-color: #2ecc71; color: #2ecc71;">
+                <i class="fa-solid fa-file-import"></i> Khôi Phục Dữ Liệu Lịch Sử
+            </button>
         </div>
     </div>
 
@@ -3217,6 +3220,45 @@
             .catch(err => {
                 btnFix.disabled = false;
                 btnFix.innerHTML = '<i class="fa-solid fa-clock"></i> Sửa Lệch Giờ UTC';
+                alert(`Lỗi hệ thống: ${err.message}`);
+            });
+        });
+    }
+
+    // --- RESTORE BACKUP DATA AJAX LOGIC ---
+    const btnRestore = document.getElementById('btnRestoreBackup');
+    if (btnRestore) {
+        btnRestore.addEventListener('click', function() {
+            if (!confirm('Bạn có chắc chắn muốn khôi phục dữ liệu lịch sử trước ngày 16/06/2026 cho toàn bộ vận động viên từ file backup gần nhất? Dữ liệu từ ngày 16/06/2026 đến nay sẽ được giữ nguyên để đồng bộ tự động từ Strava.')) {
+                return;
+            }
+            
+            btnRestore.disabled = true;
+            btnRestore.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang khôi phục...';
+            
+            fetch('/admin/restore-backup-data', {
+                method: 'POST'
+            })
+            .then(response => {
+                if (response.status === 401) {
+                    throw new Error('Chưa đăng nhập quyền Admin');
+                }
+                return response.json();
+            })
+            .then(data => {
+                btnRestore.disabled = false;
+                btnRestore.innerHTML = '<i class="fa-solid fa-file-import"></i> Khôi Phục Dữ Liệu Lịch Sử';
+                
+                if (data.status === 'success') {
+                    alert(data.message);
+                    window.location.reload();
+                } else {
+                    alert(`Lỗi: ${data.error || 'Lỗi không xác định'}`);
+                }
+            })
+            .catch(err => {
+                btnRestore.disabled = false;
+                btnRestore.innerHTML = '<i class="fa-solid fa-file-import"></i> Khôi Phục Dữ Liệu Lịch Sử';
                 alert(`Lỗi hệ thống: ${err.message}`);
             });
         });
