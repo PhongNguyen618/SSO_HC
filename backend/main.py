@@ -3086,6 +3086,14 @@ def restore_backup_data_endpoint(request: Request, db: Session = Depends(get_db)
             new_id = live_name_map[norm_name]
             
             for act in acts:
+                # Chỉ khôi phục hoạt động cho giải đấu mà VĐV đó thực sự đăng ký tham gia
+                is_registered = db.query(CompetitionRegistration).filter(
+                    CompetitionRegistration.athlete_id == new_id,
+                    CompetitionRegistration.event_id == act["event_id"]
+                ).first()
+                if not is_registered:
+                    continue
+                    
                 # Kiểm tra xem hoạt động đã tồn tại trong DB chưa
                 existing = db.query(Activity).filter(Activity.id == act["id"]).first()
                 if existing:
@@ -3115,19 +3123,6 @@ def restore_backup_data_endpoint(request: Request, db: Session = Depends(get_db)
                     multiplier=act["multiplier"]
                 )
                 db.add(new_act)
-                
-                # Tự động đăng ký giải đấu cho VĐV nếu họ chưa có bản ghi đăng ký
-                reg_exists = db.query(CompetitionRegistration).filter(
-                    CompetitionRegistration.athlete_id == new_id,
-                    CompetitionRegistration.event_id == act["event_id"]
-                ).first()
-                if not reg_exists:
-                    new_reg = CompetitionRegistration(
-                        athlete_id=new_id,
-                        event_id=act["event_id"]
-                    )
-                    db.add(new_reg)
-                    
                 total_restored += 1
                 
         db.commit()

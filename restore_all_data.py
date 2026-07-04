@@ -106,6 +106,14 @@ def restore_all():
         skipped = 0
         
         for act in acts:
+            # Chỉ khôi phục hoạt động cho giải đấu mà VĐV đó thực sự đăng ký tham gia
+            cur_l.execute(
+                "SELECT 1 FROM competition_registrations WHERE athlete_id = ? AND event_id = ?",
+                (new_id, act["event_id"])
+            )
+            if not cur_l.fetchone():
+                continue
+                
             # Update athlete_id to match the live DB ID
             act["athlete_id"] = new_id
             
@@ -121,18 +129,6 @@ def restore_all():
             query = f"INSERT INTO activities ({columns}) VALUES ({placeholders})"
             
             cur_l.execute(query, tuple(act.values()))
-            
-            # Tự động đăng ký giải đấu nếu chưa có bản ghi
-            cur_l.execute(
-                "SELECT 1 FROM competition_registrations WHERE athlete_id = ? AND event_id = ?",
-                (new_id, act["event_id"])
-            )
-            if not cur_l.fetchone():
-                cur_l.execute(
-                    "INSERT INTO competition_registrations (athlete_id, event_id) VALUES (?, ?)",
-                    (new_id, act["event_id"])
-                )
-                
             inserted += 1
             total_restored += 1
             
