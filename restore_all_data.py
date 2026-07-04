@@ -33,7 +33,7 @@ def restore_all():
         
         backup_data = {}
         for a_id, name, s_name in backup_athletes:
-            cur_b.execute("SELECT * FROM activities WHERE athlete_id = ?", (a_id,))
+            cur_b.execute("SELECT * FROM activities WHERE athlete_id = ? AND activity_date < '2026-06-16'", (a_id,))
             col_names = [desc[0] for desc in cur_b.description]
             rows = cur_b.fetchall()
             backup_data[a_id] = {

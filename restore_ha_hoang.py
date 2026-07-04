@@ -23,7 +23,7 @@ def restore_activities():
     conn_b = sqlite3.connect(backup_db)
     cur_b = conn_b.cursor()
     try:
-        cur_b.execute("SELECT * FROM activities WHERE athlete_id = 51")
+        cur_b.execute("SELECT * FROM activities WHERE athlete_id = 51 AND activity_date < '2026-06-16'")
         col_names = [description[0] for description in cur_b.description]
         rows = cur_b.fetchall()
     except Exception as e:
