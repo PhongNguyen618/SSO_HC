@@ -3554,6 +3554,34 @@ def admin_delete_athlete(
         db.rollback()
         return RedirectResponse(f"/admin?error=Loi khi xoa: {str(e)}&event_id={event_id or ''}#tab-athletes", status_code=303)
 
+@app.post("/admin/athlete/unlink/{athlete_id}")
+def admin_unlink_athlete(
+    athlete_id: int,
+    request: Request,
+    event_id: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    admin = get_admin_session(request, db)
+    if not admin:
+        return RedirectResponse("/admin?error=Chua dang nhap", status_code=303)
+        
+    athlete = db.query(Athlete).filter(Athlete.id == athlete_id).first()
+    if not athlete:
+        return RedirectResponse("/admin?error=Khong tim thay thanh vien", status_code=303)
+        
+    try:
+        # Xóa các thông tin liên quan đến liên kết Strava OAuth
+        athlete.strava_access_token = None
+        athlete.strava_refresh_token = None
+        athlete.strava_expires_at = None
+        athlete.strava_athlete_id = None
+        
+        db.commit()
+        return RedirectResponse(f"/admin?success=Da huy lien ket Strava cua VDV {athlete.full_name} thanh cong&event_id={event_id or ''}#tab-athletes", status_code=303)
+    except Exception as e:
+        db.rollback()
+        return RedirectResponse(f"/admin?error=Loi khi huy lien ket: {str(e)}&event_id={event_id or ''}#tab-athletes", status_code=303)
+
 @app.post("/admin/athlete/bulk-update-department")
 def bulk_update_department(
     request: Request,

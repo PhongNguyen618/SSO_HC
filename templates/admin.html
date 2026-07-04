@@ -939,6 +939,11 @@
                                     <button type="submit" class="btn btn-primary btn-sm" style="padding:0.4rem 0.6rem; font-size:0.8rem;" title="Lưu thay đổi">
                                         <i class="fa-solid fa-floppy-disk"></i>
                                     </button>
+                                    {% if ath.strava_refresh_token %}
+                                    <button type="submit" formaction="/admin/athlete/unlink/{{ ath.id }}?event_id={{ selected_event_id or '' }}" onclick="return confirm('Bạn có chắc chắn muốn hủy liên kết Strava của vận động viên {{ ath.full_name }}? Dữ liệu chạy hiện tại sẽ được giữ nguyên, VĐV có thể liên kết lại bất cứ lúc nào.')" class="btn btn-secondary btn-sm" style="padding:0.4rem 0.6rem; font-size:0.8rem; background: rgba(255, 159, 67, 0.12); color: #ff9f43; border: 1px solid rgba(255, 159, 67, 0.25);" title="Hủy liên kết Strava">
+                                        <i class="fa-solid fa-unlink"></i>
+                                    </button>
+                                    {% endif %}
                                     <button type="submit" formaction="/admin/athlete/delete/{{ ath.id }}?event_id={{ selected_event_id or '' }}" onclick="return confirm('Bạn có chắc chắn muốn xóa thành viên {{ ath.full_name }}? Toàn bộ lịch sử hoạt động sẽ bị hủy liên kết.')" class="btn btn-danger btn-sm" style="padding:0.4rem 0.6rem; font-size:0.8rem;" title="Xóa">
                                         <i class="fa-solid fa-trash-can"></i>
                                     </button>
