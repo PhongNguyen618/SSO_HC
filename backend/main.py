@@ -2854,6 +2854,7 @@ def exchange_user_token(
     request: Request,
     code: str = None,
     state: str = None,
+    scope: Optional[str] = None,
     error: str = None,
     db: Session = Depends(get_db)
 ):
@@ -2862,6 +2863,20 @@ def exchange_user_token(
         return RedirectResponse(f"/connect-existing?error=Lỗi ủy quyền từ Strava: {error}", status_code=303)
     if not code or not state:
         return RedirectResponse("/connect-existing?error=Thông tin xác thực không hợp lệ", status_code=303)
+        
+    # Kiểm tra xem VĐV có tích chọn cấp quyền hoạt động hay không
+    has_activity_scope = False
+    if scope:
+        granted_scopes = [s.strip().lower() for s in scope.split(",")]
+        # Chấp nhận một trong hai quyền đọc hoạt động
+        if "activity:read_all" in granted_scopes or "activity:read" in granted_scopes:
+            has_activity_scope = True
+            
+    if not has_activity_scope:
+        error_msg = "Lỗi liên kết: Bạn chưa tích chọn cấp quyền truy cập các hoạt động chạy bộ (activity:read hoặc activity:read_all). Vui lòng thực hiện liên kết lại và tích chọn ĐỒNG Ý cho các quyền được yêu cầu."
+        import urllib.parse
+        encoded_error = urllib.parse.quote(error_msg)
+        return RedirectResponse(f"/connect-existing?error={encoded_error}", status_code=303)
         
     try:
         athlete_id = int(state)
