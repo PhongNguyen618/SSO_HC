@@ -509,26 +509,33 @@ def sync_athlete_activities_api(db, athlete, access_token, start_date_str: str =
             tz_vn = timezone(timedelta(hours=7))
             dt_vn = dt.replace(tzinfo=tz_vn)
             after_timestamp = int(dt_vn.timestamp())
-            
-            # Cắt mốc thời gian bắt đầu quét không được sớm hơn 16/06/2026 (giờ VN)
-            # nhằm tránh quét quá sâu về lịch sử 2025 làm mất các hoạt động mới do kịch trần 200 bản ghi.
-            min_timestamp = 1781542800  # Epoch tương ứng 2026-06-16 00:00:00 GMT+7
-            if after_timestamp < min_timestamp:
-                after_timestamp = min_timestamp
         except Exception as te:
             print(f"Sync Engine (User API): Error calculating after_timestamp: {te}")
 
-    params = {
-        "after": after_timestamp,
-        "page": 1,
-        "per_page": 200 # Tăng lên tối đa 200 hoạt động để bao quát toàn bộ từ khi bắt đầu giải
-    }
-    
+    raw_acts = []
+    page = 1
+    max_pages = 10
+    while page <= max_pages:
+        params = {
+            "after": after_timestamp,
+            "page": page,
+            "per_page": 200
+        }
+        try:
+            response = requests.get(url, headers=headers, params=params, timeout=10)
+            response.raise_for_status()
+            page_acts = response.json()
+            if not page_acts:
+                break
+            raw_acts.extend(page_acts)
+            if len(page_acts) < 200:
+                break
+            page += 1
+        except Exception as e:
+            print(f"Sync Engine (User API): Error fetching page {page} for {athlete.full_name}: {e}")
+            break
+            
     try:
-        response = requests.get(url, headers=headers, params=params, timeout=10)
-        response.raise_for_status()
-        raw_acts = response.json()
-        
         formatted_acts = []
         for ra in raw_acts:
             dist_m = float(ra.get("distance", 0.0))
