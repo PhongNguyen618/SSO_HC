@@ -5,7 +5,7 @@ import json
 import requests
 from typing import Optional
 from datetime import datetime, timedelta
-from fastapi import FastAPI, Depends, Request, Form, HTTPException, status, File, UploadFile
+from fastapi import FastAPI, Depends, Request, Form, HTTPException, status, File, UploadFile, BackgroundTasks
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -2949,23 +2949,30 @@ def exchange_token(request: Request, code: str = None, error: str = None, db: Se
     except Exception as e:
         return RedirectResponse(f"/admin?error=Loi khi trao doi code lay Token: {str(e)}", status_code=303)
 
+def run_sync_in_background():
+    db = SessionLocal()
+    try:
+        res = sync_club_activities()
+        if res.get("status") in ("success", "partial"):
+            deduplicate_activities_logic(db)
+    except Exception as e:
+        print(f"Background Sync: Error during manual sync background processing: {e}")
+    finally:
+        db.close()
+
 @app.post("/admin/sync")
-def trigger_sync(request: Request, db: Session = Depends(get_db)):
-    """API kích hoạt đồng bộ thủ công từ trang admin."""
+def trigger_sync(request: Request, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    """API kích hoạt đồng bộ thủ công từ trang admin (chạy dưới nền để tránh timeout proxy)."""
     admin_session = get_admin_session(request, db)
     if not admin_session:
         return JSONResponse(status_code=401, content={"error": "Chưa đăng nhập admin"})
         
-    res = sync_club_activities()
+    background_tasks.add_task(run_sync_in_background)
     
-    # Tự động dọn dẹp hoạt động trùng lặp sau khi đồng bộ thủ công thành công
-    if res.get("status") in ("success", "partial"):
-        try:
-            deduplicate_activities_logic(db)
-        except Exception as e:
-            print(f"Manual Sync: Error during auto deduplication: {e}")
-            
-    return JSONResponse(content=res)
+    return JSONResponse(content={
+        "status": "success",
+        "message": "Yêu cầu đồng bộ thủ công đã được gửi! Hệ thống đang tải dữ liệu ngầm dưới nền để tránh quá tải/timeout proxy. Vui lòng đợi khoảng 1-2 phút rồi tải lại trang để xem kết quả cập nhật."
+    })
 
 @app.post("/admin/fix-timezone")
 def fix_timezone_endpoint(request: Request, db: Session = Depends(get_db)):
@@ -5173,23 +5180,31 @@ def admin_delete_competition(comp_id: int, request: Request, db: Session = Depen
         return RedirectResponse(f"/admin?error=Lỗi khi xóa giải đấu: {str(e)}#tab-competitions", status_code=303)
 
 
+def run_sync_single_in_background(comp_id: int):
+    db = SessionLocal()
+    try:
+        res = sync_club_activities(event_id=comp_id)
+        if res.get("status") in ("success", "partial"):
+            deduplicate_activities_logic(db)
+    except Exception as e:
+        print(f"Background Sync Single: Error: {e}")
+    finally:
+        db.close()
+
+
 @app.post("/admin/competitions/sync/{comp_id}")
-def admin_sync_competition(comp_id: int, request: Request, db: Session = Depends(get_db)):
-    """API đồng bộ thủ công cho một giải đấu cụ thể."""
+def admin_sync_competition(comp_id: int, request: Request, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    """API đồng bộ thủ công cho một giải đấu cụ thể (chạy dưới nền)."""
     admin_session = get_admin_session(request, db)
     if not admin_session:
         return JSONResponse(status_code=401, content={"error": "Chưa đăng nhập admin"})
     
-    res = sync_club_activities(event_id=comp_id)
+    background_tasks.add_task(run_sync_single_in_background, comp_id)
     
-    # Tự động dọn dẹp hoạt động trùng lặp sau khi đồng bộ thủ công thành công
-    if res.get("status") in ("success", "partial"):
-        try:
-            deduplicate_activities_logic(db)
-        except Exception as e:
-            print(f"Manual Sync Comp: Error during auto deduplication: {e}")
-            
-    return JSONResponse(content=res)
+    return JSONResponse(content={
+        "status": "success",
+        "message": "Yêu cầu đồng bộ giải đấu đã được gửi! Hệ thống đang tải dữ liệu ngầm dưới nền. Vui lòng đợi khoảng 1 phút rồi tải lại trang để xem kết quả cập nhật."
+    })
 
 
 # --- SUPPORT TICKETS API ---
