@@ -518,6 +518,16 @@ def refresh_user_strava_token(db, athlete, configs) -> str:
         return token_data["access_token"]
     except Exception as e:
         print(f"Sync Engine: Error refreshing user token for {athlete.full_name}: {e}")
+        # Tự động hủy liên kết nếu refresh token bị vô hiệu hóa (400, 401 hoặc 403)
+        if any(err_code in str(e) for err_code in ["400", "401", "403"]):
+            print(f"Sync Engine: Refresh token invalid for {athlete.full_name}. Unlinking automatically...")
+            try:
+                athlete.strava_access_token = None
+                athlete.strava_refresh_token = None
+                athlete.strava_expires_at = None
+                db.commit()
+            except Exception as db_err:
+                print(f"Sync Engine: Error clearing credentials: {db_err}")
         return None
 
 def sync_athlete_activities_api(db, athlete, access_token, start_date_str: str = None) -> list:
@@ -571,6 +581,22 @@ def sync_athlete_activities_api(db, athlete, access_token, start_date_str: str =
         try:
             response = requests.get(url, headers=headers, params=params, timeout=10)
             response.raise_for_status()
+            
+            # Kiểm tra quyền hạn từ header trả về của Strava (X-OAuth-Scopes)
+            scopes_header = response.headers.get("X-OAuth-Scopes", "")
+            if scopes_header:
+                granted_scopes = [s.strip().lower() for s in scopes_header.split(",")]
+                if "activity:read" not in granted_scopes and "activity:read_all" not in granted_scopes:
+                    print(f"Sync Engine: Athlete {athlete.full_name} lacks activity read permission (scopes: {scopes_header}). Unlinking automatically...")
+                    try:
+                        athlete.strava_access_token = None
+                        athlete.strava_refresh_token = None
+                        athlete.strava_expires_at = None
+                        db.commit()
+                    except Exception as db_err:
+                        print(f"Sync Engine: Error clearing credentials on scope error: {db_err}")
+                    return None
+            
             page_acts = response.json()
             if not page_acts:
                 break
@@ -580,6 +606,16 @@ def sync_athlete_activities_api(db, athlete, access_token, start_date_str: str =
             page += 1
         except Exception as e:
             print(f"Sync Engine (User API): Error fetching page {page} for {athlete.full_name}: {e}")
+            # Tự động hủy liên kết nếu gặp lỗi xác thực 401 hoặc 403 từ Strava
+            if any(err_code in str(e) for err_code in ["401", "403"]):
+                print(f"Sync Engine: Auth error for {athlete.full_name} during activities fetch. Unlinking automatically...")
+                try:
+                    athlete.strava_access_token = None
+                    athlete.strava_refresh_token = None
+                    athlete.strava_expires_at = None
+                    db.commit()
+                except Exception as db_err:
+                    print(f"Sync Engine: Error clearing credentials: {db_err}")
             break
             
     try:
