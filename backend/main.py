@@ -2999,14 +2999,17 @@ def restore_backup_data_endpoint(request: Request, db: Session = Depends(get_db)
     import sqlite3
     
     # 1. Tìm tất cả các file CSDL backup và chọn file có nhiều hoạt động nhất (chứa đầy đủ dữ liệu lịch sử)
+    backend_dir = os.path.dirname(os.path.abspath(__file__))
+    root_dir = os.path.dirname(backend_dir)
+    
     db_files = []
-    # Quét thư mục gốc
-    for f in os.listdir("."):
+    # Quét thư mục gốc của dự án
+    for f in os.listdir(root_dir):
         if f.endswith(".db") and f != "SSO_HC.db" and f != "test_sync_grace.db":
-            db_files.append(f)
+            db_files.append(os.path.join(root_dir, f))
             
     # Quét thư mục backup tự động
-    backups_dir = os.path.join("static", "uploads", "backups")
+    backups_dir = os.path.join(root_dir, "static", "uploads", "backups")
     if os.path.exists(backups_dir):
         for f in os.listdir(backups_dir):
             if f.endswith(".db"):
@@ -3042,6 +3045,10 @@ def restore_backup_data_endpoint(request: Request, db: Session = Depends(get_db)
         cur_b.execute("SELECT id, full_name, strava_name FROM athletes")
         backup_athletes = cur_b.fetchall()
         
+        # Đọc tất cả đăng ký giải đấu từ bản backup để làm cơ sở khôi phục đúng giải đấu VĐV tham gia
+        cur_b.execute("SELECT athlete_id, event_id FROM competition_registrations")
+        backup_regs = set(cur_b.fetchall())
+        
         backup_data = {}
         for a_id, name, s_name in backup_athletes:
             cur_b.execute("SELECT * FROM activities WHERE athlete_id = ? AND activity_date < '2026-06-16'", (a_id,))
@@ -3062,12 +3069,15 @@ def restore_backup_data_endpoint(request: Request, db: Session = Depends(get_db)
         
     # 3. Thực hiện khôi phục
     try:
+        import unicodedata
         live_athletes = db.query(Athlete).all()
         
         def normalize_name(name):
             if not name:
                 return ""
-            return name.replace("*", "").strip().lower()
+            # Chuẩn hóa về dạng NFC để giải quyết triệt để lỗi so khớp dấu tiếng Việt
+            name_nfc = unicodedata.normalize("NFC", name)
+            return name_nfc.replace("*", "").strip().lower()
             
         live_name_map = {normalize_name(ath.full_name): ath.id for ath in live_athletes}
         
@@ -3085,14 +3095,26 @@ def restore_backup_data_endpoint(request: Request, db: Session = Depends(get_db)
                 
             new_id = live_name_map[norm_name]
             
+            added_regs = set()
             for act in acts:
-                # Chỉ khôi phục hoạt động cho giải đấu mà VĐV đó thực sự đăng ký tham gia
-                is_registered = db.query(CompetitionRegistration).filter(
-                    CompetitionRegistration.athlete_id == new_id,
-                    CompetitionRegistration.event_id == act["event_id"]
-                ).first()
-                if not is_registered:
+                # Chỉ khôi phục hoạt động nếu VĐV thực sự đăng ký giải đấu này trong bản backup
+                if (old_id, act["event_id"]) not in backup_regs:
                     continue
+                    
+                # Đảm bảo VĐV có đăng ký giải đấu tương ứng ở CSDL hiện tại (tạo lại nếu bị thiếu do xóa tạo lại tài khoản)
+                reg_key = (new_id, act["event_id"])
+                if reg_key not in added_regs:
+                    reg_exists = db.query(CompetitionRegistration).filter(
+                        CompetitionRegistration.athlete_id == new_id,
+                        CompetitionRegistration.event_id == act["event_id"]
+                    ).first()
+                    if not reg_exists:
+                        new_reg = CompetitionRegistration(
+                            athlete_id=new_id,
+                            event_id=act["event_id"]
+                        )
+                        db.add(new_reg)
+                    added_regs.add(reg_key)
                     
                 # Kiểm tra xem hoạt động đã tồn tại trong DB chưa
                 existing = db.query(Activity).filter(Activity.id == act["id"]).first()

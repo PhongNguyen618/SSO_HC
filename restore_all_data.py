@@ -1,23 +1,27 @@
 # -*- coding: utf-8 -*-
 import sqlite3
 import os
+import unicodedata
 
 def normalize_name(name):
     if not name:
         return ""
-    # Strip asterisks, extra spaces, and convert to lower
-    return name.replace("*", "").strip().lower()
+    # Chuẩn hóa về dạng NFC để giải quyết triệt để lỗi so khớp dấu tiếng Việt
+    name_nfc = unicodedata.normalize("NFC", name)
+    return name_nfc.replace("*", "").strip().lower()
 
 def restore_all():
     # 1. Tìm tất cả các file CSDL backup và chọn file có nhiều hoạt động nhất (chứa đầy đủ dữ liệu lịch sử)
+    root_dir = os.path.dirname(os.path.abspath(__file__))
+    
     db_files = []
-    # Quét thư mục gốc
-    for f in os.listdir("."):
+    # Quét thư mục gốc của dự án
+    for f in os.listdir(root_dir):
         if f.endswith(".db") and f != "SSO_HC.db" and f != "test_sync_grace.db":
-            db_files.append(f)
+            db_files.append(os.path.join(root_dir, f))
             
     # Quét thư mục backup tự động
-    backups_dir = os.path.join("static", "uploads", "backups")
+    backups_dir = os.path.join(root_dir, "static", "uploads", "backups")
     if os.path.exists(backups_dir):
         for f in os.listdir(backups_dir):
             if f.endswith(".db"):
@@ -53,6 +57,10 @@ def restore_all():
         cur_b.execute("SELECT id, full_name, strava_name FROM athletes")
         backup_athletes = cur_b.fetchall()
         
+        # Đọc tất cả đăng ký giải đấu từ bản backup để làm cơ sở khôi phục đúng giải đấu VĐV tham gia
+        cur_b.execute("SELECT athlete_id, event_id FROM competition_registrations")
+        backup_regs = set(cur_b.fetchall())
+        
         backup_data = {}
         for a_id, name, s_name in backup_athletes:
             cur_b.execute("SELECT * FROM activities WHERE athlete_id = ? AND activity_date < '2026-06-16'", (a_id,))
@@ -70,7 +78,7 @@ def restore_all():
         conn_b.close()
         
     # 3. Connect to live database (SSO_HC.db)
-    live_db = "SSO_HC.db"
+    live_db = os.path.join(root_dir, "SSO_HC.db")
     if not os.path.exists(live_db):
         print(f"[!] Khong tim thay CSDL hien tai '{live_db}' trong thu muc goc.")
         live_db = input("Vui long nhap duong dan den file CSDL live (vi du: SSO_HC.db): ").strip()
@@ -104,15 +112,26 @@ def restore_all():
         
         inserted = 0
         skipped = 0
+        added_regs = set()
         
         for act in acts:
-            # Chỉ khôi phục hoạt động cho giải đấu mà VĐV đó thực sự đăng ký tham gia
-            cur_l.execute(
-                "SELECT 1 FROM competition_registrations WHERE athlete_id = ? AND event_id = ?",
-                (new_id, act["event_id"])
-            )
-            if not cur_l.fetchone():
+            # 1. Chỉ khôi phục hoạt động nếu VĐV thực sự đăng ký giải đấu này trong bản backup
+            if (old_id, act["event_id"]) not in backup_regs:
                 continue
+                
+            # 2. Đảm bảo VĐV có đăng ký giải đấu tương ứng ở CSDL hiện tại (tạo lại nếu bị thiếu do xóa tạo lại tài khoản)
+            reg_key = (new_id, act["event_id"])
+            if reg_key not in added_regs:
+                cur_l.execute(
+                    "SELECT 1 FROM competition_registrations WHERE athlete_id = ? AND event_id = ?",
+                    (new_id, act["event_id"])
+                )
+                if not cur_l.fetchone():
+                    cur_l.execute(
+                        "INSERT INTO competition_registrations (athlete_id, event_id) VALUES (?, ?)",
+                        (new_id, act["event_id"])
+                    )
+                added_regs.add(reg_key)
                 
             # Update athlete_id to match the live DB ID
             act["athlete_id"] = new_id
@@ -133,7 +152,8 @@ def restore_all():
             total_restored += 1
             
         if inserted > 0:
-            print(f"  + Da khoi phuc {inserted} hoat dong cho VDV: {name} (ID moi: {new_id})")
+            safe_name_print = name.encode('ascii', 'ignore').decode('ascii')
+            print(f"  + Da khoi phuc {inserted} hoat dong cho VDV: {safe_name_print} (ID moi: {new_id})")
             
     conn_l.commit()
     conn_l.close()
