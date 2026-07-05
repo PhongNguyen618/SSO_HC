@@ -1518,17 +1518,16 @@ def sync_single_athlete_all_events(db: Session, athlete):
     import json
     import os
     
-    # 1. Tìm các giải đấu đang hoạt động mà VĐV này đã đăng ký
+    # 1. Tìm tất cả các giải đấu mà VĐV này đã đăng ký
     registered_events = db.query(CompetitionEvent).join(
         CompetitionRegistration,
         CompetitionEvent.id == CompetitionRegistration.event_id
     ).filter(
-        CompetitionRegistration.athlete_id == athlete.id,
-        CompetitionEvent.is_active == True
+        CompetitionRegistration.athlete_id == athlete.id
     ).all()
     
     if not registered_events:
-        print(f"Sync Single Athlete: {athlete.full_name} is not registered in any active events.")
+        print(f"Sync Single Athlete: {athlete.full_name} is not registered in any events.")
         return
         
     configs = get_config_dict(db)
