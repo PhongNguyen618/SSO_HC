@@ -3017,6 +3017,7 @@ def restore_backup_data_endpoint(request: Request, db: Session = Depends(get_db)
                 
     backup_db = None
     max_activities = -1
+    backup_candidates = []
     
     for db_path in db_files:
         try:
@@ -3026,6 +3027,7 @@ def restore_backup_data_endpoint(request: Request, db: Session = Depends(get_db)
             count = cur_test.fetchone()[0]
             conn_test.close()
             
+            backup_candidates.append((db_path, count))
             if count > max_activities:
                 max_activities = count
                 backup_db = db_path
@@ -3037,7 +3039,14 @@ def restore_backup_data_endpoint(request: Request, db: Session = Depends(get_db)
             "status": "error",
             "error": "Không tìm thấy bất kỳ file CSDL backup nào trong hệ thống!"
         })
-        
+    
+    # Ghi nhận thông tin backup cho response
+    backup_info = {
+        "selected_file": os.path.basename(backup_db),
+        "total_activities_in_backup": max_activities,
+        "all_backups_scanned": [{"file": os.path.basename(p), "activities": c} for p, c in backup_candidates]
+    }
+    print(f"Restore: Selected backup '{os.path.basename(backup_db)}' with {max_activities} activities total.")
     # 2. Đọc các hoạt động từ backup (khôi phục TẤT CẢ hoạt động bị mất, không giới hạn trước 16/06)
     conn_b = sqlite3.connect(backup_db)
     cur_b = conn_b.cursor()
@@ -3169,7 +3178,7 @@ def restore_backup_data_endpoint(request: Request, db: Session = Depends(get_db)
             "total_restored": total_restored,
             "restored_before_16": restored_before_16,
             "restored_after_16": restored_after_16,
-            "backup_file": os.path.basename(backup_db)
+            "backup_info": backup_info
         })
     except Exception as e:
         db.rollback()
