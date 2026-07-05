@@ -994,6 +994,34 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
         # Kiểm tra xem hoạt động đã có trong DB chưa
         exists = db.query(Activity).filter(Activity.id == act_id).first()
         if exists:
+            # Nếu hoạt động đến từ API cá nhân nhưng DB đang gán nhầm cho VĐV khác, ta re-assign lại cho đúng chủ sở hữu thực sự
+            if act.get("is_personal_api") and athlete_id and exists.athlete_id != athlete_id:
+                print(f"Sync Engine: Re-assigning activity {act_id} from athlete ID {exists.athlete_id} to correct owner {athlete_id} ({athlete.full_name})")
+                exists.athlete_id = athlete_id
+                exists.athlete_name_raw = athlete.full_name
+                # Tính toán lại calo và cự ly theo nhân trắc học và hệ số của VĐV mới
+                activity_multiplier = get_multiplier_for_date(act_date_str, event_id, db) if athlete else 1.0
+                mets_value = 0.0
+                kcal_burned = 0.0
+                if athlete:
+                    speed_kmh = 0.0
+                    if moving_time_min > 0:
+                        speed_kmh = distance_km / (moving_time_min / 60.0)
+                    actual_time_min = elapsed_time_min if moving_time_min < 1.0 else moving_time_min
+                    mets_value = get_mets_value(sport_type, speed_kmh, db, distance_km, elevation_gain_m, event_id=event_id)
+                    kcal_burned = calculate_kcal(mets_value, athlete.weight, actual_time_min, elevation_gain_m, sport_type, multiplier=activity_multiplier)
+                
+                exists.distance_km = round(distance_km * activity_multiplier, 2)
+                exists.distance_km_raw = distance_km
+                exists.kcal_burned = kcal_burned
+                exists.kcal_burned_raw = round(kcal_burned / activity_multiplier) if activity_multiplier > 0 else kcal_burned
+                exists.mets_value = mets_value
+                exists.multiplier = activity_multiplier
+                try:
+                    db.commit()
+                except Exception as commit_err:
+                    db.rollback()
+                    print(f"Sync Engine: Error committing activity re-assignment: {commit_err}")
             seen_ids.add(act_id)
             continue
             
@@ -1597,6 +1625,30 @@ def sync_single_athlete_all_events(db: Session, athlete):
             # Kiểm tra xem hoạt động đã có chưa
             exists = db.query(Activity).filter(Activity.id == act_id).first()
             if exists:
+                # Nếu hoạt động đã có trong DB nhưng đang thuộc về VĐV khác, ta re-assign lại cho đúng chủ sở hữu thực sự
+                if exists.athlete_id != athlete.id:
+                    print(f"Sync Single Athlete: Re-assigning activity {act_id} from athlete ID {exists.athlete_id} to correct owner {athlete.id} ({athlete.full_name})")
+                    exists.athlete_id = athlete.id
+                    exists.athlete_name_raw = athlete.full_name
+                    
+                    # Tính toán lại calo và cự ly theo nhân trắc học và hệ số của VĐV mới
+                    speed_kmh = (distance_km / (moving_time_min / 60.0)) if moving_time_min > 0 else 0.0
+                    actual_time_min = elapsed_time_min if moving_time_min < 1.0 else moving_time_min
+                    mets_value = get_mets_value(sport_type, speed_kmh, db, distance_km, elevation_gain_m, event_id=event_id)
+                    activity_multiplier = get_multiplier_for_date(act_date_str, event_id, db)
+                    kcal_burned = calculate_kcal(mets_value, athlete.weight, actual_time_min, elevation_gain_m, sport_type, multiplier=activity_multiplier)
+                    
+                    exists.distance_km = round(distance_km * activity_multiplier, 2)
+                    exists.distance_km_raw = distance_km
+                    exists.kcal_burned = kcal_burned
+                    exists.kcal_burned_raw = round(kcal_burned / activity_multiplier) if activity_multiplier > 0 else kcal_burned
+                    exists.mets_value = mets_value
+                    exists.multiplier = activity_multiplier
+                    try:
+                        db.commit()
+                    except Exception as commit_err:
+                        db.rollback()
+                        print(f"Sync Single Athlete: Error committing activity re-assignment: {commit_err}")
                 continue
                 
             # Tính toán METs & KCAL
