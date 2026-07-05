@@ -693,62 +693,65 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
                     user_api_activities.extend(ath_acts)
                     
                     # Tìm và dọn dẹp các hoạt động cào web cũ (ID dài đúng 64 ký tự) của VĐV này
-                    # từ ngày bắt đầu giải chạy để thay thế hoàn toàn bằng dữ liệu API cá nhân
-                    try:
-                        from sqlalchemy import func as sa_func
-                        import json
-                        import os
-                        
-                        club_acts = db.query(Activity).filter(
-                            Activity.athlete_id == ath.id,
-                            Activity.event_id == event_id,
-                            Activity.activity_date >= start_date,
-                            sa_func.length(Activity.id) == 64
-                        ).all()
-                        
-                        if club_acts:
-                            backup_file = "static/uploads/deleted_activities_backup.jsonl"
-                            os.makedirs("static/uploads", exist_ok=True)
-                            with open(backup_file, "a", encoding="utf-8") as f:
-                                for act in club_acts:
-                                    act_dict = {
-                                        "id": act.id,
-                                        "athlete_id": act.athlete_id,
-                                        "event_id": act.event_id,
-                                        "athlete_name_raw": act.athlete_name_raw,
-                                        "name": act.name,
-                                        "type": act.type,
-                                        "sport_type": act.sport_type,
-                                        "distance_km": act.distance_km,
-                                        "moving_time_min": act.moving_time_min,
-                                        "elapsed_time_min": act.elapsed_time_min,
-                                        "pace_min_km": act.pace_min_km,
-                                        "elevation_gain_m": act.elevation_gain_m,
-                                        "activity_date": act.activity_date,
-                                        "activity_time": act.activity_time,
-                                        "kcal_burned": act.kcal_burned,
-                                        "mets_value": act.mets_value,
-                                        "is_suspicious": act.is_suspicious,
-                                        "suspicion_reason": act.suspicion_reason,
-                                        "distance_km_raw": act.distance_km_raw,
-                                        "kcal_burned_raw": act.kcal_burned_raw,
-                                        "multiplier": act.multiplier,
-                                        "backup_time": datetime.utcnow().isoformat(),
-                                        "reason": f"Nang cap len API ca nhan cho {ath.full_name}"
-                                    }
-                                    f.write(json.dumps(act_dict, ensure_ascii=False) + "\n")
-                                    
-                            # Xóa khỏi DB để chuẩn bị ghi đè dữ liệu API mới
-                            db.query(Activity).filter(
+                    # CHỈ xóa nếu API trả về ít nhất 1 hoạt động (tránh mất dữ liệu khi API lỗi)
+                    if len(ath_acts) > 0:
+                        try:
+                            from sqlalchemy import func as sa_func
+                            import json
+                            import os
+                            
+                            club_acts = db.query(Activity).filter(
                                 Activity.athlete_id == ath.id,
                                 Activity.event_id == event_id,
                                 Activity.activity_date >= start_date,
                                 sa_func.length(Activity.id) == 64
-                            ).delete(synchronize_session=False)
-                            db.commit()
-                            print(f"Sync Engine: Backed up and cleared {len(club_acts)} old Club-sourced activities for authorized athlete {ath.full_name} since {start_date}.")
-                    except Exception as clean_err:
-                        print(f"Sync Engine: Error clearing old Club activities for {ath.full_name}: {clean_err}")
+                            ).all()
+                            
+                            if club_acts:
+                                backup_file = "static/uploads/deleted_activities_backup.jsonl"
+                                os.makedirs("static/uploads", exist_ok=True)
+                                with open(backup_file, "a", encoding="utf-8") as f:
+                                    for act in club_acts:
+                                        act_dict = {
+                                            "id": act.id,
+                                            "athlete_id": act.athlete_id,
+                                            "event_id": act.event_id,
+                                            "athlete_name_raw": act.athlete_name_raw,
+                                            "name": act.name,
+                                            "type": act.type,
+                                            "sport_type": act.sport_type,
+                                            "distance_km": act.distance_km,
+                                            "moving_time_min": act.moving_time_min,
+                                            "elapsed_time_min": act.elapsed_time_min,
+                                            "pace_min_km": act.pace_min_km,
+                                            "elevation_gain_m": act.elevation_gain_m,
+                                            "activity_date": act.activity_date,
+                                            "activity_time": act.activity_time,
+                                            "kcal_burned": act.kcal_burned,
+                                            "mets_value": act.mets_value,
+                                            "is_suspicious": act.is_suspicious,
+                                            "suspicion_reason": act.suspicion_reason,
+                                            "distance_km_raw": act.distance_km_raw,
+                                            "kcal_burned_raw": act.kcal_burned_raw,
+                                            "multiplier": act.multiplier,
+                                            "backup_time": datetime.utcnow().isoformat(),
+                                            "reason": f"Nang cap len API ca nhan cho {ath.full_name}"
+                                        }
+                                        f.write(json.dumps(act_dict, ensure_ascii=False) + "\n")
+                                        
+                                # Xóa khỏi DB để chuẩn bị ghi đè dữ liệu API mới
+                                db.query(Activity).filter(
+                                    Activity.athlete_id == ath.id,
+                                    Activity.event_id == event_id,
+                                    Activity.activity_date >= start_date,
+                                    sa_func.length(Activity.id) == 64
+                                ).delete(synchronize_session=False)
+                                db.commit()
+                                print(f"Sync Engine: Backed up and cleared {len(club_acts)} old Club-sourced activities for authorized athlete {ath.full_name} since {start_date}.")
+                        except Exception as clean_err:
+                            print(f"Sync Engine: Error clearing old Club activities for {ath.full_name}: {clean_err}")
+                    else:
+                        print(f"Sync Engine: API returned 0 activities for {ath.full_name}. Keeping existing Club data to prevent data loss.")
             else:
                 print(f"Sync Engine: Cannot refresh token for {ath.full_name}, skipping personal API sync.")
                 
@@ -1508,7 +1511,7 @@ async def import_excel_files(files: list[UploadFile], db: Session, event_id: int
 def sync_single_athlete_all_events(db: Session, athlete):
     """
     Đồng bộ ngay lập tức toàn bộ hoạt động của 1 VĐV vừa mới ủy quyền.
-    Thực hiện dọn dẹp các hoạt động cào Club/Scraper cũ của họ và thay thế bằng dữ liệu API cá nhân.
+    An toàn: Chỉ dọn dẹp hoạt động cào web cũ SAU KHI đã xác nhận có dữ liệu API mới thay thế.
     """
     from backend.database import CompetitionEvent, CompetitionRegistration, Activity
     from sqlalchemy import func as sa_func
@@ -1548,63 +1551,12 @@ def sync_single_athlete_all_events(db: Session, athlete):
         # Gọi API lấy các hoạt động kể cả ngày bắt đầu giải (bị cap mốc tối thiểu 16/06/2026)
         ath_acts = sync_athlete_activities_api(db, athlete, u_token, start_date)
         if ath_acts is None:
+            print(f"Sync Single Athlete: API returned None for {athlete.full_name} in event '{event.title}'. Keeping existing data.")
             continue
             
         print(f"Sync Single Athlete: Found {len(ath_acts)} activities for {athlete.full_name} in event '{event.title}'.")
         
-        # Dọn dẹp hoạt động cũ (ID 64 ký tự)
-        try:
-            club_acts = db.query(Activity).filter(
-                Activity.athlete_id == athlete.id,
-                Activity.event_id == event_id,
-                Activity.activity_date >= start_date,
-                sa_func.length(Activity.id) == 64
-            ).all()
-            
-            if club_acts:
-                backup_file = "static/uploads/deleted_activities_backup.jsonl"
-                os.makedirs(os.path.dirname(backup_file), exist_ok=True)
-                with open(backup_file, "a", encoding="utf-8") as f:
-                    for act in club_acts:
-                        act_dict = {
-                            "id": act.id,
-                            "athlete_id": act.athlete_id,
-                            "event_id": act.event_id,
-                            "athlete_name_raw": act.athlete_name_raw,
-                            "name": act.name,
-                            "type": act.type,
-                            "sport_type": act.sport_type,
-                            "distance_km": act.distance_km,
-                            "moving_time_min": act.moving_time_min,
-                            "elapsed_time_min": act.elapsed_time_min,
-                            "pace_min_km": act.pace_min_km,
-                            "elevation_gain_m": act.elevation_gain_m,
-                            "activity_date": act.activity_date,
-                            "activity_time": act.activity_time,
-                            "kcal_burned": act.kcal_burned,
-                            "mets_value": act.mets_value,
-                            "is_suspicious": act.is_suspicious,
-                            "suspicion_reason": act.suspicion_reason,
-                            "distance_km_raw": act.distance_km_raw,
-                            "kcal_burned_raw": act.kcal_burned_raw,
-                            "multiplier": act.multiplier,
-                            "backup_time": datetime.utcnow().isoformat(),
-                            "reason": f"Nang cap tuc thi khi vua uy quyen cho {athlete.full_name}"
-                        }
-                        f.write(json.dumps(act_dict, ensure_ascii=False) + "\n")
-                
-                db.query(Activity).filter(
-                    Activity.athlete_id == athlete.id,
-                    Activity.event_id == event_id,
-                    Activity.activity_date >= start_date,
-                    sa_func.length(Activity.id) == 64
-                ).delete(synchronize_session=False)
-                db.commit()
-                print(f"Sync Single Athlete: Cleared {len(club_acts)} old Club acts for {athlete.full_name}.")
-        except Exception as clean_err:
-            print(f"Sync Single Athlete: Error clearing old Club acts: {clean_err}")
-            
-        # Nạp dữ liệu mới vào DB
+        # === BƯỚC 1: NẠP DỮ LIỆU MỚI TRƯỚC (không xóa dữ liệu cũ) ===
         new_count = 0
         
         for act in ath_acts:
@@ -1699,3 +1651,61 @@ def sync_single_athlete_all_events(db: Session, athlete):
         except Exception as e:
             db.rollback()
             print(f"Sync Single Athlete: Error saving new activities: {e}")
+            continue  # Lỗi lưu → bỏ qua, KHÔNG xóa dữ liệu cũ
+        
+        # === BƯỚC 2: CHỈ DỌN DẸP SAU KHI ĐÃ CÓ DỮ LIỆU THAY THẾ ===
+        # Chỉ xóa hoạt động cào Club cũ nếu API trả về ít nhất 1 hoạt động mới HOẶC đã có dữ liệu API trước đó
+        if len(ath_acts) > 0:
+            try:
+                club_acts = db.query(Activity).filter(
+                    Activity.athlete_id == athlete.id,
+                    Activity.event_id == event_id,
+                    Activity.activity_date >= start_date,
+                    sa_func.length(Activity.id) == 64
+                ).all()
+                
+                if club_acts:
+                    backup_file = "static/uploads/deleted_activities_backup.jsonl"
+                    os.makedirs(os.path.dirname(backup_file), exist_ok=True)
+                    with open(backup_file, "a", encoding="utf-8") as f:
+                        for act in club_acts:
+                            act_dict = {
+                                "id": act.id,
+                                "athlete_id": act.athlete_id,
+                                "event_id": act.event_id,
+                                "athlete_name_raw": act.athlete_name_raw,
+                                "name": act.name,
+                                "type": act.type,
+                                "sport_type": act.sport_type,
+                                "distance_km": act.distance_km,
+                                "moving_time_min": act.moving_time_min,
+                                "elapsed_time_min": act.elapsed_time_min,
+                                "pace_min_km": act.pace_min_km,
+                                "elevation_gain_m": act.elevation_gain_m,
+                                "activity_date": act.activity_date,
+                                "activity_time": act.activity_time,
+                                "kcal_burned": act.kcal_burned,
+                                "mets_value": act.mets_value,
+                                "is_suspicious": act.is_suspicious,
+                                "suspicion_reason": act.suspicion_reason,
+                                "distance_km_raw": act.distance_km_raw,
+                                "kcal_burned_raw": act.kcal_burned_raw,
+                                "multiplier": act.multiplier,
+                                "backup_time": datetime.utcnow().isoformat(),
+                                "reason": f"Nang cap tuc thi khi vua uy quyen cho {athlete.full_name}"
+                            }
+                            f.write(json.dumps(act_dict, ensure_ascii=False) + "\n")
+                    
+                    db.query(Activity).filter(
+                        Activity.athlete_id == athlete.id,
+                        Activity.event_id == event_id,
+                        Activity.activity_date >= start_date,
+                        sa_func.length(Activity.id) == 64
+                    ).delete(synchronize_session=False)
+                    db.commit()
+                    print(f"Sync Single Athlete: Cleared {len(club_acts)} old Club acts for {athlete.full_name}.")
+            except Exception as clean_err:
+                print(f"Sync Single Athlete: Error clearing old Club acts: {clean_err}")
+        else:
+            print(f"Sync Single Athlete: API returned 0 activities for {athlete.full_name} in event '{event.title}'. Keeping existing Club data to prevent data loss.")
+

@@ -3038,7 +3038,7 @@ def restore_backup_data_endpoint(request: Request, db: Session = Depends(get_db)
             "error": "Không tìm thấy bất kỳ file CSDL backup nào trong hệ thống!"
         })
         
-    # 2. Đọc các hoạt động từ backup và chỉ lọc hoạt động trước ngày 16/06/2026
+    # 2. Đọc các hoạt động từ backup (khôi phục TẤT CẢ hoạt động bị mất, không giới hạn trước 16/06)
     conn_b = sqlite3.connect(backup_db)
     cur_b = conn_b.cursor()
     try:
@@ -3051,7 +3051,7 @@ def restore_backup_data_endpoint(request: Request, db: Session = Depends(get_db)
         
         backup_data = {}
         for a_id, name, s_name in backup_athletes:
-            cur_b.execute("SELECT * FROM activities WHERE athlete_id = ? AND activity_date < '2026-06-16'", (a_id,))
+            cur_b.execute("SELECT * FROM activities WHERE athlete_id = ?", (a_id,))
             col_names = [desc[0] for desc in cur_b.description]
             rows = cur_b.fetchall()
             backup_data[a_id] = {
@@ -3082,6 +3082,8 @@ def restore_backup_data_endpoint(request: Request, db: Session = Depends(get_db)
         live_name_map = {normalize_name(ath.full_name): ath.id for ath in live_athletes}
         
         total_restored = 0
+        restored_before_16 = 0
+        restored_after_16 = 0
         
         for old_id, info in backup_data.items():
             name = info["name"]
@@ -3146,11 +3148,28 @@ def restore_backup_data_endpoint(request: Request, db: Session = Depends(get_db)
                 )
                 db.add(new_act)
                 total_restored += 1
+                # Thống kê chi tiết
+                if act["activity_date"] and act["activity_date"] < "2026-06-16":
+                    restored_before_16 += 1
+                else:
+                    restored_after_16 += 1
                 
         db.commit()
+        
+        detail_parts = []
+        if restored_before_16 > 0:
+            detail_parts.append(f"{restored_before_16} hoạt động lịch sử (trước 16/06)")
+        if restored_after_16 > 0:
+            detail_parts.append(f"{restored_after_16} hoạt động bị mất (từ 16/06 trở đi)")
+        detail_str = " và ".join(detail_parts) if detail_parts else "0 hoạt động"
+        
         return JSONResponse(content={
             "status": "success",
-            "message": f"Khôi phục thành công! Đã khôi phục {total_restored} hoạt động lịch sử (trước ngày 16/06/2026) của các vận động viên vào CSDL chính."
+            "message": f"Khôi phục thành công! Đã khôi phục {total_restored} hoạt động ({detail_str}) từ bản backup '{os.path.basename(backup_db)}'.",
+            "total_restored": total_restored,
+            "restored_before_16": restored_before_16,
+            "restored_after_16": restored_after_16,
+            "backup_file": os.path.basename(backup_db)
         })
     except Exception as e:
         db.rollback()
