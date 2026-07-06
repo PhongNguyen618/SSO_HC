@@ -410,6 +410,13 @@
                 <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 1.2rem; line-height: 1.5;">
                     Nhập Họ tên của bạn để kiểm tra nhanh trạng thái liên kết dữ liệu Strava cá nhân với giải chạy.
                 </p>
+                <!-- Cảnh báo dùng chung thiết bị -->
+                <div style="background: rgba(239, 68, 68, 0.05); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 6px; padding: 0.6rem 0.8rem; margin-bottom: 1rem; font-size: 0.78rem; line-height: 1.4; color: var(--text-main); text-align: left;">
+                    <strong style="color: #ff7675; display: block; margin-bottom: 2px;">
+                        <i class="fa-solid fa-triangle-exclamation"></i> LƯU Ý KHI DÙNG CHUNG THIẾT BỊ:
+                    </strong>
+                    Nếu bạn đang dùng chung điện thoại/máy tính để liên kết hộ người khác, bạn phải truy cập <a href="https://www.strava.com" target="_blank" style="color: #00ADB5; text-decoration: underline; font-weight: bold;">Strava.com</a> và <strong>Đăng Xuất (Log Out)</strong> tài khoản cũ trước khi thực hiện liên kết tài khoản mới.
+                </div>
                 <div style="margin-bottom: 1.2rem; display: flex; gap: 0.5rem;">
                     <input type="text" id="searchAthleteConnInput" placeholder="Nhập tên vận động viên..." class="form-control" style="margin-bottom: 0; flex: 1; height: 38px;" onkeyup="if(event.key === 'Enter') triggerSearchConnection()">
                     <button class="btn btn-primary" onclick="triggerSearchConnection()" style="padding: 0 1.2rem; height: 38px; background: linear-gradient(135deg, #ff5e36 0%, #ff9a3c 100%); border: none; display: flex; align-items: center; justify-content: center;">

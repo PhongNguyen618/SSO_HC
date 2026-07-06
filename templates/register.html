@@ -100,6 +100,19 @@
             <p style="font-size: 0.95rem; margin-bottom: 1.5rem; color: var(--text-main); line-height: 1.6;">
                 Sau khi đã tham gia nhóm ở trên, vui lòng bấm nút cam bên dưới để kết nối dữ liệu Strava cá nhân, hoàn tất đăng ký tự động ghi nhận thành tích.
             </p>
+            
+            <!-- Cảnh báo dùng chung thiết bị -->
+            <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; padding: 1rem; margin: 0.5rem auto 1.5rem auto; text-align: left; max-width: 600px; line-height: 1.5; font-size: 0.85rem;">
+                <div style="color: #f87171; font-weight: bold; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                    <i class="fa-solid fa-triangle-exclamation" style="font-size: 1.1rem; animation: pulse 1.5s infinite;"></i>
+                    CẢNH BÁO QUAN TRỌNG VỀ THIẾT BỊ ĐỒNG BỘ
+                </div>
+                <ul style="margin: 0; padding-left: 1.2rem; color: var(--text-main); display: flex; flex-direction: column; gap: 0.4rem;">
+                    <li><strong style="color: #ff7675;">TUYỆT ĐỐI KHÔNG DÙNG CHUNG thiết bị (điện thoại/máy tính)</strong> với VĐV khác để liên kết Strava. Trình duyệt của thiết bị sẽ tự động ghi nhớ tài khoản của người liên kết trước, dẫn đến việc ghi nhận nhầm tài khoản và <strong style="color: #ff7675;">xóa sạch dữ liệu hoạt động</strong> của bạn!</li>
+                    <li><strong>Nếu bắt buộc phải dùng chung thiết bị:</strong> Bạn phải mở trình duyệt web lên, truy cập <a href="https://www.strava.com" target="_blank" style="color: #00ADB5; text-decoration: underline; font-weight: bold;">Strava.com</a> và bấm <strong>Đăng Xuất (Log Out)</strong> tài khoản cũ trước khi bạn bấm nút liên kết bên dưới.</li>
+                </ul>
+            </div>
+            
             <a href="{{ auth_url }}" class="btn btn-primary" style="background: linear-gradient(135deg, #ff5e36 0%, #ff9a3c 100%); border: none; padding: 0.9rem 2rem; font-size: 1.05rem; font-weight: 700; border-radius: 50px; text-decoration: none; display: inline-flex; align-items: center; gap: 0.6rem; box-shadow: 0 5px 20px rgba(255, 94, 54, 0.4); transition: all 0.3s ease; width: auto; color: #fff;">
                 <i class="fa-brands fa-strava"></i> LIÊN KẾT TÀI KHOẢN STRAVA NGAY
             </a>
