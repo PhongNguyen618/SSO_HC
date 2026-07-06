@@ -95,6 +95,35 @@
     </div>
     {% endif %}
 
+    {% if dup_token_alerts %}
+    <div class="alert alert-error" style="background: rgba(255, 71, 87, 0.1); color: #ff4757; border: 1px solid rgba(255, 71, 87, 0.2); margin-bottom: 1.5rem; text-align: left; padding: 1.2rem; border-radius: 8px;">
+        <h4 style="margin: 0 0 0.5rem 0; font-family: 'Outfit', sans-serif; font-size: 1.1rem; display: flex; align-items: center; gap: 0.5rem; color: #ff4757;">
+            <i class="fa-solid fa-triangle-exclamation"></i> Cảnh Báo Trùng Lặp Token Liên Kết Strava
+        </h4>
+        <p style="font-size: 0.85rem; margin: 0 0 0.8rem 0; line-height: 1.4; color: var(--text-color); opacity: 0.9;">
+            Phát hiện các VĐV bên dưới đang bị trùng lặp Token cá nhân (do dùng chung thiết bị khi bấm liên kết Strava).
+            Hệ thống đã **tạm ngắt đồng bộ API cá nhân** của các VĐV này để tránh lỗi ghi đè dữ liệu, đồng thời **giữ nguyên đồng bộ cào web (Scraper/Club)** cho họ.
+        </p>
+        <ul style="font-size: 0.85rem; margin: 0; padding-left: 1.2rem; line-height: 1.6; color: var(--text-color); opacity: 0.95;">
+            {% for alert in dup_token_alerts %}
+            <li style="margin-bottom: 0.6rem;">
+                Token trùng (đuôi: <strong style="color: #ff4757; font-size: 0.9rem;">...{{ alert.token_suffix }}</strong>) đang bị gán cho các VĐV:
+                <div style="display: flex; gap: 0.8rem; margin-top: 0.25rem; font-size: 0.8rem; flex-wrap: wrap;">
+                    {% for ath in alert.athletes %}
+                        <span style="background: rgba(255, 71, 87, 0.15); color: #ff4757; padding: 0.2rem 0.6rem; border-radius: 4px; border: 1px solid rgba(255, 71, 87, 0.1);">
+                            <strong>[ID: {{ ath.id }}]</strong> {{ ath.full_name }} ({{ ath.department }}) - Strava: {{ ath.strava_name }}
+                        </span>
+                    {% endfor %}
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+        <p style="font-size: 0.8rem; margin: 0.8rem 0 0 0; opacity: 0.7; font-style: italic; color: var(--text-muted);">
+            *Khuyên dùng: Bạn hãy chạy nút "Dọn Liên Kết Sai" hoặc hướng dẫn các VĐV này bấm "Hủy liên kết" trên trang cá nhân, đăng xuất tài khoản Strava trên trình duyệt của họ và bấm "Liên kết lại" bằng đúng tài khoản của mình.
+        </p>
+    </div>
+    {% endif %}
+
     <!-- Quick Manual Sync Status Bar -->
     <div class="glass-card" style="padding: 1.5rem; border-color: rgba(0, 242, 254, 0.2); background: rgba(0, 242, 254, 0.02); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem;">
         <div style="flex: 1; min-width: 280px;">

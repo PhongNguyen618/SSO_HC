@@ -489,6 +489,15 @@ def refresh_user_strava_token(db, athlete, configs) -> str:
     if not refresh_token:
         return None
         
+    # Chặn đồng bộ API nếu VĐV này đang dùng chung token với người khác (tránh mất dữ liệu)
+    is_duplicate = db.query(Athlete).filter(
+        Athlete.strava_refresh_token == refresh_token,
+        Athlete.id != athlete.id
+    ).first()
+    if is_duplicate:
+        print(f"Sync Engine: Skip API sync for {athlete.full_name} because their token is duplicated with {is_duplicate.full_name}. Falling back to Scraper/Club.")
+        return None
+        
     expires_at = 0
     try:
         expires_at = int(athlete.strava_expires_at or 0)

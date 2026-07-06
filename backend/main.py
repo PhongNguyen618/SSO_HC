@@ -2312,6 +2312,20 @@ def admin_dashboard(
                 "athletes": [{"id": a.id, "full_name": a.full_name, "department": a.department or "Chưa phân phòng", "strava_name_raw": a.strava_name} for a in aths]
             })
 
+    # Phát hiện trùng lặp token cá nhân (Refresh Token dùng chung do đăng nhập chung thiết bị)
+    dup_token_alerts = []
+    dup_tokens_query = db.query(Athlete.strava_refresh_token, sa_func.count(Athlete.id))\
+        .filter(Athlete.strava_refresh_token != None)\
+        .group_by(Athlete.strava_refresh_token)\
+        .having(sa_func.count(Athlete.id) > 1).all()
+        
+    for token_val, _ in dup_tokens_query:
+        conflict_aths = db.query(Athlete).filter(Athlete.strava_refresh_token == token_val).all()
+        dup_token_alerts.append({
+            "token_suffix": token_val[-8:] if token_val else "N/A",
+            "athletes": [{"id": a.id, "full_name": a.full_name, "department": a.department or "Chưa rõ", "strava_name": a.strava_name} for a in conflict_aths]
+        })
+
     return templates.TemplateResponse(
         request=request,
         name="admin.html",
@@ -2332,7 +2346,8 @@ def admin_dashboard(
             "all_competitions": all_competitions,
             "selected_event_id": selected_event_id,
             "time_stamp": int(time.time()),
-            "dup_strava_alerts": dup_strava_alerts
+            "dup_strava_alerts": dup_strava_alerts,
+            "dup_token_alerts": dup_token_alerts
         }
     )
 
