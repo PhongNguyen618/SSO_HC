@@ -709,10 +709,14 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
                             import json
                             import os
                             
+                            clean_start_date = start_date
+                            if clean_start_date < "2026-06-16":
+                                clean_start_date = "2026-06-16"
+                                
                             club_acts = db.query(Activity).filter(
                                 Activity.athlete_id == ath.id,
                                 Activity.event_id == event_id,
-                                Activity.activity_date >= start_date,
+                                Activity.activity_date >= clean_start_date,
                                 sa_func.length(Activity.id) == 64
                             ).all()
                             
@@ -752,11 +756,11 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
                                 db.query(Activity).filter(
                                     Activity.athlete_id == ath.id,
                                     Activity.event_id == event_id,
-                                    Activity.activity_date >= start_date,
+                                    Activity.activity_date >= clean_start_date,
                                     sa_func.length(Activity.id) == 64
                                 ).delete(synchronize_session=False)
                                 db.commit()
-                                print(f"Sync Engine: Backed up and cleared {len(club_acts)} old Club-sourced activities for authorized athlete {ath.full_name} since {start_date}.")
+                                print(f"Sync Engine: Backed up and cleared {len(club_acts)} old Club-sourced activities for authorized athlete {ath.full_name} since {clean_start_date}.")
                         except Exception as clean_err:
                             print(f"Sync Engine: Error clearing old Club activities for {ath.full_name}: {clean_err}")
                     else:
@@ -1717,10 +1721,14 @@ def sync_single_athlete_all_events(db: Session, athlete):
         # Chỉ xóa hoạt động cào Club cũ nếu API trả về ít nhất 1 hoạt động mới HOẶC đã có dữ liệu API trước đó
         if len(ath_acts) > 0:
             try:
+                clean_start_date = start_date
+                if clean_start_date < "2026-06-16":
+                    clean_start_date = "2026-06-16"
+                    
                 club_acts = db.query(Activity).filter(
                     Activity.athlete_id == athlete.id,
                     Activity.event_id == event_id,
-                    Activity.activity_date >= start_date,
+                    Activity.activity_date >= clean_start_date,
                     sa_func.length(Activity.id) == 64
                 ).all()
                 
@@ -1759,11 +1767,11 @@ def sync_single_athlete_all_events(db: Session, athlete):
                     db.query(Activity).filter(
                         Activity.athlete_id == athlete.id,
                         Activity.event_id == event_id,
-                        Activity.activity_date >= start_date,
+                        Activity.activity_date >= clean_start_date,
                         sa_func.length(Activity.id) == 64
                     ).delete(synchronize_session=False)
                     db.commit()
-                    print(f"Sync Single Athlete: Cleared {len(club_acts)} old Club acts for {athlete.full_name}.")
+                    print(f"Sync Single Athlete: Cleared {len(club_acts)} old Club acts for {athlete.full_name} since {clean_start_date}.")
             except Exception as clean_err:
                 print(f"Sync Single Athlete: Error clearing old Club acts: {clean_err}")
         else:
