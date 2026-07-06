@@ -2989,6 +2989,13 @@ def exchange_user_token(
         strava_athlete_data = token_data.get("athlete") or {}
         strava_id = strava_athlete_data.get("id")
         
+        # Cập nhật tên Strava của VĐV từ API thực tế
+        firstname = strava_athlete_data.get("firstname") or ""
+        lastname = strava_athlete_data.get("lastname") or ""
+        full_strava_name = f"{firstname} {lastname}".strip()
+        if full_strava_name:
+            athlete.strava_name = full_strava_name
+            
         warning_msg = None
         if strava_id:
             strava_id_str = str(strava_id)
