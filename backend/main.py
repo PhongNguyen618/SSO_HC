@@ -2314,10 +2314,10 @@ def admin_dashboard(
 
     # Phát hiện trùng lặp token cá nhân (Refresh Token dùng chung do đăng nhập chung thiết bị)
     dup_token_alerts = []
-    dup_tokens_query = db.query(Athlete.strava_refresh_token, sa_func.count(Athlete.id))\
+    dup_tokens_query = db.query(Athlete.strava_refresh_token, func.count(Athlete.id))\
         .filter(Athlete.strava_refresh_token != None)\
         .group_by(Athlete.strava_refresh_token)\
-        .having(sa_func.count(Athlete.id) > 1).all()
+        .having(func.count(Athlete.id) > 1).all()
         
     for token_val, _ in dup_tokens_query:
         conflict_aths = db.query(Athlete).filter(Athlete.strava_refresh_token == token_val).all()
