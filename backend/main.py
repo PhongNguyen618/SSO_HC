@@ -1943,7 +1943,6 @@ def athlete_self_unlink(
     try:
         # Hủy liên kết, xóa toàn bộ token
         athlete.strava_id = None
-        athlete.strava_name = None
         athlete.strava_access_token = None
         athlete.strava_refresh_token = None
         athlete.strava_token_expires_at = None
