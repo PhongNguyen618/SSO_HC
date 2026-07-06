@@ -272,7 +272,14 @@
                 {{ athlete.gender }}
             </span>
             <span><i class="fa-solid fa-weight-scale"></i> {{ athlete.weight }} kg</span>
-            <span><i class="fa-brands fa-strava" style="color: #ff5e36;"></i> @{{ athlete.strava_name }}</span>
+            <span>
+                <i class="fa-brands fa-strava" style="color: #ff5e36;"></i> @{{ athlete.strava_name }}
+                {% if athlete.strava_refresh_token %}
+                <a href="javascript:void(0)" onclick="confirmSelfUnlink()" style="color: #ff6b6b; margin-left: 8px; font-size: 0.8rem; text-decoration: none;" title="Hủy liên kết tài khoản Strava">
+                    <i class="fa-solid fa-unlink"></i> Hủy kết nối
+                </a>
+                {% endif %}
+            </span>
         </div>
     </div>
 </div>
@@ -920,5 +927,19 @@
             closeAvatarLightbox();
         }
     });
+
+    // --- LOGIC HỦY LIÊN KẾT CHỦ ĐỘNG ---
+    function confirmSelfUnlink() {
+        if (!confirm("Bạn có chắc chắn muốn hủy liên kết tài khoản Strava cá nhân hiện tại? \nHành động này sẽ ngắt kết nối đồng bộ và dọn dẹp các hoạt động API hiện tại của bạn.")) {
+            return;
+        }
+        
+        // Tạo một Form ảo để submit POST request lên endpoint unlink
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/profile/{{ athlete.id }}/unlink';
+        document.body.appendChild(form);
+        form.submit();
+    }
 </script>
 {% endblock %}
