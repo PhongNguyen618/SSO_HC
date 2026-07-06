@@ -3225,6 +3225,166 @@ def restore_backup_data_endpoint(request: Request, db: Session = Depends(get_db)
             "error": f"Lỗi trong quá trình khôi phục: {str(e)}"
         })
 
+@app.post("/admin/upload-restore-backup")
+def upload_restore_backup_endpoint(
+    request: Request,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    """API tải lên file SQLite DB backup cá nhân và tiến hành khôi phục hoạt động."""
+    admin_session = get_admin_session(request, db)
+    if not admin_session:
+        return JSONResponse(status_code=401, content={"error": "Chưa đăng nhập admin"})
+        
+    if not file.filename.endswith(".db"):
+        return JSONResponse(status_code=400, content={"error": "Định dạng file phải là .db"})
+        
+    # Tạo file tạm trên VPS để đọc
+    temp_dir = "static/uploads/temp"
+    os.makedirs(temp_dir, exist_ok=True)
+    temp_path = os.path.join(temp_dir, f"temp_upload_{int(time.time())}.db")
+    
+    try:
+        # Lưu file tải lên
+        with open(temp_path, "wb") as f:
+            f.write(file.file.read())
+            
+        import sqlite3
+        conn_b = sqlite3.connect(temp_path)
+        cur_b = conn_b.cursor()
+        
+        # Đọc dữ liệu từ file tạm
+        try:
+            cur_b.execute("SELECT id, full_name, strava_name FROM athletes")
+            backup_athletes = cur_b.fetchall()
+            
+            backup_data = {}
+            for a_id, name, s_name in backup_athletes:
+                cur_b.execute("SELECT * FROM activities WHERE athlete_id = ?", (a_id,))
+                col_names = [desc[0] for desc in cur_b.description]
+                rows = cur_b.fetchall()
+                backup_data[a_id] = {
+                    "name": name,
+                    "strava_name": s_name,
+                    "activities": [dict(zip(col_names, r)) for r in rows]
+                }
+        except Exception as e:
+            return JSONResponse(content={
+                "status": "error",
+                "error": f"Tệp tải lên không hợp lệ hoặc thiếu cấu trúc CSDL giải chạy: {str(e)}"
+            })
+        finally:
+            conn_b.close()
+            
+        # Thực hiện khôi phục vào CSDL live
+        import unicodedata
+        live_athletes = db.query(Athlete).all()
+        
+        def normalize_name(name):
+            if not name:
+                return ""
+            name_nfc = unicodedata.normalize("NFC", name)
+            return name_nfc.replace("*", "").strip().lower()
+            
+        live_name_map = {normalize_name(ath.full_name): ath.id for ath in live_athletes}
+        
+        total_restored = 0
+        restored_before_16 = 0
+        restored_after_16 = 0
+        
+        for old_id, info in backup_data.items():
+            name = info["name"]
+            acts = info["activities"]
+            if not acts:
+                continue
+                
+            norm_name = normalize_name(name)
+            if norm_name not in live_name_map:
+                continue
+                
+            new_id = live_name_map[norm_name]
+            
+            added_regs = set()
+            for act in acts:
+                reg_key = (new_id, act["event_id"])
+                if reg_key not in added_regs:
+                    reg_exists = db.query(CompetitionRegistration).filter(
+                        CompetitionRegistration.athlete_id == new_id,
+                        CompetitionRegistration.event_id == act["event_id"]
+                    ).first()
+                    if not reg_exists:
+                        new_reg = CompetitionRegistration(
+                            athlete_id=new_id,
+                            event_id=act["event_id"]
+                        )
+                        db.add(new_reg)
+                    added_regs.add(reg_key)
+                    
+                # Kiểm tra hoạt động tồn tại
+                existing = db.query(Activity).filter(Activity.id == act["id"]).first()
+                if existing:
+                    continue
+                    
+                new_act = Activity(
+                    id=act["id"],
+                    athlete_id=new_id,
+                    event_id=act["event_id"],
+                    athlete_name_raw=act["athlete_name_raw"],
+                    name=act["name"],
+                    type=act["type"],
+                    sport_type=act["sport_type"],
+                    distance_km=act["distance_km"],
+                    moving_time_min=act["moving_time_min"],
+                    elapsed_time_min=act["elapsed_time_min"],
+                    pace_min_km=act["pace_min_km"],
+                    elevation_gain_m=act["elevation_gain_m"],
+                    activity_date=act["activity_date"],
+                    activity_time=act["activity_time"],
+                    kcal_burned=act["kcal_burned"],
+                    mets_value=act["mets_value"],
+                    is_suspicious=act["is_suspicious"],
+                    suspicion_reason=act["suspicion_reason"],
+                    distance_km_raw=act["distance_km_raw"],
+                    kcal_burned_raw=act["kcal_burned_raw"],
+                    multiplier=act["multiplier"]
+                )
+                db.add(new_act)
+                total_restored += 1
+                if act["activity_date"] and act["activity_date"] < "2026-06-16":
+                    restored_before_16 += 1
+                else:
+                    restored_after_16 += 1
+                    
+        db.commit()
+        
+        detail_parts = []
+        if restored_before_16 > 0:
+            detail_parts.append(f"{restored_before_16} hoạt động lịch sử (trước 16/06)")
+        if restored_after_16 > 0:
+            detail_parts.append(f"{restored_after_16} hoạt động bị mất (từ 16/06 trở đi)")
+        detail_str = " và ".join(detail_parts) if detail_parts else "0 hoạt động"
+        
+        return JSONResponse(content={
+            "status": "success",
+            "message": f"Khôi phục thành công! Đã khôi phục {total_restored} hoạt động ({detail_str}) từ tệp tải lên '{file.filename}'.",
+            "total_restored": total_restored,
+            "restored_before_16": restored_before_16,
+            "restored_after_16": restored_after_16
+        })
+    except Exception as e:
+        db.rollback()
+        return JSONResponse(content={
+            "status": "error",
+            "error": f"Lỗi trong quá trình khôi phục: {str(e)}"
+        })
+    finally:
+        # Xóa file tạm
+        if os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except Exception:
+                pass
+
 @app.post("/admin/force-sync-all-athletes")
 def force_sync_all_athletes_endpoint(request: Request, db: Session = Depends(get_db)):
     """API đồng bộ lại và gán lại hoạt động cho toàn bộ VĐV đã liên kết Strava."""

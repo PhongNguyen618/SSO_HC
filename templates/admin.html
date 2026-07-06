@@ -179,6 +179,10 @@
             <button id="btnForceSyncAll" class="btn btn-secondary btn-sm" style="height: 38px; border-color: #9b59b6; color: #9b59b6;">
                 <i class="fa-solid fa-sync"></i> Quét Lại API VĐV
             </button>
+            <button id="btnUploadRestore" class="btn btn-secondary btn-sm" style="height: 38px; border-color: #3498db; color: #3498db;">
+                <i class="fa-solid fa-cloud-arrow-up"></i> Tải Lên & Khôi Phục DB
+            </button>
+            <input type="file" id="uploadBackupInput" accept=".db" style="display: none;">
         </div>
     </div>
 
@@ -3342,6 +3346,61 @@
             .catch(err => {
                 btnForceSync.disabled = false;
                 btnForceSync.innerHTML = '<i class="fa-solid fa-sync"></i> Quét Lại API VĐV';
+                alert(`Lỗi hệ thống: ${err.message}`);
+            });
+        });
+    }
+
+    // --- UPLOAD AND RESTORE BACKUP AJAX LOGIC ---
+    const btnUploadRestore = document.getElementById('btnUploadRestore');
+    const uploadBackupInput = document.getElementById('uploadBackupInput');
+    
+    if (btnUploadRestore && uploadBackupInput) {
+        btnUploadRestore.addEventListener('click', function() {
+            uploadBackupInput.click(); // Mở hộp thoại chọn file
+        });
+        
+        uploadBackupInput.addEventListener('change', function() {
+            const file = uploadBackupInput.files[0];
+            if (!file) return;
+            
+            if (!confirm(`Bạn có chắc chắn muốn tải lên file '${file.name}' để khôi phục dữ liệu lịch sử? Quá trình này sẽ khôi phục toàn bộ hoạt động lịch sử bị thiếu.`)) {
+                uploadBackupInput.value = ''; // Reset input
+                return;
+            }
+            
+            btnUploadRestore.disabled = true;
+            btnUploadRestore.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang khôi phục...';
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            fetch('/admin/upload-restore-backup', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (response.status === 401) {
+                    throw new Error('Chưa đăng nhập quyền Admin');
+                }
+                return response.json();
+            })
+            .then(data => {
+                btnUploadRestore.disabled = false;
+                btnUploadRestore.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> Tải Lên & Khôi Phục DB';
+                uploadBackupInput.value = ''; // Reset input
+                
+                if (data.status === 'success') {
+                    alert(data.message);
+                    window.location.reload();
+                } else {
+                    alert(`Lỗi: ${data.error || 'Lỗi không xác định'}`);
+                }
+            })
+            .catch(err => {
+                btnUploadRestore.disabled = false;
+                btnUploadRestore.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> Tải Lên & Khôi Phục DB';
+                uploadBackupInput.value = ''; // Reset input
                 alert(`Lỗi hệ thống: ${err.message}`);
             });
         });
