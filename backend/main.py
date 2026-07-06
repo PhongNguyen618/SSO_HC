@@ -1834,10 +1834,41 @@ def profile_page(
     # Kiểm tra quyền Admin
     is_admin = get_admin_session(request, db) is not None
 
+    # Logic so khớp tên để phát hiện liên kết nhầm tài khoản Strava
+    is_mismatched_name = False
+    if athlete.strava_refresh_token and athlete.strava_name and athlete.full_name:
+        import unicodedata
+        import re
+        
+        def remove_accents(input_str):
+            nfkd_form = unicodedata.normalize('NFKD', input_str)
+            only_ascii = nfkd_form.encode('ASCII', 'ignore')
+            return only_ascii.decode("utf-8")
+            
+        def get_clean_words(name):
+            cleaned = remove_accents(name.strip().lower())
+            words = re.findall(r'\b\w+\b', cleaned)
+            return [w for w in words if len(w) > 1]
+            
+        words_full = get_clean_words(athlete.full_name)
+        strava_parts = athlete.strava_name.split(",")
+        mismatch_flag = True
+        
+        for part in strava_parts:
+            words_strava = get_clean_words(part)
+            # Nếu trùng khớp ít nhất 1 từ chính (ví dụ: "Tuấn", "Anh", "Lê"), coi như không nhầm
+            intersection = set(words_full) & set(words_strava)
+            if len(intersection) > 0:
+                mismatch_flag = False
+                break
+                
+        is_mismatched_name = mismatch_flag
+
     return templates.TemplateResponse(
         request=request,
         name="profile.html",
         context={
+            "is_mismatched_name": is_mismatched_name,
             "athlete": athlete,
             "activities": paginated_activities,
             "current_page": page,
@@ -1897,6 +1928,39 @@ def register_event_for_athlete(
             raise HTTPException(status_code=500, detail=f"Lỗi khi lưu đăng ký: {str(e)}")
             
     return RedirectResponse(url=f"/profile/{athlete_id}?event_id={event_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+@app.post("/profile/{athlete_id}/unlink")
+def athlete_self_unlink(
+    athlete_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """VĐV tự hủy liên kết Strava cá nhân do nhầm lẫn trên giao diện."""
+    athlete = db.query(Athlete).filter(Athlete.id == athlete_id, Athlete.is_active == True).first()
+    if not athlete:
+        raise HTTPException(status_code=404, detail="Không tìm thấy Vận động viên.")
+        
+    try:
+        # Hủy liên kết, xóa toàn bộ token
+        athlete.strava_id = None
+        athlete.strava_name = None
+        athlete.strava_access_token = None
+        athlete.strava_refresh_token = None
+        athlete.strava_token_expires_at = None
+        
+        # Cũng xóa hoạt động cũ không khớp để dọn dẹp sạch sẽ
+        db.query(Activity).filter(
+            Activity.athlete_id == athlete.id,
+            func.length(Activity.id) != 64 # Chỉ xóa các hoạt động API, giữ lại các hoạt động cào web cũ
+        ).delete()
+        
+        db.commit()
+        print(f"Profile: Athlete {athlete.full_name} (ID {athlete.id}) has unlinked their Strava account due to name mismatch.")
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Lỗi khi hủy liên kết: {str(e)}")
+        
+    return RedirectResponse(url=f"/profile/{athlete_id}", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.get("/event/{event_id}", response_class=HTMLResponse)
 def event_detail_page(request: Request, event_id: int, db: Session = Depends(get_db)):

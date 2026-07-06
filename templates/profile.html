@@ -277,6 +277,28 @@
     </div>
 </div>
 
+<!-- Mismatch name alert -->
+{% if is_mismatched_name %}
+<div class="glass-card" style="border-color: rgba(239, 68, 68, 0.5); background: rgba(239, 68, 68, 0.08); margin-top: 1rem; margin-bottom: 1.5rem; padding: 1.2rem; border-radius: 12px; animation: fadeInUp 0.4s ease;">
+    <h3 style="color: #f87171; font-family: 'Outfit'; font-size: 1.1rem; margin-top: 0; margin-bottom: 0.6rem; display: flex; align-items: center; gap: 0.5rem; font-weight: 700;">
+        <i class="fa-solid fa-triangle-exclamation" style="animation: pulse 1.5s infinite;"></i>
+        ⚠️ PHÁT HIỆN LIÊN KẾT NHẦM TÀI KHOẢN STRAVA!
+    </h3>
+    <p style="font-size: 0.9rem; line-height: 1.6; margin-bottom: 1rem; color: var(--text-main);">
+        Tên đăng ký của bạn trên giải chạy là <strong style="color: #64b5f6;">{{ athlete.full_name }}</strong>, nhưng tài khoản Strava liên kết hiện tại lại mang tên là <strong style="color: #ff7675;">@{{ athlete.strava_name }}</strong>. 
+        <br>
+        <span style="color: #f87171; font-weight: bold;">Hoạt động chạy bộ của bạn sẽ KHÔNG được ghi nhận.</span> Vui lòng bấm nút <strong>"Hủy Liên Kết"</strong> bên dưới và tiến hành kết nối lại bằng tài khoản Strava chính chủ của bạn.
+    </p>
+    <div>
+        <form action="/profile/{{ athlete.id }}/unlink" method="POST" onsubmit="return confirm('Bạn có chắc chắn muốn hủy liên kết tài khoản Strava hiện tại để liên kết lại tài khoản chính chủ?')" style="margin: 0;">
+            <button type="submit" class="btn btn-danger btn-sm" style="background: #ef4444; border: none; color: #fff; font-weight: 700; padding: 0.5rem 1.2rem; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem;">
+                <i class="fa-solid fa-unlink"></i> HỦY LIÊN KẾT & KẾT NỐI LẠI
+            </button>
+        </form>
+    </div>
+</div>
+{% endif %}
+
 <!-- Competition Switcher & Registration -->
 <div style="margin: 1.5rem 0; display: flex; flex-direction: column; gap: 1.2rem;">
     <!-- Tabs giải đấu đã đăng ký -->
