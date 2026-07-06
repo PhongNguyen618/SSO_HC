@@ -3150,6 +3150,10 @@ def restore_backup_data_endpoint(request: Request, db: Session = Depends(get_db)
             
             added_regs = set()
             for act in acts:
+                # Chỉ khôi phục hoạt động lịch sử trước 16/06 để tránh double data với đồng bộ live hiện tại
+                if act.get("activity_date") and act["activity_date"] >= "2026-06-16":
+                    continue
+                    
                 # Đảm bảo VĐV có đăng ký giải đấu tương ứng ở CSDL hiện tại (tạo lại nếu bị thiếu)
                 reg_key = (new_id, act["event_id"])
                 if reg_key not in added_regs:
@@ -3306,6 +3310,10 @@ def upload_restore_backup_endpoint(
             
             added_regs = set()
             for act in acts:
+                # Chỉ khôi phục hoạt động lịch sử trước 16/06 để tránh double data với đồng bộ live hiện tại
+                if act.get("activity_date") and act["activity_date"] >= "2026-06-16":
+                    continue
+                    
                 reg_key = (new_id, act["event_id"])
                 if reg_key not in added_regs:
                     reg_exists = db.query(CompetitionRegistration).filter(
