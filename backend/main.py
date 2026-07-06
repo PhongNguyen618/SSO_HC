@@ -2909,8 +2909,29 @@ def exchange_user_token(
         # Cập nhật thêm thông tin ID tài khoản Strava và ảnh đại diện
         strava_athlete_data = token_data.get("athlete") or {}
         strava_id = strava_athlete_data.get("id")
+        
+        warning_msg = None
         if strava_id:
-            athlete.strava_athlete_id = str(strava_id)
+            strava_id_str = str(strava_id)
+            
+            # Kiểm tra xem tài khoản Strava này đã được liên kết bởi ai khác chưa
+            conflict_ath = db.query(Athlete).filter(
+                Athlete.strava_athlete_id == strava_id_str,
+                Athlete.id != athlete.id
+            ).first()
+            
+            if conflict_ath:
+                print(f"OAuth: Strava account ID {strava_id_str} is already linked to {conflict_ath.full_name} (ID {conflict_ath.id}). Unlinking the old one to avoid conflict.")
+                warning_msg = f"Lưu ý: Tài khoản Strava này trước đó đã được liên kết bởi VĐV '{conflict_ath.full_name}'. Hệ thống đã tự động gỡ liên kết của VĐV đó để tránh trùng lặp dữ liệu."
+                
+                # Gỡ thông tin liên kết của VĐV cũ
+                conflict_ath.strava_access_token = None
+                conflict_ath.strava_refresh_token = None
+                conflict_ath.strava_expires_at = None
+                conflict_ath.strava_athlete_id = None
+                db.add(conflict_ath)
+                
+            athlete.strava_athlete_id = strava_id_str
             
         profile_url = strava_athlete_data.get("profile")
         if profile_url and "avatar/athlete" not in profile_url:
@@ -2925,7 +2946,12 @@ def exchange_user_token(
         except Exception as sync_err:
             print(f"Error triggering instant sync for athlete {athlete.id}: {sync_err}")
         
-        # Chuyển hướng VĐV về trang cá nhân của họ kèm thông báo thành công
+        # Chuyển hướng VĐV về trang cá nhân của họ kèm thông báo thành công hoặc cảnh báo trùng
+        import urllib.parse
+        if warning_msg:
+            encoded_warning = urllib.parse.quote(warning_msg)
+            return RedirectResponse(f"/profile/{athlete.id}?success=Đã liên kết tài khoản Strava thành công!&warning={encoded_warning}", status_code=303)
+            
         return RedirectResponse(f"/profile/{athlete.id}?success=Đã liên kết tài khoản Strava thành công!", status_code=303)
     except Exception as e:
         db.rollback()
