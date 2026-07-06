@@ -3214,6 +3214,39 @@ def restore_backup_data_endpoint(request: Request, db: Session = Depends(get_db)
             "error": f"Lỗi trong quá trình khôi phục: {str(e)}"
         })
 
+@app.post("/admin/force-sync-all-athletes")
+def force_sync_all_athletes_endpoint(request: Request, db: Session = Depends(get_db)):
+    """API đồng bộ lại và gán lại hoạt động cho toàn bộ VĐV đã liên kết Strava."""
+    admin_session = get_admin_session(request, db)
+    if not admin_session:
+        return JSONResponse(status_code=401, content={"error": "Chưa đăng nhập admin"})
+        
+    from backend.sync_engine import sync_single_athlete_all_events
+    import time
+    
+    try:
+        athletes = db.query(Athlete).filter(Athlete.strava_refresh_token != None).all()
+        success_count = 0
+        
+        for athlete in athletes:
+            try:
+                sync_single_athlete_all_events(db, athlete)
+                success_count += 1
+                time.sleep(0.5) # Nghỉ ngắn tránh rate limit
+            except Exception as athlete_err:
+                db.rollback()
+                print(f"Force Sync Admin: Error syncing {athlete.full_name}: {athlete_err}")
+                
+        return JSONResponse(content={
+            "status": "success",
+            "message": f"Đã quét và đồng bộ lại thành công cho {success_count}/{len(athletes)} VĐV đã liên kết. Các hoạt động bị gán nhầm đã được chuyển về đúng chủ sở hữu."
+        })
+    except Exception as e:
+        return JSONResponse(content={
+            "status": "error",
+            "error": f"Lỗi hệ thống: {str(e)}"
+        })
+
 @app.post("/admin/fix-timezone")
 def fix_timezone_endpoint(request: Request, db: Session = Depends(get_db)):
     """API sửa đổi múi giờ UTC -> GMT+7 cho các hoạt động bị lệch."""

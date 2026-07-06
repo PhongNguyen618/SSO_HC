@@ -147,6 +147,9 @@
             <button id="btnRestoreBackup" class="btn btn-secondary btn-sm" style="height: 38px; border-color: #2ecc71; color: #2ecc71;">
                 <i class="fa-solid fa-file-import"></i> Khôi Phục Dữ Liệu Lịch Sử
             </button>
+            <button id="btnForceSyncAll" class="btn btn-secondary btn-sm" style="height: 38px; border-color: #9b59b6; color: #9b59b6;">
+                <i class="fa-solid fa-sync"></i> Quét Lại API VĐV
+            </button>
         </div>
     </div>
 
@@ -3264,6 +3267,45 @@
             .catch(err => {
                 btnRestore.disabled = false;
                 btnRestore.innerHTML = '<i class="fa-solid fa-file-import"></i> Khôi Phục Dữ Liệu Lịch Sử';
+                alert(`Lỗi hệ thống: ${err.message}`);
+            });
+        });
+    }
+
+    // --- FORCE SYNC ALL ATHLETES AJAX LOGIC ---
+    const btnForceSync = document.getElementById('btnForceSyncAll');
+    if (btnForceSync) {
+        btnForceSync.addEventListener('click', function() {
+            if (!confirm('Bạn có muốn quét và đồng bộ lại toàn bộ VĐV đã liên kết Strava? Quá trình này sẽ giúp gán lại các hoạt động bị gán nhầm sang đúng người.')) {
+                return;
+            }
+            
+            btnForceSync.disabled = true;
+            btnForceSync.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang quét...';
+            
+            fetch('/admin/force-sync-all-athletes', {
+                method: 'POST'
+            })
+            .then(response => {
+                if (response.status === 401) {
+                    throw new Error('Chưa đăng nhập quyền Admin');
+                }
+                return response.json();
+            })
+            .then(data => {
+                btnForceSync.disabled = false;
+                btnForceSync.innerHTML = '<i class="fa-solid fa-sync"></i> Quét Lại API VĐV';
+                
+                if (data.status === 'success') {
+                    alert(data.message);
+                    window.location.reload();
+                } else {
+                    alert(`Lỗi: ${data.error || 'Lỗi không xác định'}`);
+                }
+            })
+            .catch(err => {
+                btnForceSync.disabled = false;
+                btnForceSync.innerHTML = '<i class="fa-solid fa-sync"></i> Quét Lại API VĐV';
                 alert(`Lỗi hệ thống: ${err.message}`);
             });
         });
