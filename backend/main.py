@@ -3150,11 +3150,7 @@ def restore_backup_data_endpoint(request: Request, db: Session = Depends(get_db)
             
             added_regs = set()
             for act in acts:
-                # Chỉ khôi phục hoạt động nếu VĐV thực sự đăng ký giải đấu này trong bản backup
-                if (old_id, act["event_id"]) not in backup_regs:
-                    continue
-                    
-                # Đảm bảo VĐV có đăng ký giải đấu tương ứng ở CSDL hiện tại (tạo lại nếu bị thiếu do xóa tạo lại tài khoản)
+                # Đảm bảo VĐV có đăng ký giải đấu tương ứng ở CSDL hiện tại (tạo lại nếu bị thiếu)
                 reg_key = (new_id, act["event_id"])
                 if reg_key not in added_regs:
                     reg_exists = db.query(CompetitionRegistration).filter(
