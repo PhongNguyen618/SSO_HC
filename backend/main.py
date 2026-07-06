@@ -3043,20 +3043,20 @@ def restore_backup_data_endpoint(request: Request, db: Session = Depends(get_db)
                 db_files.append(os.path.join(backups_dir, f))
                 
     backup_db = None
-    max_activities = -1
+    max_historical_activities = -1
     backup_candidates = []
     
     for db_path in db_files:
         try:
             conn_test = sqlite3.connect(db_path)
             cur_test = conn_test.cursor()
-            cur_test.execute("SELECT COUNT(*) FROM activities")
+            cur_test.execute("SELECT COUNT(*) FROM activities WHERE activity_date < '2026-06-16'")
             count = cur_test.fetchone()[0]
             conn_test.close()
             
             backup_candidates.append((db_path, count))
-            if count > max_activities:
-                max_activities = count
+            if count > max_historical_activities:
+                max_historical_activities = count
                 backup_db = db_path
         except Exception:
             continue
@@ -3070,10 +3070,10 @@ def restore_backup_data_endpoint(request: Request, db: Session = Depends(get_db)
     # Ghi nhận thông tin backup cho response
     backup_info = {
         "selected_file": os.path.basename(backup_db),
-        "total_activities_in_backup": max_activities,
-        "all_backups_scanned": [{"file": os.path.basename(p), "activities": c} for p, c in backup_candidates]
+        "historical_activities_in_backup": max_historical_activities,
+        "all_backups_scanned": [{"file": os.path.basename(p), "historical_activities": c} for p, c in backup_candidates]
     }
-    print(f"Restore: Selected backup '{os.path.basename(backup_db)}' with {max_activities} activities total.")
+    print(f"Restore: Selected backup '{os.path.basename(backup_db)}' with {max_historical_activities} historical activities.")
     # 2. Đọc các hoạt động từ backup (khôi phục TẤT CẢ hoạt động bị mất, không giới hạn trước 16/06)
     conn_b = sqlite3.connect(backup_db)
     cur_b = conn_b.cursor()
