@@ -71,7 +71,7 @@ def backup_db_file(reason: str = "auto"):
     if not os.path.exists(db_path):
         return
         
-    backup_dir = os.path.join("static", "uploads", "backups")
+    backup_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static", "uploads", "backups")
     os.makedirs(backup_dir, exist_ok=True)
     
     time_str = datetime.utcnow().strftime("%Y%m%d_%H%M%S")

@@ -496,7 +496,8 @@ def run_auto_db_backup():
         print(f"Auto Backup: Main DB file not found at {db_path}. Skip.")
         return
         
-    backup_dir = "static/uploads/backups"
+    _root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    backup_dir = os.path.join(_root_dir, "static", "uploads", "backups")
     os.makedirs(backup_dir, exist_ok=True)
     
     import shutil
@@ -3452,13 +3453,34 @@ def download_db_backup(request: Request, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail=f"File co so du lieu khong ton tai tai {db_path}")
         
     import shutil
-    os.makedirs("static/uploads", exist_ok=True)
-    backup_temp_path = "static/uploads/SSO_HC_temp_backup.db"
+    _root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    backup_dir = os.path.join(_root_dir, "static", "uploads", "backups")
+    os.makedirs(backup_dir, exist_ok=True)
+    
+    # Lưu bản backup cố định trên VPS để restore có thể quét được sau này
+    backup_filename = f"SSO_HC_download_{APP_VERSION}_{int(time.time())}.db"
+    persistent_path = os.path.join(backup_dir, backup_filename)
     try:
-        shutil.copyfile(db_path, backup_temp_path)
+        shutil.copyfile(db_path, persistent_path)
+        print(f"Download Backup: Saved persistent copy at {persistent_path}")
+        
+        # Xoay vòng: Chỉ giữ tối đa 3 bản download backup gần nhất
+        download_backups = [
+            os.path.join(backup_dir, f) for f in os.listdir(backup_dir)
+            if f.startswith("SSO_HC_download_") and f.endswith(".db")
+        ]
+        download_backups.sort(key=os.path.getmtime)
+        while len(download_backups) > 3:
+            oldest = download_backups.pop(0)
+            try:
+                os.remove(oldest)
+                print(f"Download Backup: Removed oldest download backup: {oldest}")
+            except Exception:
+                pass
+        
         from fastapi.responses import FileResponse
         return FileResponse(
-            path=backup_temp_path,
+            path=persistent_path,
             filename=f"SSO_HC_backup_{APP_VERSION}_{int(time.time())}.db",
             media_type="application/octet-stream"
         )
