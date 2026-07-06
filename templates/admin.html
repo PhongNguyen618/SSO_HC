@@ -3258,7 +3258,14 @@
                 btnRestore.innerHTML = '<i class="fa-solid fa-file-import"></i> Khôi Phục Dữ Liệu Lịch Sử';
                 
                 if (data.status === 'success') {
-                    alert(data.message);
+                    let msg = data.message;
+                    if (data.backup_info && data.backup_info.all_backups_scanned) {
+                        msg += "\n\nDanh sách các file backup đã quét thấy trên VPS:";
+                        data.backup_info.all_backups_scanned.forEach(b => {
+                            msg += `\n• ${b.file} | Số hoạt động trước 16/06: ${b.historical_activities}`;
+                        });
+                    }
+                    alert(msg);
                     window.location.reload();
                 } else {
                     alert(`Lỗi: ${data.error || 'Lỗi không xác định'}`);
