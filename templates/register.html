@@ -113,12 +113,25 @@
                 </ul>
             </div>
             
-            <a href="{{ auth_url }}" class="btn btn-primary" style="background: linear-gradient(135deg, #ff5e36 0%, #ff9a3c 100%); border: none; padding: 0.9rem 2rem; font-size: 1.05rem; font-weight: 700; border-radius: 50px; text-decoration: none; display: inline-flex; align-items: center; gap: 0.6rem; box-shadow: 0 5px 20px rgba(255, 94, 54, 0.4); transition: all 0.3s ease; width: auto; color: #fff;">
+            <a href="javascript:void(0)" onclick="confirmOAuthLink('{{ auth_url }}', '{{ athlete_name or '' }}')" class="btn btn-primary" style="background: linear-gradient(135deg, #ff5e36 0%, #ff9a3c 100%); border: none; padding: 0.9rem 2rem; font-size: 1.05rem; font-weight: 700; border-radius: 50px; text-decoration: none; display: inline-flex; align-items: center; gap: 0.6rem; box-shadow: 0 5px 20px rgba(255, 94, 54, 0.4); transition: all 0.3s ease; width: auto; color: #fff;">
                 <i class="fa-brands fa-strava"></i> LIÊN KẾT TÀI KHOẢN STRAVA NGAY
             </a>
             <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 1.2rem;">
                 <i class="fa-solid fa-circle-info"></i> Hệ thống đã dừng chuyển hướng tự động để bạn có thời gian quét mã QR. Hãy nhấp nút khi đã sẵn sàng!
             </p>
+            <script>
+                function confirmOAuthLink(authUrl, athleteName) {
+                    const msg = `⚠️ XÁC NHẬN LIÊN KẾT TÀI KHOẢN STRAVA\n\n` +
+                                `Bạn đang thực hiện liên kết Strava cho VĐV:\n` +
+                                `• Họ và Tên: ${athleteName}\n\n` +
+                                `ĐÂY CÓ ĐÚNG LÀ TÀI KHOẢN CỦA BẠN KHÔNG?\n` +
+                                `Nếu không phải bạn, vui lòng bấm HỦY và chọn đúng tên mình để tránh làm mất dữ liệu của người khác.`;
+                                
+                    if (confirm(msg)) {
+                        window.location.href = authUrl;
+                    }
+                }
+            </script>
         </div>
         {% else %}
         

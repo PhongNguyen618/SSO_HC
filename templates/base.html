@@ -519,7 +519,7 @@
                                         <i class="fa-solid fa-circle-check"></i> Đã liên kết
                                     </span>
                                 ` : `
-                                    <a href="${r.auth_url}" class="btn btn-primary btn-sm" style="background: linear-gradient(135deg, #ff5e36 0%, #ff9a3c 100%); border: none; padding: 0.35rem 0.7rem; font-size: 0.75rem; font-weight: 700; border-radius: 6px; text-decoration: none; color: #fff; display: inline-flex; align-items: center; gap: 0.25rem; box-shadow: 0 4px 10px rgba(255, 94, 54, 0.3);">
+                                    <a href="javascript:void(0)" onclick="confirmOAuthLink('${r.auth_url}', '${escapeHtml(r.full_name)}', '${escapeHtml(r.department)}')" class="btn btn-primary btn-sm" style="background: linear-gradient(135deg, #ff5e36 0%, #ff9a3c 100%); border: none; padding: 0.35rem 0.7rem; font-size: 0.75rem; font-weight: 700; border-radius: 6px; text-decoration: none; color: #fff; display: inline-flex; align-items: center; gap: 0.25rem; box-shadow: 0 4px 10px rgba(255, 94, 54, 0.3);">
                                         <i class="fa-brands fa-strava"></i> Liên kết
                                     </a>
                                 `}
@@ -618,7 +618,20 @@
                     console.error("Error during smart connection check:", err);
                 }
             }
-        });
+        }
+
+        function confirmOAuthLink(authUrl, athleteName, department) {
+            const msg = `⚠️ XÁC NHẬN LIÊN KẾT TÀI KHOẢN STRAVA\n\n` +
+                        `Bạn đang thực hiện liên kết Strava cho VĐV:\n` +
+                        `• Họ và Tên: ${athleteName}\n` +
+                        `• Phòng ban: ${department}\n\n` +
+                        `ĐÂY CÓ ĐÚNG LÀ TÀI KHOẢN CỦA BẠN KHÔNG?\n` +
+                        `Nếu không phải bạn, vui lòng bấm HỦY và chọn đúng tên mình để tránh làm mất dữ liệu của người khác.`;
+                        
+            if (confirm(msg)) {
+                window.location.href = authUrl;
+            }
+        }
     </script>
 
     <!-- Floating Quick Access Bar -->
