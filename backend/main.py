@@ -1849,6 +1849,10 @@ def profile_page(
             cleaned = remove_accents(name.strip().lower())
             words = re.findall(r'\b\w+\b', cleaned)
             return [w for w in words if len(w) > 1]
+        
+        def get_clean_string(name):
+            """Chuỗi khử dấu liền mạch để kiểm tra substring"""
+            return remove_accents(name.strip().lower()).replace(" ", "")
             
         words_full = get_clean_words(athlete.full_name)
         strava_parts = athlete.strava_name.split(",")
@@ -1856,10 +1860,21 @@ def profile_page(
         
         for part in strava_parts:
             words_strava = get_clean_words(part)
-            # Nếu trùng khớp ít nhất 1 từ chính (ví dụ: "Tuấn", "Anh", "Lê"), coi như không nhầm
+            # Cách 1: Trùng khớp ít nhất 1 từ chính xác (ví dụ: "Tuấn", "Anh", "Lê")
             intersection = set(words_full) & set(words_strava)
             if len(intersection) > 0:
                 mismatch_flag = False
+                break
+            
+            # Cách 2: Tên Strava là nickname viết liền (VD: "MinhntTV")
+            # Kiểm tra xem tên Strava có CHỨA bất kỳ từ quan trọng nào của tên đăng ký không
+            # Chỉ kiểm tra các từ >= 3 ký tự để tránh false positive với từ ngắn (an, ha, le...)
+            strava_clean = get_clean_string(part)
+            for word in words_full:
+                if len(word) >= 3 and word in strava_clean:
+                    mismatch_flag = False
+                    break
+            if not mismatch_flag:
                 break
                 
         is_mismatched_name = mismatch_flag
