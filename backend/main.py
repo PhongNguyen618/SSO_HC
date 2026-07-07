@@ -3196,9 +3196,14 @@ def restore_backup_data_endpoint(request: Request, db: Session = Depends(get_db)
         def normalize_name(name):
             if not name:
                 return ""
-            # Chuẩn hóa về dạng NFC để giải quyết triệt để lỗi so khớp dấu tiếng Việt
-            name_nfc = unicodedata.normalize("NFC", name)
-            return name_nfc.replace("*", "").strip().lower()
+            import re
+            # Chuyển về dạng NFC và lowercase
+            name_lower = unicodedata.normalize("NFC", name).lower()
+            # Khử dấu tiếng Việt
+            nfkd_form = unicodedata.normalize('NFKD', name_lower)
+            only_ascii = nfkd_form.encode('ASCII', 'ignore').decode("utf-8")
+            # Loại bỏ tất cả ký tự không phải chữ/số (bỏ toàn bộ khoảng trắng, dấu cách đặc biệt)
+            return re.sub(r'[^a-z0-9]', '', only_ascii)
             
         live_name_map = {normalize_name(ath.full_name): ath.id for ath in live_athletes}
         
@@ -3361,8 +3366,14 @@ def upload_restore_backup_endpoint(
         def normalize_name(name):
             if not name:
                 return ""
-            name_nfc = unicodedata.normalize("NFC", name)
-            return name_nfc.replace("*", "").strip().lower()
+            import re
+            # Chuyển về dạng NFC và lowercase
+            name_lower = unicodedata.normalize("NFC", name).lower()
+            # Khử dấu tiếng Việt
+            nfkd_form = unicodedata.normalize('NFKD', name_lower)
+            only_ascii = nfkd_form.encode('ASCII', 'ignore').decode("utf-8")
+            # Loại bỏ tất cả ký tự không phải chữ/số (bỏ toàn bộ khoảng trắng, dấu cách đặc biệt)
+            return re.sub(r'[^a-z0-9]', '', only_ascii)
             
         live_name_map = {normalize_name(ath.full_name): ath.id for ath in live_athletes}
         
