@@ -1,0 +1,151 @@
+--- 50 Most Recently Synced Activities ---
+ID=74fa4b0a8d36eaefa996534201212b3b70e5d1c22db1ca32f1380910e5fec0fe Athlete=Nguyễn Mạnh Tùng Date=2026-06-19 Time=None Dist=12.0km Name='None' Mult=1.0 Sync=2026-06-19 05:17:54.218709
+ID=bf230318a717818539ac7b4074144aef4986e331f826bd2d37dffc2d47bf3dc5 Athlete=test_athlete_dedup Date=2026-06-10 Time=None Dist=0.0km Name='Gym Workout' Mult=1.0 Sync=2026-06-18 07:30:34.201612
+ID=8acc578686e268698faaf1fedbfbbb9f7974f9495e1116fefab3b9b83fd39092 Athlete=test_athlete_dedup Date=2026-06-18 Time=None Dist=2.2km Name='Afternoon Walk 2' Mult=1.0 Sync=2026-06-18 07:30:34.198499
+ID=6c8f5db7fbc96ea7bdbd1f6670c8e7a72c8947b47a9ee5aef17b7ce3888b1aa3 Athlete=test_athlete_dedup Date=2026-06-18 Time=None Dist=5.02km Name='Morning Run Special' Mult=1.0 Sync=2026-06-18 07:30:34.188086
+ID=2194f987412931b7da219fc6ed2435cee099ac0a265cdba44b2a5d97ecb2ffb5 Athlete=test_athlete_dedup Date=2026-06-13 Time=None Dist=0.0km Name='Gym Workout' Mult=1.0 Sync=2026-06-18 07:30:21.011318
+ID=36a84c76d3a2dfd3f6077ffb27ea6c139a474ebc313b7c5a8f9cccbabfaf3cc3 Athlete=test_athlete_dedup Date=2026-06-18 Time=None Dist=2.0km Name='Afternoon Walk' Mult=1.0 Sync=2026-06-18 07:30:20.999909
+ID=d563b065b6547c9cb0ffc785e7365be9a452a67903651e45e35ffcf93c732b93 Athlete=Lê Hiếu Minh Date=2026-01-26 Time=None Dist=1.18km Name='Morning Tennis' Mult=1.0 Sync=2026-06-12 07:04:45.623139
+ID=33b0bd40dc2e7737cb421c08afb35cc6ccefe9211f44bc533347e5e18618afc0 Athlete=Hoàng Thị Hà Date=2026-01-26 Time=None Dist=0.0km Name='Afternoon Pickleball' Mult=1.0 Sync=2026-06-12 07:04:45.623139
+ID=8c3373aced4c624cb1e9e58bae24e09b22b23fa5352f62290457af76c7b1a4a9 Athlete=Hoàng Thị Hà Date=2026-01-26 Time=None Dist=0.62km Name='Morning Run' Mult=1.0 Sync=2026-06-12 07:04:45.623139
+ID=c94eecbcccd9423d00380de1f5b08557b2699397f8cfd5b9923b68f6e19e360f Athlete=Lê Hiếu Minh Date=2026-01-26 Time=None Dist=2.19km Name='Morning Tennis' Mult=1.0 Sync=2026-06-12 07:04:45.623139
+ID=b6084c7ccffd3cf74abe367dc714190300109982d917bd6d07fb2babe34750a9 Athlete=Tôn Thất Phúc Thịnh Date=2026-01-26 Time=None Dist=0.12km Name='Afternoon Workout' Mult=1.0 Sync=2026-06-12 07:04:45.623139
+ID=68b6b02fa9e996f87cbe90acd0966190a6b74468dc6df95bd7eb02f612d76428 Athlete=Võ Trường Thạnh Date=2026-01-26 Time=None Dist=0.29km Name='Outdoor walk' Mult=1.0 Sync=2026-06-12 07:04:45.623139
+ID=7c4438fb5c08a4211282e294a3be669ce47108ab6fcc90a97611bb3d420809ad Athlete=Trần Văn Tuấn Date=2026-01-26 Time=None Dist=0.0km Name='Morning Workout' Mult=1.0 Sync=2026-06-12 07:04:45.623139
+ID=79e5c5867382c04c3bb3f5325b696e4b795019712b0e34f9db23cb374a6e0764 Athlete=Võ Đăng Khoa Date=2026-01-26 Time=None Dist=6.77km Name='Chạy ngoài trời' Mult=1.0 Sync=2026-06-12 07:04:45.623139
+ID=ba328238c56202506e65f13a62c84469802e3bcb2196777fb19517d2d39ae1a7 Athlete=Lê Đặng Xuân Tân Date=2026-01-26 Time=None Dist=2.55km Name='Morning Walk' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=095f545521cdefdf38709ffdd511df6fb950c96eb71592deafa1e5c59795bd3b Athlete=Trần Văn Tuấn Date=2026-01-26 Time=None Dist=0.0km Name='Morning Workout' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=6fedfad1194d7d9c29678c6812726b5cc3817e58079fb2cb357936d147c0dce5 Athlete=Nguyễn Viết Đại Thành Date=2026-01-26 Time=None Dist=0.49km Name='Đi bộ trong nhà' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=4af92aa21c64382762ef83963da46543b47c6b4b5141b0ae3f4be9df5b163264 Athlete=Hoàng Thị Hà Date=2026-01-26 Time=None Dist=0.71km Name='Morning Run' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=6a92d752bbc79af8ebd360ad9f4ba1b2a0d923bbc1530b5b6754269d8e81f375 Athlete=Thai L. Date=2026-01-26 Time=None Dist=6.79km Name='Chạy ngoài trời' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=2efa2adf4b1454ed715b4d4d2b022bedd5876e6af09a910374b6b9c9ed5eacdb Athlete=Nguyễn Mạnh Tùng Date=2026-01-26 Time=None Dist=10.19km Name='Morning Run' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=9b0b03cf1136ae15490b064a66680669f81872ef7aa8a8fba6353166a46b1810 Athlete=Lê Đặng Xuân Tân Date=2026-01-26 Time=None Dist=5.15km Name='Morning Walk' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=bc9bdd713567211a7eae046e32317dec0dff6bdaffafa583afee28d2e8cd85bc Athlete=Lê Hiếu Minh Date=2026-01-26 Time=None Dist=1.9km Name='Morning Tennis' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=d1f4be67c3ad22fc418955e093578b454716d97a16866c9648abdfe301844948 Athlete=Hoàng Thị Hà Date=2026-01-26 Time=None Dist=20.43km Name='Morning Run' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=3954aa3cf1579280dd8160083011576eee225d10dbdb4093340b2bcc43c3b7e4 Athlete=Cao Xuân Trường Date=2026-01-26 Time=None Dist=21.22km Name='Morning Run' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=d14bc77e543679e7083ce201297a404291feb830e384bca801c2e69f8d5e7842 Athlete=Hoàng Thị Hà Date=2026-01-26 Time=None Dist=1.14km Name='Morning Run' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=c4663285e18090250cb47937bc8933f59d3511acd4f20941475c0c84465b9803 Athlete=Võ Trường Thạnh Date=2026-01-26 Time=None Dist=3.33km Name='Outdoor walk' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=74b98794a4208707a008b8b2fdf30fb50b19eb9953553925f50304e7c2d6a7af Athlete=Lê Đặng Xuân Tân Date=2026-01-26 Time=None Dist=2.07km Name='Evening Walk' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=392e8c823d3cefa71f8ce0712afeaeb20dee0496a2152c8bc8a5ca89855c9960 Athlete=Lư Trường Khanh Date=2026-01-26 Time=None Dist=0.0km Name='Lunch Badminton' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=69712919063cde623930031fe2c0b3eda6cfb61721c65e87f96f64425f4674aa Athlete=Thai L. Date=2026-01-26 Time=None Dist=3.29km Name='Đạp xe ngoài trời' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=e62597321cc03f5ffb6d3ae789120a8ced02ac1a11b504d702d0e5d3d4366f5d Athlete=Lê Đặng Xuân Tân Date=2026-01-26 Time=None Dist=3.34km Name='Morning Walk' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=401c11783b3ed4d73e40a3034e3da299793de9148ebe47ec1ac340fba2595eb1 Athlete=Nguyễn Viết Đại Thành Date=2026-01-26 Time=None Dist=0.69km Name='Đi bộ trong nhà' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=772f45917e5da7ad7fa02ef2d331aa92d4f404ab4c2c33e3b6d033cab8b84388 Athlete=Lê Hiếu Minh Date=2026-01-26 Time=None Dist=2.61km Name='Morning Tennis' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=32025659915b2a59bf0d91404c1a73171fdc099260422301657410d5283edd4d Athlete=Cao Xuân Trường Date=2026-01-26 Time=None Dist=5.04km Name='Morning Run' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=830b01e662518bd7f896f822f7c41e48cba887eb2369f44a1999656b038cb79b Athlete=Hoàng Thị Hà Date=2026-01-26 Time=None Dist=4.52km Name='Morning Run' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=8ffb52afd5d282c51bd21ed72293d906ee14dae8921506563de044b83bc7a915 Athlete=Thai L. Date=2026-01-26 Time=None Dist=11.78km Name='Chạy ngoài trời' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=d01ec0f06538aa11211ebaac2959cf3939d95a0231fe714e2af67ced06ff9608 Athlete=Hoàng Thị Hà Date=2026-01-26 Time=None Dist=1.39km Name='Afternoon Run' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=ff4cda649da447ca60dc7571ebfe1ffa5a1735a9379181c4703cabc9b2c8b245 Athlete=Trần Minh Mẩn Date=2026-01-26 Time=None Dist=2.49km Name='Evening Walk' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=2f6a86b7e8192827a86aaacebdded542a7d2cde82df9f235b3a9c4a1f59fdea9 Athlete=Lư Trường Khanh Date=2026-01-26 Time=None Dist=0.0km Name='Afternoon Workout' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=b386ad30074c48a96451aee40356f62e5015b93c3d92e719ff426a8e2e70f510 Athlete=Hoàng Thị Hà Date=2026-01-26 Time=None Dist=2.58km Name='Afternoon Run' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=8fbb24f852ac83f415a6ecd855f9c1f20aa0c18c41cbc6b664921f221ff5043e Athlete=Hoàng Thị Hà Date=2026-01-26 Time=None Dist=0.83km Name='Morning Run' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=1818a4dda64488e5902bc1ac8af4ae6d3421a3485be4eb90f376448da041fcc0 Athlete=Nguyễn Viết Đại Thành Date=2026-01-26 Time=None Dist=0.49km Name='Đi bộ trong nhà' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=1c6b211413c3bb1be4207393e09edef09159956eece93409cb128cd583772e86 Athlete=Lê Đặng Xuân Tân Date=2026-01-26 Time=None Dist=3.05km Name='Morning Walk' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=97f6daf864c797a12d4f1842143729578ad6a83dbb960e2925e90d0f588451a3 Athlete=Thai L. Date=2026-01-26 Time=None Dist=7.34km Name='Chạy ngoài trời' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=066c53775820783cfdb9ea657c0d874c7f34e71b99d8d89a18bf41e8ac712cdb Athlete=Nguyễn Mạnh Tùng Date=2026-01-26 Time=None Dist=10.02km Name='Morning Run' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=edebca7dc62b0c7e0156f4c0354c958b0d21d949d6c1c85ae01d0e896727209f Athlete=Nguyễn Viết Đại Thành Date=2026-01-26 Time=None Dist=0.99km Name='Đi bộ trong nhà' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=770350ee176178625209cd37934ca934f1aeb7b21f6c9ea01890fd3366aaac89 Athlete=Hoàng Thị Hà Date=2026-01-26 Time=None Dist=11.03km Name='Morning Run' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=0f3f78f0d7b178586197b7ccfcd916f4c0ff7bff4a8a4c593306a891c6e1153b Athlete=Lư Trường Khanh Date=2026-01-26 Time=None Dist=0.0km Name='Afternoon Workout' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=3be0d8e01ebe02056dadcc35720929d32019677503ac1d797deee80794d9c6ce Athlete=Trần Văn Tuấn Date=2026-01-26 Time=None Dist=0.0km Name='Morning Workout' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=b2aef705890b11e8340f71f43ca5128131d9b02f8f0edb8ee405d4b9f7b32b69 Athlete=Cao Xuân Trường Date=2026-01-26 Time=None Dist=2.78km Name='Morning Run' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=1b719119681ed7f6b7a32819510111bbf492c2da2bffcc39386b4a724510fe38 Athlete=Lê Đặng Xuân Tân Date=2026-01-26 Time=None Dist=2.14km Name='Morning Walk' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=a179c043f885e1fd3f002dfb5cfe3f69a8f227f26c72679f52be063f68349650 Athlete=Nguyễn Viết Đại Thành Date=2026-01-26 Time=None Dist=0.59km Name='Đi bộ trong nhà' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=d773acc7896d41e617e026a00ccabe514efb373be85fce58aecef0c67c9d91b0 Athlete=Tôn Thất Phúc Thịnh Date=2026-01-26 Time=None Dist=0.26km Name='Evening Workout' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=247f08705aafbf6c4dec3110109329c8fc74cb08cdce780d23e3140545f22b35 Athlete=Hoàng Thị Hà Date=2026-01-26 Time=None Dist=0.65km Name='Morning Run' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=01a844d984921f1c1c21a0938997cc1fe5340c6ebf2f367bcb7d10319c434c15 Athlete=Hoàng Thị Hà Date=2026-01-26 Time=None Dist=0.45km Name='Afternoon Run' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=e995341c478739ac8f86daae1bac5cace37ab14d89f18d58c825865bbdd42190 Athlete=Bùi Văn Trình Date=2026-01-26 Time=None Dist=0.0km Name='Afternoon Ride' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=9429bcf16fbf8095d38765a50bc6faa820a1418f0ee77ac84dc075b4bc92eb55 Athlete=Lê Đặng Xuân Tân Date=2026-01-26 Time=None Dist=2.84km Name='Morning Walk' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=247d5ea25e7e875884de530af50a7c26cba5e7f3ad44b0cf0e693799e6aaf865 Athlete=Nguyễn Mạnh Tùng Date=2026-01-26 Time=None Dist=5.1km Name='Morning Run' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=be5dfb7a0775e2281ee2aa6ee53558ed344eeaee9ab333c45a967232c60a9371 Athlete=Trần Văn Tuấn Date=2026-01-26 Time=None Dist=0.0km Name='Morning Workout' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=9d9ae51b0577608daa5dc915b2dba5af3772f518acaccd3ff31b2edcb3adcd09 Athlete=Lê Huỳnh Bảo Long Date=2026-01-26 Time=None Dist=2.82km Name='Morning Run' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=9174c741b9fed5add3f1065dfe83bda702368f60a315e166e15dea385ef25345 Athlete=Lê Huỳnh Bảo Long Date=2026-01-26 Time=None Dist=1.1km Name='Morning Walk' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=b7200cbd5f033fe80928f1ccc751053b0950c30f1bde0f3172107f55de9aa504 Athlete=Thai L. Date=2026-01-26 Time=None Dist=6.71km Name='Chạy ngoài trời' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=7d8fd02d2b5849ee43a03f8641e1978a865fcfb846afce56448356680173338f Athlete=Nguyễn Viết Đại Thành Date=2026-01-26 Time=None Dist=0.89km Name='Đi bộ trong nhà' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=c3d248c62998490e53018040dd395e6d3386aad6476e8ec7cf8fe9f04d66dba2 Athlete=Hoàng Thị Hà Date=2026-01-26 Time=None Dist=7.24km Name='Morning Run' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=463bcc156fdc2c1893827546940657db59ddfb48c0c0e001c57764a846d1a291 Athlete=Lư Trường Khanh Date=2026-01-26 Time=None Dist=0.0km Name='Evening Workout' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=b3fac62e27fcefbcba59fa3ccc731c4b3699170cb8edde724af3f62ad8363591 Athlete=Lư Trường Khanh Date=2026-01-26 Time=None Dist=0.0km Name='Afternoon Badminton' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=05d9b2e8e3f17ac84776981070a3c36d32fd606abc4422628f43d08198e573ed Athlete=Bùi Văn Trình Date=2026-01-26 Time=None Dist=3.74km Name='Morning Run' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=9b750fcabea456699193cd9ad297b297f6b7bf40e62fb667db53214e2cf952c4 Athlete=Lê Đặng Xuân Tân Date=2026-01-26 Time=None Dist=2.8km Name='Morning Walk' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=f9285029b39db201e8ccc64535580e1cacb2a2d2f8bdcdfc95ea2f191d1a5877 Athlete=Trần Văn Tuấn Date=2026-01-26 Time=None Dist=0.0km Name='Morning Workout' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=92c2b3e4bb29f86f96b8c0be9aa3981c91dec78a57816ac6c8157f02136cf56b Athlete=Lê Hiếu Minh Date=2026-01-26 Time=None Dist=1.35km Name='Morning Tennis' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=a222b700f3f1c7ee563f3ca6498d108df7f8017fc2dd8e7adde215ccca9a71d8 Athlete=Cao Xuân Trường Date=2026-01-26 Time=None Dist=4.61km Name='Morning Run' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=f29c973b3212b270817071a640cc5263ccc138254af56fe302dcd353c2cc6ed9 Athlete=Thai L. Date=2026-01-26 Time=None Dist=6.1km Name='Chạy ngoài trời' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=5ec79319c86025464bafb5154d2d79d234e67e268bf56f7ffbd88d3721d4a223 Athlete=Thai L. Date=2026-01-26 Time=None Dist=6.19km Name='Morning Run' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=3884936264cf6fcc02470211b10fcddd0a46620b5bc5ed98c4f0705335ec3afc Athlete=Hoàng Thị Hà Date=2026-01-26 Time=None Dist=2.55km Name='Morning Run' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=21a9b6fced3a3a3b818cbc06a0da3d078a6bea0493ad14c2f08668bc383565d6 Athlete=Hoàng Thị Hà Date=2026-01-26 Time=None Dist=0.0km Name='Afternoon Pickleball' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=c7e6fe443b9a329929bc3ae3a31e81f14dfd9340c3086c3b08c6fd0d70d7f0aa Athlete=Hoàng Thị Hà Date=2026-01-26 Time=None Dist=1.91km Name='Evening Run' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=750b5119339465267a3161b1325624e6ef24dda668bc01f1c3fdf0cfe9e0c8b6 Athlete=Hoàng Thị Hà Date=2026-01-26 Time=None Dist=0.48km Name='Afternoon Run' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=3e9587a26159048c497695c2bc22f81758c2015a8d7396d68e80b320c2ad3fce Athlete=Trần Văn Tuấn Date=2026-01-26 Time=None Dist=0.0km Name='Afternoon Workout' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=e32d075b161192c3adce5aeb0f8a7818b0f1a113ecea6ead938d041c7988186a Athlete=Lê Hiếu Minh Date=2026-01-26 Time=None Dist=2.12km Name='Morning Tennis' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=74b60131a4148df7f9c11985fc3fee62ff66994fae60982fbc580523fe3b2c24 Athlete=Trần Văn Tuấn Date=2026-01-26 Time=None Dist=0.0km Name='Morning Workout' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=2f2c00cfe31f5452281517a1a8efd88c627b0a80685176d1d90128fc12ef7989 Athlete=Lê Hiếu Minh Date=2026-01-26 Time=None Dist=3.31km Name='Morning Tennis' Mult=1.0 Sync=2026-06-12 07:04:45.622459
+ID=ec0685a54059fb7b5f0390066165048d02ed46b9f5653e35a110bb53faf8dbfc Athlete=Trần Minh Mẩn Date=2026-01-25 Time=None Dist=14.81km Name='Afternoon Walk' Mult=1.0 Sync=2026-06-12 07:04:45.259017
+ID=37cbe518cfd97ec0a06defc8046cc5b01721a4ff4108e193eff0ef8acef0ba50 Athlete=Lê Huỳnh Bảo Long Date=2026-01-25 Time=None Dist=3.01km Name='Afternoon Run' Mult=1.0 Sync=2026-06-12 07:04:45.259017
+ID=68a4112c103a362fd1b0c020cd3cdee87a23f70eaee271cbe17d1f7b945f8ed1 Athlete=Lê Huỳnh Bảo Long Date=2026-01-25 Time=None Dist=1.01km Name='Afternoon Walk' Mult=1.0 Sync=2026-06-12 07:04:45.259017
+ID=fee66d32f96b8f122d46e17b99ec12638c5ead866e29b1d7117cca5446d8ac39 Athlete=Lê Đặng Xuân Tân Date=2026-01-25 Time=None Dist=3.07km Name='Morning Walk' Mult=1.0 Sync=2026-06-12 07:04:45.259017
+ID=34150bbed3a4a3a79aca1cc2add58389bd339f24f3f88a29d51e2dc0519e97dd Athlete=Lê Đặng Xuân Tân Date=2026-01-25 Time=None Dist=3.87km Name='Morning Walk' Mult=1.0 Sync=2026-06-12 07:04:45.259017
+ID=02ce6c9a8f1628a1087151162d2db1f36841e41cbf5b4fa40d15a3fd96da9a26 Athlete=Thai L. Date=2026-01-25 Time=None Dist=13.76km Name='Chạy ngoài trời' Mult=1.0 Sync=2026-06-12 07:04:45.259017
+ID=cfeafec660e3355f9b23d50f2b28056225c8f7cb4d2e02540f3f70f90d82a3b0 Athlete=Hoàng Thị Hà Date=2026-01-25 Time=None Dist=0.0km Name='Morning Pickleball' Mult=1.0 Sync=2026-06-12 07:04:45.259017
+ID=49baf91636c654699daa0cc51bc3bacf8cb936984b3cf31cd65e93eb8ee177e0 Athlete=Trần Minh Mẩn Date=2026-01-24 Time=None Dist=6.72km Name='Evening Walk' Mult=1.0 Sync=2026-06-12 07:04:45.209240
+ID=188196f8eec6cf661f70ee7595d21d7ac19f65514a7bad11a68bde24a14357c0 Athlete=Bùi Văn Trình Date=2026-01-24 Time=None Dist=0.0km Name='Afternoon Workout' Mult=1.0 Sync=2026-06-12 07:04:45.209240
+ID=50bb7b666346812d5f28c5844d58e99dc645bcbafd8c1175797cf10507bac63e Athlete=Lư Trường Khanh Date=2026-01-24 Time=None Dist=0.0km Name='Morning Badminton' Mult=1.0 Sync=2026-06-12 07:04:45.209240
+ID=47529ed26f97658f34d77c04058f5c8e946cdeeaccf819e3ce0042ef3c0c1e8f Athlete=Lư Trường Khanh Date=2026-01-24 Time=None Dist=0.0km Name='Morning Badminton' Mult=1.0 Sync=2026-06-12 07:04:45.209240
+ID=8e6efd7ed554b638bfbb90dd0ee9df32e6f3ca5906c92fcfd0726b7a94198785 Athlete=Lê Đặng Xuân Tân Date=2026-01-24 Time=None Dist=2.92km Name='Morning Walk' Mult=1.0 Sync=2026-06-12 07:04:45.209240
+ID=89748b1586a8d05fb30d418004633d5ff07400da5a62acce898ff841cddcfef4 Athlete=Lê Hiếu Minh Date=2026-01-24 Time=None Dist=2.34km Name='Morning Tennis' Mult=1.0 Sync=2026-06-12 07:04:45.209240
+ID=93acf50edbc81cff714d52ce2e5634419b73c53ea8b4c8ebf3ce0a04e9df4ff2 Athlete=Cao Xuân Trường Date=2026-01-24 Time=None Dist=15.68km Name='Morning Run' Mult=1.0 Sync=2026-06-12 07:04:45.209240
+ID=f848073c5ac4f9ee61ee6709b626b7f9daf3bbf1eb305b7497728e0d716de6f5 Athlete=Hoàng Thị Hà Date=2026-01-24 Time=None Dist=4.27km Name='Morning Run' Mult=1.0 Sync=2026-06-12 07:04:45.209240
+ID=3fdc9172949468bf13d3e50720b87e3a79d5aa1236e1523282707df23de74891 Athlete=Trần Minh Mẩn Date=2026-01-23 Time=None Dist=8.34km Name='Evening Walk' Mult=1.0 Sync=2026-06-12 07:04:45.174998
+ID=24285b84e42b7baf457cbd0552e39a7fbdccc8843d0570ae353e8c95e6468d05 Athlete=Lư Trường Khanh Date=2026-01-23 Time=None Dist=0.0km Name='Afternoon Workout' Mult=1.0 Sync=2026-06-12 07:04:45.174998
+ID=ba5bb8d20c869ba5a40b77732d2bfe7e108bb5e3ca9d6fb19a638f2017c8cc96 Athlete=Lư Trường Khanh Date=2026-01-23 Time=None Dist=0.95km Name='Afternoon Walk' Mult=1.0 Sync=2026-06-12 07:04:45.174998
+ID=36ca4731ea72dbf192905435c3f74e2b273c181fc4de883f7f74d59af42ca940 Athlete=Bùi Văn Trình Date=2026-01-23 Time=None Dist=0.0km Name='Afternoon Workout' Mult=1.0 Sync=2026-06-12 07:04:45.174998
+ID=c7e3d422bac66447e4cfa924d373071d61c17beef4e4c2d602f9702534e97ac6 Athlete=Bùi Văn Trình Date=2026-01-23 Time=None Dist=0.0km Name='Afternoon Ride' Mult=1.0 Sync=2026-06-12 07:04:45.174998
+ID=f084757f6ce0eabaf8fef6f80aca9eb3e48c5419a5c3e580152cdfe5b7b4c9da Athlete=Lê Hiếu Minh Date=2026-01-23 Time=None Dist=1.73km Name='Morning Tennis' Mult=1.0 Sync=2026-06-12 07:04:45.174998
+ID=8242bf17da5a9f6ef78791a87e0ef457bca3652e5102e7cc560e4e178282887f Athlete=Lê Đặng Xuân Tân Date=2026-01-23 Time=None Dist=2.95km Name='Morning Walk' Mult=1.0 Sync=2026-06-12 07:04:45.174998
+ID=b6f429948ac1c357a49059e40864e80057e2731dd200411676e4596458628b49 Athlete=Nguyễn Mạnh Tùng Date=2026-01-23 Time=None Dist=8.62km Name='Morning Run' Mult=1.0 Sync=2026-06-12 07:04:45.174998
+ID=2be6fbee849e0b6329c59ca9e1cdf5ab8bcd83b09a5d701c7e9795bf0a206c10 Athlete=Thai L. Date=2026-01-23 Time=None Dist=6.81km Name='Chạy ngoài trời' Mult=1.0 Sync=2026-06-12 07:04:45.174998
+ID=bff0450d655e4c0093d298fa914871c0113228ed12ef841c7a596445e0291515 Athlete=Nguyễn Viết Đại Thành Date=2026-01-23 Time=None Dist=0.49km Name='Đi bộ trong nhà' Mult=1.0 Sync=2026-06-12 07:04:45.174998
+ID=58bf64274acc916a9f148d2f9a919057c60e02a9991c26d75582021130e89b56 Athlete=Hoàng Thị Hà Date=2026-01-23 Time=None Dist=7.02km Name='Morning Run' Mult=1.0 Sync=2026-06-12 07:04:45.174998
+ID=aa65f40762e8422275a65128218f6e356b82b30784810e990144385e594b5076 Athlete=Lê Trung Hiếu Date=2026-01-22 Time=None Dist=0.0km Name='Evening Badminton' Mult=1.0 Sync=2026-06-12 07:04:45.064224
+ID=01cd5ecae1530dacf5f8467a436cd00082ffdf870587911ca8a76c2cbffafe67 Athlete=Nguyễn Thanh Phong * Date=2026-01-22 Time=None Dist=4.18km Name='Chạy ngoài trời' Mult=1.0 Sync=2026-06-12 07:04:45.064224
+ID=5c7a9abd67aa6383675c9de3a802f3c96d74a76d8933792eb236978b870604f6 Athlete=Lê Huỳnh Bảo Long Date=2026-01-22 Time=None Dist=0.0km Name='Afternoon Workout' Mult=1.0 Sync=2026-06-12 07:04:45.064224
+ID=9c5d739e7aa379744f74fee31017d9998979107ccd00e5d0d3b6976bd450e191 Athlete=Bùi Văn Trình Date=2026-01-22 Time=None Dist=0.0km Name='Morning Workout' Mult=1.0 Sync=2026-06-12 07:04:45.064224
+ID=c156f7ac4dcc045723daf0f16885561d1e23ea26ab602a183c32b013679b8e2d Athlete=Lê Đặng Xuân Tân Date=2026-01-22 Time=None Dist=2.97km Name='Morning Walk' Mult=1.0 Sync=2026-06-12 07:04:45.064224
+ID=40de2f9bf8430c3b6da39cb83358f3f223813e62f5f471b8f4ab3e52d7f1a98c Athlete=Lê Hiếu Minh Date=2026-01-22 Time=None Dist=1.81km Name='Morning Tennis' Mult=1.0 Sync=2026-06-12 07:04:45.064224
+ID=9d03944dbcfdd033356c0b21a122df68dbd9424c1a0311e3be3efc8664d11063 Athlete=Nguyễn Mạnh Tùng Date=2026-01-22 Time=None Dist=6.0km Name='Morning Run' Mult=1.0 Sync=2026-06-12 07:04:45.064224
+ID=fae417d465883bad65b1bc8c78869d9de9a36a95d5b131de0f0a9efc3edabcf8 Athlete=Cao Xuân Trường Date=2026-01-22 Time=None Dist=8.11km Name='Morning Run' Mult=1.0 Sync=2026-06-12 07:04:45.064224
+ID=51f40f18c5e429d8f678188b6d29040c4e1d55a7100c257307732277ee349cf9 Athlete=Thai L. Date=2026-01-22 Time=None Dist=7.08km Name='Chạy ngoài trời' Mult=1.0 Sync=2026-06-12 07:04:45.064224
+ID=50d41faedbe77d3bc10ba6de4f9c15b20914a695e4d446aea6bbdba3978c9215 Athlete=Hoàng Thị Hà Date=2026-01-22 Time=None Dist=3.58km Name='Morning Run' Mult=1.0 Sync=2026-06-12 07:04:45.064224
+ID=12a78ede9c4a1a0faa2323c001d7af6142a470294fefc4c81e31353573feba73 Athlete=Nguyễn Viết Đại Thành Date=2026-01-22 Time=None Dist=0.49km Name='Đi bộ trong nhà' Mult=1.0 Sync=2026-06-12 07:04:45.064224
+ID=16ef81b8a5e8225338634289378dbec8974496ec56741bae0d8dff9e72011f6a Athlete=Lê Huỳnh Bảo Long Date=2026-01-22 Time=None Dist=2.65km Name='Morning Run' Mult=1.0 Sync=2026-06-12 07:04:45.064224
+ID=2f250d588cace71a29b4cf5a3f31bb065b50e2724d43017e76676536960d3db0 Athlete=Lê Huỳnh Bảo Long Date=2026-01-22 Time=None Dist=1.01km Name='Morning Walk' Mult=1.0 Sync=2026-06-12 07:04:45.064224
+ID=cabbb11e4540a06e487422afca778df2abb067649ec1c31bb557e74fe2d5fdf6 Athlete=Hoàng Thị Hà Date=2026-01-22 Time=None Dist=5.09km Name='Morning Run' Mult=1.0 Sync=2026-06-12 07:04:45.064224
+ID=ac06cfc0d847189a905c0f382d411a2edf591d5a1b74ef80e404871182bd7892 Athlete=Hoàng Thị Hà Date=2026-01-22 Time=None Dist=1.23km Name='Afternoon Run' Mult=1.0 Sync=2026-06-12 07:04:45.064224
+ID=7f3b3ac6fd84df8ce6db7375a676994a24cb5d36651a18b5e6b137acd0699e44 Athlete=Hoàng Thị Hà Date=2026-01-22 Time=None Dist=0.0km Name='Afternoon Pickleball' Mult=1.0 Sync=2026-06-12 07:04:45.064224
+ID=787dee905a0530487745b809b3305b5ab43870d9363c667b541980f498cdae3c Athlete=Lư Trường Khanh Date=2026-01-21 Time=None Dist=0.0km Name='Afternoon Workout' Mult=1.0 Sync=2026-06-12 07:04:45.005914
+ID=ac87580e23f052bdb9210a1cdff0151ade82b16422b62e84047562326fd04d56 Athlete=Bùi Văn Trình Date=2026-01-21 Time=None Dist=0.0km Name='Afternoon Workout' Mult=1.0 Sync=2026-06-12 07:04:45.005914
+ID=520fe77ac19cbf5685cff7d5152f9594786eef2723a0ad352fb1398c17040745 Athlete=Nguyễn Mạnh Tùng Date=2026-01-21 Time=None Dist=4.04km Name='Morning Run' Mult=1.0 Sync=2026-06-12 07:04:45.005914
+ID=07f454c57c09a2d93e4c511bd00b76c4b083b74e2650f1094c0b34c2f92e78f7 Athlete=Thai L. Date=2026-01-21 Time=None Dist=7.01km Name='Chạy ngoài trời' Mult=1.0 Sync=2026-06-12 07:04:45.005914
+ID=3c6446895d727393d1c7f38c120116b3a847645a98d96b2fbb66d7033a511689 Athlete=Nguyễn Viết Đại Thành Date=2026-01-21 Time=None Dist=0.49km Name='Đi bộ trong nhà' Mult=1.0 Sync=2026-06-12 07:04:45.005914
+ID=0c6f1e9cb9be64c437a63abeaf9e2233fd34b1ae6d802fefde270ae68aabea6a Athlete=Hoàng Thị Hà Date=2026-01-21 Time=None Dist=4.17km Name='Morning Run' Mult=1.0 Sync=2026-06-12 07:04:45.005914
+ID=08d19aa24588503af1e9e7889a2941333b71295ba3d6633823119b1d44ef2cef Athlete=Trần Minh Mẩn Date=2026-01-20 Time=None Dist=6.92km Name='Night Walk' Mult=1.0 Sync=2026-06-12 07:04:44.957547
+ID=2cb4f8688b6c888715b6ee02d4bd4632967a3cf3aafa2f3e6d015d3dc403073b Athlete=Lư Trường Khanh Date=2026-01-20 Time=None Dist=0.0km Name='Afternoon Workout' Mult=1.0 Sync=2026-06-12 07:04:44.957547
+ID=af9a15e7d60fe524c1d240ff56d4917c79c6323ab689241e249b875106605b20 Athlete=Lư Trường Khanh Date=2026-01-20 Time=None Dist=1.07km Name='Afternoon Walk' Mult=1.0 Sync=2026-06-12 07:04:44.957547
+ID=c2902ad0e3da6bae8d420f9052962bb7c8af1a710627a2a12da500a96820f691 Athlete=Bùi Văn Trình Date=2026-01-20 Time=None Dist=0.0km Name='Morning Workout' Mult=1.0 Sync=2026-06-12 07:04:44.957547
+ID=eb5b9cff593a9cf8bd3b0e2d99336be653b5a888be9e960445b514939f665c65 Athlete=Nguyễn Mạnh Tùng Date=2026-01-20 Time=None Dist=7.01km Name='Morning Run' Mult=1.0 Sync=2026-06-12 07:04:44.957547
+ID=121e7e7516b8ec7e07cdb12b61a17c566299f369f259807748813ee9ebaecd72 Athlete=Thai L. Date=2026-01-20 Time=None Dist=6.8km Name='Chạy ngoài trời' Mult=1.0 Sync=2026-06-12 07:04:44.957547
+ID=9b244f0ffc92d01d7e953bf5e033dbc0c3723dd6ac111c3583cd094b40b9c457 Athlete=Lê Huỳnh Bảo Long Date=2026-01-20 Time=None Dist=3.01km Name='Morning Run' Mult=1.0 Sync=2026-06-12 07:04:44.957547
+ID=c6417aef9d5a596851d6249168fb1e485d9394424494eaf435abb846dc78bab1 Athlete=Hoàng Thị Hà Date=2026-01-20 Time=None Dist=1.05km Name='Afternoon Run' Mult=1.0 Sync=2026-06-12 07:04:44.957547
+ID=b1a19dca4e7c9c71e659a83ac69bcb7c9c883f3ef131949ecbc0f325bc8bb89f Athlete=Nguyễn Viết Đại Thành Date=2026-01-19 Time=None Dist=0.79km Name='Đi bộ trong nhà' Mult=1.0 Sync=2026-06-12 07:04:44.922817
+ID=8d2504984a8cd65677dd12b319bbcc97e1e61b008e220be4269a551cb215a5ea Athlete=Hoàng Thị Hà Date=2026-01-19 Time=None Dist=6.89km Name='Morning Run' Mult=1.0 Sync=2026-06-12 07:04:44.922817
+ID=5c92147956cfe729017021326e10e242df6355efabe23ddcee3273f68d83dd35 Athlete=Hoàng Thị Hà Date=2026-01-19 Time=None Dist=0.65km Name='Morning Run' Mult=1.0 Sync=2026-06-12 07:04:44.922817
+ID=fb7bc60eb6b7a588767be2602d4db56a692d0e6143ff92eb336ce291f21cb7f1 Athlete=Lư Trường Khanh Date=2026-01-19 Time=None Dist=0.0km Name='Afternoon Workout' Mult=1.0 Sync=2026-06-12 07:04:44.922817
+ID=00c0ef226b7287b343696f7b589be240f5b8da6df22edccc3cda56dd9ae0d39a Athlete=Bùi Văn Trình Date=2026-01-19 Time=None Dist=0.0km Name='Afternoon Ride' Mult=1.0 Sync=2026-06-12 07:04:44.922817
+ID=7db4814a4cda9ff2a306bb234ac863057cb937002bfe48d68e00b5d99c5e9e9a Athlete=Lê Huỳnh Bảo Long Date=2026-01-19 Time=None Dist=2.06km Name='Morning Run' Mult=1.0 Sync=2026-06-12 07:04:44.922817
+ID=2238f03bd2fb59f7d84ab72b249bfe6c33daa3f4f5470041bf0f4ea1b5568a7e Athlete=Thai L. Date=2026-01-19 Time=None Dist=5.47km Name='Chạy ngoài trời' Mult=1.0 Sync=2026-06-12 07:04:44.922817
+ID=356f68fac9f1d7046aefc2416e89d703d90e8bf809a80001c9fa3e0e42cc4238 Athlete=Lê Huỳnh Bảo Long Date=2026-01-19 Time=None Dist=1.01km Name='Morning Walk' Mult=1.0 Sync=2026-06-12 07:04:44.922817
+ID=c0e186b0f1c32fbbbef891359ee19bbfcb61a8636c7f3aef821ab0592666b82d Athlete=Nguyễn Viết Đại Thành Date=2026-01-19 Time=None Dist=0.59km Name='Đi bộ trong nhà' Mult=1.0 Sync=2026-06-12 07:04:44.922817
+ID=0fc01aea7c53b893d66ad2daf39290c531e86e24d5e8dfd4d8e6144f871d771c Athlete=Trần Minh Mẩn Date=2026-01-18 Time=None Dist=9.02km Name='Evening Walk' Mult=1.0 Sync=2026-06-12 07:04:44.891008
+ID=b1e40ebf6d685945bd8ca1c8e722084340073a0fa3605ff8e70cbefd308f8cbc Athlete=Lê Trung Hiếu Date=2026-01-18 Time=None Dist=0.0km Name='Afternoon Badminton' Mult=1.0 Sync=2026-06-12 07:04:44.891008
+ID=ddda2a65a475144e26d0c73aeb3b3659329331890bb55fbb6a6a017f843ae6f5 Athlete=Nguyễn Mạnh Tùng Date=2026-01-18 Time=None Dist=3.18km Name='Lunch Run' Mult=1.0 Sync=2026-06-12 07:04:44.891008
+ID=bc7014da6b70a2ef0c36d74ab7e4f21c0d7048111317e8cc1c5374421bbfb74e Athlete=Hoàng Thị Hà Date=2026-01-18 Time=None Dist=0.0km Name='Morning Pickleball' Mult=1.0 Sync=2026-06-12 07:04:44.891008
+ID=844f6e597e0dc47840f02285248533c52bd6e9a6e5ae6350d3fdd8694235cd86 Athlete=Bùi Văn Trình Date=2026-01-17 Time=None Dist=0.0km Name='Afternoon Workout' Mult=1.0 Sync=2026-06-12 07:04:44.856538

@@ -1,0 +1,51 @@
+Recent 50 activities in DB:
+ID=74fa4b0a... Name=None Date=2026-06-19 Time=None Dist=12.0 Athlete=None
+ID=8acc5786... Name='Afternoon Walk 2' Date=2026-06-18 Time=None Dist=2.2 Athlete=test_athlete_dedup
+ID=6c8f5db7... Name='Morning Run Special' Date=2026-06-18 Time=None Dist=5.02 Athlete=test_athlete_dedup
+ID=36a84c76... Name='Afternoon Walk' Date=2026-06-18 Time=None Dist=2.0 Athlete=test_athlete_dedup
+ID=2194f987... Name='Gym Workout' Date=2026-06-13 Time=None Dist=0.0 Athlete=test_athlete_dedup
+ID=bf230318... Name='Gym Workout' Date=2026-06-10 Time=None Dist=0.0 Athlete=test_athlete_dedup
+ID=79e5c586... Name='Chạy ngoài trời' Date=2026-01-26 Time=None Dist=6.77 Athlete=Khoa V.
+ID=7c4438fb... Name='Morning Workout' Date=2026-01-26 Time=None Dist=0.0 Athlete=Tuấn T.
+ID=68b6b02f... Name='Outdoor walk' Date=2026-01-26 Time=None Dist=0.29 Athlete=Thanh V.
+ID=b6084c7c... Name='Afternoon Workout' Date=2026-01-26 Time=None Dist=0.12 Athlete=Thinh T.
+ID=c94eecbc... Name='Morning Tennis' Date=2026-01-26 Time=None Dist=2.19 Athlete=Minh L.
+ID=8c3373ac... Name='Morning Run' Date=2026-01-26 Time=None Dist=0.62 Athlete=Ha H.
+ID=33b0bd40... Name='Afternoon Pickleball' Date=2026-01-26 Time=None Dist=0.0 Athlete=Ha H.
+ID=d563b065... Name='Morning Tennis' Date=2026-01-26 Time=None Dist=1.18 Athlete=Minh L.
+ID=2f2c00cf... Name='Morning Tennis' Date=2026-01-26 Time=None Dist=3.31 Athlete=Minh L.
+ID=74b60131... Name='Morning Workout' Date=2026-01-26 Time=None Dist=0.0 Athlete=Tuấn T.
+ID=e32d075b... Name='Morning Tennis' Date=2026-01-26 Time=None Dist=2.12 Athlete=Minh L.
+ID=3e9587a2... Name='Afternoon Workout' Date=2026-01-26 Time=None Dist=0.0 Athlete=Tuấn T.
+ID=750b5119... Name='Afternoon Run' Date=2026-01-26 Time=None Dist=0.48 Athlete=Ha H.
+ID=c7e6fe44... Name='Evening Run' Date=2026-01-26 Time=None Dist=1.91 Athlete=Ha H.
+ID=21a9b6fc... Name='Afternoon Pickleball' Date=2026-01-26 Time=None Dist=0.0 Athlete=Ha H.
+ID=38849362... Name='Morning Run' Date=2026-01-26 Time=None Dist=2.55 Athlete=Ha H.
+ID=5ec79319... Name='Morning Run' Date=2026-01-26 Time=None Dist=6.19 Athlete=Thai L.
+ID=f29c973b... Name='Chạy ngoài trời' Date=2026-01-26 Time=None Dist=6.1 Athlete=Thai L.
+ID=a222b700... Name='Morning Run' Date=2026-01-26 Time=None Dist=4.61 Athlete=Truong C.
+ID=92c2b3e4... Name='Morning Tennis' Date=2026-01-26 Time=None Dist=1.35 Athlete=Minh L.
+ID=f9285029... Name='Morning Workout' Date=2026-01-26 Time=None Dist=0.0 Athlete=Tuấn T.
+ID=9b750fca... Name='Morning Walk' Date=2026-01-26 Time=None Dist=2.8 Athlete=tan L.
+ID=05d9b2e8... Name='Morning Run' Date=2026-01-26 Time=None Dist=3.74 Athlete=TRINH B.
+ID=b3fac62e... Name='Afternoon Badminton' Date=2026-01-26 Time=None Dist=0.0 Athlete=Khanh L.
+ID=463bcc15... Name='Evening Workout' Date=2026-01-26 Time=None Dist=0.0 Athlete=Khanh L.
+ID=c3d248c6... Name='Morning Run' Date=2026-01-26 Time=None Dist=7.24 Athlete=Ha H.
+ID=7d8fd02d... Name='Đi bộ trong nhà' Date=2026-01-26 Time=None Dist=0.89 Athlete=Thành N.
+ID=b7200cbd... Name='Chạy ngoài trời' Date=2026-01-26 Time=None Dist=6.71 Athlete=Thai L.
+ID=9174c741... Name='Morning Walk' Date=2026-01-26 Time=None Dist=1.1 Athlete=Long J.
+ID=9d9ae51b... Name='Morning Run' Date=2026-01-26 Time=None Dist=2.82 Athlete=Long J.
+ID=be5dfb7a... Name='Morning Workout' Date=2026-01-26 Time=None Dist=0.0 Athlete=Tuấn T.
+ID=247d5ea2... Name='Morning Run' Date=2026-01-26 Time=None Dist=5.1 Athlete=Nguyen M.
+ID=9429bcf1... Name='Morning Walk' Date=2026-01-26 Time=None Dist=2.84 Athlete=tan L.
+ID=e995341c... Name='Afternoon Ride' Date=2026-01-26 Time=None Dist=0.0 Athlete=TRINH B.
+ID=01a844d9... Name='Afternoon Run' Date=2026-01-26 Time=None Dist=0.45 Athlete=Ha H.
+ID=247f0870... Name='Morning Run' Date=2026-01-26 Time=None Dist=0.65 Athlete=Ha H.
+ID=d773acc7... Name='Evening Workout' Date=2026-01-26 Time=None Dist=0.26 Athlete=Thinh T.
+ID=a179c043... Name='Đi bộ trong nhà' Date=2026-01-26 Time=None Dist=0.59 Athlete=Thành N.
+ID=1b719119... Name='Morning Walk' Date=2026-01-26 Time=None Dist=2.14 Athlete=tan L.
+ID=b2aef705... Name='Morning Run' Date=2026-01-26 Time=None Dist=2.78 Athlete=Truong C.
+ID=3be0d8e0... Name='Morning Workout' Date=2026-01-26 Time=None Dist=0.0 Athlete=Tuấn T.
+ID=0f3f78f0... Name='Afternoon Workout' Date=2026-01-26 Time=None Dist=0.0 Athlete=Khanh L.
+ID=770350ee... Name='Morning Run' Date=2026-01-26 Time=None Dist=11.03 Athlete=Ha H.
+ID=edebca7d... Name='Đi bộ trong nhà' Date=2026-01-26 Time=None Dist=0.99 Athlete=Thành N.

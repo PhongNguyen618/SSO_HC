@@ -1,0 +1,929 @@
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng Ký Tham Gia - SSO HC</title>
+    <!-- Google Fonts Outfit & Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/static/css/style.css">
+    
+</head>
+<body>
+    <!-- Webview Warning Banner -->
+    <div id="webviewWarningBanner" style="display: none; background: linear-gradient(135deg, #ff9a3c 0%, #ff5e36 100%); color: #0a0814; padding: 0.8rem 1.2rem; font-family: 'Outfit', sans-serif; font-size: 0.9rem; font-weight: 600; text-align: left; position: sticky; top: 0; z-index: 9999; box-shadow: 0 4px 15px rgba(0,0,0,0.3); align-items: flex-start; gap: 0.8rem;">
+        <div style="font-size: 1.5rem; line-height: 1; flex-shrink: 0;">
+            <i class="fa-solid fa-triangle-exclamation" style="color: #fff;"></i>
+        </div>
+        <div style="flex: 1; min-width: 0; line-height: 1.45;">
+            <strong style="color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.3); font-size: 0.95rem;">Cảnh báo: Đang mở trong ứng dụng!</strong><br>
+            Để tránh lỗi đăng nhập Strava bằng tài khoản Google (Lỗi 403 disallowed_useragent), vui lòng bấm vào nút **3 chấm ở góc trên bên phải** và chọn **"Mở bằng trình duyệt"** (Chrome hoặc Safari).
+        </div>
+        <button onclick="document.getElementById('webviewWarningBanner').style.display='none'" style="background: none; border: none; color: #0a0814; font-size: 1.5rem; cursor: pointer; padding: 0; margin-left: 0.5rem; line-height: 1; opacity: 0.7; font-weight: bold;">
+            &times;
+        </button>
+    </div>
+
+    <!-- Background Elements for Visual Richness -->
+    <div class="bg-blur bg-blur-1"></div>
+    <div class="bg-blur bg-blur-2"></div>
+    <div class="bg-blur bg-blur-3"></div>
+
+    <!-- Navigation Header -->
+    <header class="navbar">
+        <div class="navbar-container">
+            <a href="/" class="navbar-logo">
+                <img src="/branding/LOGO_A2.png" alt="NSMO Logo" class="logo-image">
+                <span class="logo-text">SSO <span class="logo-highlight">HC</span></span>
+            </a>
+            
+            <nav class="navbar-links">
+                <a href="/" class="nav-link ">
+                    <i class="fa-solid fa-trophy"></i> Bảng Xếp Hạng
+                </a>
+                <a href="/rules" class="nav-link ">
+                    <i class="fa-solid fa-book"></i> Quy Chế
+                </a>
+                <a href="/register" class="nav-link active">
+                    <i class="fa-solid fa-user-plus"></i> Đăng Ký
+                </a>
+                <a href="/avatar" class="nav-link ">
+                    <i class="fa-solid fa-user-circle"></i> Đồng bộ Avatar
+                </a>
+                <a href="javascript:void(0)" onclick="openCheckConnectionModal()" class="nav-link" style="color: #ff9a3c !important;">
+                    <i class="fa-brands fa-strava"></i> Kiểm tra kết nối
+                </a>
+                <a href="/admin" class="nav-link ">
+                    <i class="fa-solid fa-lock"></i> Admin
+                </a>
+            </nav>
+            
+            <!-- Mobile Menu Toggle Button -->
+            <button class="mobile-menu-toggle" id="mobileMenuBtn">
+                <i class="fa-solid fa-bars"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Banner chạy nổi bật cho VĐV chưa liên kết Strava -->
+    
+    <div class="user-auth-banner-container">
+        <div class="user-auth-banner-content">
+            <i class="fa-solid fa-triangle-exclamation warning-icon-blink"></i>
+            <span>⚠️ Chú ý: Các VĐV chưa liên kết Strava vui lòng click vào đây để kết nối tài khoản ngay!</span>
+            <a href="/connect-existing" class="user-auth-banner-link">Liên Kết Ngay <i class="fa-solid fa-arrow-right-long"></i></a>
+        </div>
+    </div>
+    <style>
+    .user-auth-banner-container {
+        background: linear-gradient(90deg, rgba(255, 94, 54, 0.15) 0%, rgba(255, 154, 60, 0.15) 100%);
+        backdrop-filter: blur(10px);
+        border-bottom: 1px solid rgba(255, 94, 54, 0.25);
+        padding: 0.5rem 1rem;
+        position: relative;
+        z-index: 99;
+        text-align: center;
+        font-size: 0.85rem;
+        font-family: 'Outfit', sans-serif;
+        color: var(--text-main);
+    }
+    .user-auth-banner-content {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.8rem;
+        flex-wrap: wrap;
+    }
+    .warning-icon-blink {
+        color: #ff5e36;
+        animation: pulse-icon 1.5s infinite ease-in-out;
+    }
+    .user-auth-banner-link {
+        color: #ff9a3c;
+        font-weight: 600;
+        text-decoration: none;
+        background: rgba(255, 94, 54, 0.1);
+        padding: 0.15rem 0.5rem;
+        border-radius: 4px;
+        border: 1px solid rgba(255, 94, 54, 0.25);
+        transition: all 0.3s ease;
+    }
+    .user-auth-banner-link:hover {
+        background: #ff5e36;
+        color: #fff;
+        box-shadow: 0 0 10px rgba(255, 94, 54, 0.4);
+    }
+    @keyframes pulse-icon {
+        0%, 100% { opacity: 0.4; transform: scale(0.95); }
+        50% { opacity: 1; transform: scale(1.1); }
+    }
+    </style>
+    
+
+    <!-- Main Container -->
+    <main class="main-content">
+        
+
+<div style="max-width: 650px; margin: 0 auto;">
+    
+    <!-- Hộp thoại xác nhận cập nhật khi trùng tên hiển thị Strava -->
+    
+
+    <div class="glass-card">
+        
+        
+        <h2 class="card-title">
+            <i class="fa-solid fa-user-plus"></i> Đăng Ký Tham Gia Giải Thể Thao
+        </h2>
+        
+        <p style="color: var(--text-muted); margin-bottom: 2rem; font-size: 0.95rem;">
+            Vui lòng điền đầy đủ các thông tin cá nhân dưới đây. Thông tin của bạn sẽ được sử dụng để tính lượng calo tiêu thụ (KCAL) chính xác dựa trên cân nặng và cập nhật bảng thành tích tự động từ nhóm Strava.
+        </p>
+
+        
+
+        <form action="/register" method="POST">
+            <!-- Chọn giải đấu đăng ký -->
+            <div class="form-group">
+                <label for="event_id">Giải đấu đăng ký tham gia</label>
+                
+                    <select id="event_id" name="event_id" class="form-control" required>
+                        <option value="" disabled >-- Chọn giải đấu bạn tham gia --</option>
+                        
+                        <option value="1" >SSO&#39;s HC</option>
+                        
+                        <option value="4" >Giai Chay A - Test QR</option>
+                        
+                        <option value="5" >Giai Chay B - Test QR</option>
+                        
+                        <option value="6" >Giai Chay Test Badges</option>
+                        
+                        <option value="7" >Giai Chay Test Badges</option>
+                        
+                        <option value="8" >Giai Chay Test Badges</option>
+                        
+                        <option value="9" >Giai Chay Test Badges</option>
+                        
+                        <option value="10" selected>Giải Chạy Thử Nghiệm KM</option>
+                        
+                    </select>
+                
+            </div>
+
+            <div class="form-group">
+                <label for="full_name">Họ và Tên Nhân Viên</label>
+                <input type="text" id="full_name" name="full_name" class="form-control" placeholder="Ví dụ: Nguyễn Văn A" value=""  required>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="gender">Giới tính</label>
+                    
+                        <select id="gender" name="gender" class="form-control" required>
+                            <option value="" disabled selected>Chọn giới tính</option>
+                            <option value="Nam" >Nam</option>
+                            <option value="Nữ" >Nữ</option>
+                        </select>
+                    
+                </div>
+                
+                <div class="form-group">
+                    <label for="weight">Cân nặng (kg)</label>
+                    <input type="number" step="0.1" id="weight" name="weight" class="form-control" placeholder="Ví dụ: 62.5" min="30" max="200" value="" required>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="department">Phòng ban / Bộ phận</label>
+                <input type="text" id="department" name="department" list="dept-list" class="form-control" placeholder="Chọn hoặc nhập phòng ban của bạn..." value="" required autocomplete="off">
+                <datalist id="dept-list">
+                    
+                    <option value="BAN GIÁM ĐỐC"></option>
+                    
+                    <option value="CNTT &amp; SCADA"></option>
+                    
+                    <option value="CSO - ĐIỀU ĐỘ"></option>
+                    
+                    <option value="CÔNG TY NHIỆT ĐIỆN PHÚ MỸ"></option>
+                    
+                    <option value="KẾ HOẠCH"></option>
+                    
+                    <option value="NSMO - CNTT&amp;SCADA"></option>
+                    
+                    <option value="PHƯƠNG THỨC"></option>
+                    
+                    <option value="SSO - CNTT &amp; SCADA"></option>
+                    
+                    <option value="SSO - KẾ HOẠCH"></option>
+                    
+                    <option value="SSO - PHƯƠNG THỨC"></option>
+                    
+                    <option value="TÀI CHÍNH"></option>
+                    
+                    <option value="TỔNG HỢP"></option>
+                    
+                    <option value="ĐIỀU ĐỘ"></option>
+                    
+                </datalist>
+            </div>
+
+            <div class="form-group">
+                <label for="strava_name">Tên hiển thị trên Strava</label>
+                <input type="text" id="strava_name" name="strava_name" list="strava-list" class="form-control" placeholder="Ví dụ: Tên Mới, Tên Cũ" value=""  required autocomplete="off">
+                <datalist id="strava-list">
+                    
+                    <option value="David Schultz"></option>
+                    
+                    <option value="Ha Hoang"></option>
+                    
+                    <option value="Hiep Ld"></option>
+                    
+                    <option value="Hoàng Huy"></option>
+                    
+                    <option value="Huỳnh Ngọc Nhiên"></option>
+                    
+                    <option value="Jason Reckelhoff"></option>
+                    
+                    <option value="Joseph Dunn"></option>
+                    
+                    <option value="Khoa Nguyễn"></option>
+                    
+                    <option value="Lê Văn Thái"></option>
+                    
+                    <option value="Minh Châu"></option>
+                    
+                    <option value="Nghia do chi"></option>
+                    
+                    <option value="Nguyen Manh Tung"></option>
+                    
+                    <option value="Phuc Nguyen Minh"></option>
+                    
+                    <option value="Phuong Ho"></option>
+                    
+                    <option value="Rhiannon Bailey"></option>
+                    
+                    <option value="TRINH BUI VAN"></option>
+                    
+                    <option value="Thai L."></option>
+                    
+                    <option value="Thinh Ton That Phuc"></option>
+                    
+                    <option value="Toàn Trương"></option>
+                    
+                    <option value="Truong Cao"></option>
+                    
+                    <option value="Tuấn Trần Văn"></option>
+                    
+                    <option value="Vance / Early Bird Eats"></option>
+                    
+                    <option value="nhan dang thi"></option>
+                    
+                    <option value="tan ledangxuan"></option>
+                    
+                    <option value="test_athlete_dedup"></option>
+                    
+                    <option value="Đức Hoàng Anh"></option>
+                    
+                </datalist>
+                <small style="color: var(--text-muted); font-size: 0.8rem; display: block; margin-top: 0.4rem;">
+                    <i class="fa-solid fa-circle-info"></i> Nhập chính xác tên hiển thị Strava. Nếu bạn từng đổi tên Strava, hãy nhập các tên cách nhau bằng dấu phẩy (Ví dụ: Tên Mới, Tên Cũ) để hệ thống nhận diện đủ hoạt động. Bạn cũng có thể chọn tên gợi ý sẵn.
+                </small>
+            </div>
+
+            <div style="margin-top: 2rem; display: flex; gap: 1rem;">
+                
+                <button type="submit" class="btn btn-primary" style="flex: 1;">
+                    <i class="fa-solid fa-paper-plane"></i> Đăng Ký Ngay
+                </button>
+                
+                <a href="/" class="btn btn-secondary" style="flex: 1; text-align: center; line-height: 1.6;">
+                    <i class="fa-solid fa-arrow-left"></i> Quay Về Trang Chủ
+                </a>
+            </div>
+        <script>
+            document.addEventListener("DOMContentLoaded", function() {
+                const deptInput = document.getElementById("department");
+                const eventSelect = document.getElementById("event_id");
+                
+                // Tránh lỗi khi giao diện hiển thị form xác nhận (eventSelect lúc này là input hidden không có options)
+                if (!deptInput || !eventSelect || !eventSelect.options) return;
+                
+                function filterEvents() {
+                    const val = deptInput.value.trim().toUpperCase();
+                    // Nếu trường phòng ban rỗng, cho phép xem tất cả; nếu không rỗng, kiểm tra xem có bắt đầu bằng 'SSO'
+                    const isSSO = val === "" || val.startsWith("SSO");
+                    
+                    for (let i = 0; i < eventSelect.options.length; i++) {
+                        const opt = eventSelect.options[i];
+                        // Tìm giải đấu nội bộ qua tiêu đề (hỗ trợ cả dấu nháy đơn thường ' và nháy đơn cong ’)
+                        const isSsoHcOption = opt.text.toUpperCase().includes("SSO'S HC") || opt.text.toUpperCase().includes("SSO’S HC");
+                        
+                        if (isSsoHcOption) {
+                            if (isSSO) {
+                                opt.style.display = "";
+                                opt.disabled = false;
+                            } else {
+                                opt.style.display = "none";
+                                opt.disabled = true;
+                                if (eventSelect.value === opt.value) {
+                                    eventSelect.value = "";
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                deptInput.addEventListener("input", filterEvents);
+                deptInput.addEventListener("change", filterEvents);
+                filterEvents();
+            });
+        </script>
+        
+        
+    </div>
+</div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-container">
+            <p>&copy; 2026 SSO HC. Phát triển trên nền tảng FastAPI & Strava API. <span style="opacity: 0.6; font-size: 0.8rem; margin-left: 0.5rem;">Phiên bản: v1.4.0 (Cập nhật: 03/07/2026 22:28:21)</span></p>
+            <div class="footer-socials">
+                <a href="https://www.strava.com" target="_blank" class="social-link"><i class="fa-brands fa-strava"></i></a>
+                <a href="#" class="social-link"><i class="fa-solid fa-envelope"></i></a>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Welcome Banner / Rules Modal -->
+    <div id="rulesWelcomeModal" class="rules-modal-overlay">
+        <div class="rules-modal-content">
+            <div class="rules-modal-header">
+                <h2>Giải Chạy Thử Nghiệm KM</h2>
+                <button class="rules-modal-close" onclick="closeRulesModal()">&times;</button>
+            </div>
+            <div class="rules-modal-body">
+                
+                <div style="margin: -1.8rem -1.8rem 1.5rem -1.8rem; overflow: hidden; border-bottom: 1px solid rgba(255, 255, 255, 0.08);">
+                    <img src="/static/uploads/comp_banner_test_123.png" alt="Giải chạy Banner" style="width: 100%; height: auto; max-height: 200px; object-fit: cover;">
+                </div>
+                
+                
+                <div style="white-space: pre-line; margin-bottom: 1.2rem; color: var(--text-main); font-size: 0.95rem; line-height: 1.6;">
+                    dsdsd
+                </div>
+                
+                <div style="text-align: center; margin-top: 1.2rem; margin-bottom: 0.5rem;">
+                    <a href="/rules" class="btn btn-secondary btn-sm" style="display: inline-block; text-decoration: none; padding: 0.4rem 1rem; font-size: 0.85rem;" onclick="closeRulesModal()">
+                        <i class="fa-solid fa-book-open"></i> Xem quy chế đầy đủ &raquo;
+                    </a>
+                </div>
+            </div>
+            <div class="rules-modal-footer" style="display: flex; gap: 1rem;">
+                <button class="btn btn-secondary" onclick="acceptRules()" style="flex: 1; padding: 0.8rem; font-weight: 600; border-radius: 10px; margin: 0;">
+                    <i class="fa-solid fa-check"></i> Đã Đọc & Đồng Ý
+                </button>
+                <a href="/register" class="btn btn-primary" onclick="acceptRules()" style="flex: 1; padding: 0.8rem; font-weight: 600; border-radius: 10px; text-decoration: none; text-align: center; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;">
+                    <i class="fa-solid fa-user-plus"></i> Đăng Ký Ngay
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Global Mobile Nav Toggle Script -->
+    <script>
+        document.getElementById('mobileMenuBtn').addEventListener('click', function() {
+            const navLinks = document.querySelector('.navbar-links');
+            navLinks.classList.toggle('show');
+            const icon = this.querySelector('i');
+            if (navLinks.classList.contains('show')) {
+                icon.className = 'fa-solid fa-xmark';
+            } else {
+                icon.className = 'fa-solid fa-bars';
+            }
+        });
+    </script>
+    
+    <!-- Welcome Rules Modal Script -->
+    <script>
+        function showRulesModal() {
+            const modal = document.getElementById('rulesWelcomeModal');
+            if (modal) {
+                modal.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            }
+        }
+
+        function closeRulesModal() {
+            const modal = document.getElementById('rulesWelcomeModal');
+            if (modal) {
+                modal.classList.remove('active');
+                document.body.style.overflow = '';
+            }
+        }
+
+        function acceptRules() {
+            localStorage.setItem('rules_accepted_' + '', 'true');
+            localStorage.setItem('rules_closed_time_' + '', Date.now().toString());
+            closeRulesModal();
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const isRulesPage = window.location.pathname === '/rules';
+            const isAdminPage = window.location.pathname.startsWith('/admin');
+            
+            // Chỉ hiển thị popup chào mừng nếu có giải đấu mới đang hoạt động (active_event_id có giá trị và khác 1)
+            const hasActiveNewEvent = '' !== '' && '' !== '1';
+            
+            if (!isRulesPage && !isAdminPage && hasActiveNewEvent) {
+                const bannerMode = 'days';
+                const resetDays = parseFloat('7');
+                
+                if (bannerMode === 'always') {
+                    setTimeout(showRulesModal, 1200);
+                } else if (bannerMode === 'days') {
+                    const isAccepted = localStorage.getItem('rules_accepted_' + '');
+                    if (isAccepted === 'true') {
+                        const closedTimeStr = localStorage.getItem('rules_closed_time_' + '');
+                        if (closedTimeStr) {
+                            const closedTime = parseInt(closedTimeStr);
+                            const elapsedDays = (Date.now() - closedTime) / (1000 * 60 * 60 * 24);
+                            if (elapsedDays >= resetDays) {
+                                // Đã hết thời gian chờ, hiện lại banner
+                                localStorage.removeItem('rules_accepted_' + '');
+                                setTimeout(showRulesModal, 1200);
+                            }
+                        } else {
+                            setTimeout(showRulesModal, 1200);
+                        }
+                    } else {
+                        setTimeout(showRulesModal, 1200);
+                    }
+                } else {
+                    // Mặc định: version (chỉ hiện 1 lần theo phiên bản)
+                    const isAccepted = localStorage.getItem('rules_accepted_' + '');
+                    if (!isAccepted) {
+                        setTimeout(showRulesModal, 1200);
+                    }
+                }
+            }
+        });
+    </script>
+
+    
+    <!-- Floating Support Button -->
+    <button id="floatingSupportBtn" class="floating-support-btn" title="Gửi góp ý / báo lỗi">
+        <i class="fa-solid fa-comment-dots"></i>
+    </button>
+
+    <!-- Support Feedback Modal -->
+    <div id="supportFeedbackModal" class="support-modal-overlay">
+        <div class="support-modal-content">
+            <div class="support-modal-header">
+                <h3><i class="fa-solid fa-comments"></i> Gửi Ý Kiến / Báo Lỗi</h3>
+                <button class="support-modal-close" id="closeSupportModalBtn">&times;</button>
+            </div>
+            <form id="supportFeedbackForm" class="support-modal-body" style="margin: 0;">
+                <div class="form-row">
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label for="supportAthleteName">Họ và tên VĐV (Không bắt buộc)</label>
+                        <input type="text" id="supportAthleteName" placeholder="Ví dụ: Nguyễn Văn A" class="form-control">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label for="supportContactInfo">SĐT / Email / Zalo (Không bắt buộc)</label>
+                        <input type="text" id="supportContactInfo" placeholder="Ví dụ: 0987654321" class="form-control">
+                    </div>
+                </div>
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label for="supportContent">Nội dung góp ý / báo lỗi <span style="color: #ff5e36;">*</span></label>
+                    <textarea id="supportContent" rows="4" placeholder="Mô tả chi tiết ý kiến đóng góp hoặc lỗi bạn gặp phải..." required class="form-control" style="resize: vertical; font-family: inherit;"></textarea>
+                </div>
+                <div id="supportFormMsg" class="support-form-msg" style="margin-bottom: 1rem;"></div>
+                <div class="support-modal-footer">
+                    <button type="button" class="btn btn-secondary" id="cancelSupportModalBtn">Hủy</button>
+                    <button type="submit" class="btn btn-primary" id="submitSupportBtn">
+                        <i class="fa-solid fa-paper-plane"></i> Gửi phản hồi
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Floating Support Script -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const floatingSupportBtn = document.getElementById('floatingSupportBtn');
+            const supportFeedbackModal = document.getElementById('supportFeedbackModal');
+            const closeSupportModalBtn = document.getElementById('closeSupportModalBtn');
+            const cancelSupportModalBtn = document.getElementById('cancelSupportModalBtn');
+            const supportFeedbackForm = document.getElementById('supportFeedbackForm');
+            const supportFormMsg = document.getElementById('supportFormMsg');
+
+            if (floatingSupportBtn && supportFeedbackModal) {
+                floatingSupportBtn.addEventListener('click', () => {
+                    supportFeedbackModal.classList.add('active');
+                    document.body.style.overflow = 'hidden';
+                    supportFormMsg.style.display = 'none';
+                    supportFeedbackForm.reset();
+                });
+
+                const closeSupport = () => {
+                    supportFeedbackModal.classList.remove('active');
+                    document.body.style.overflow = '';
+                };
+
+                if (closeSupportModalBtn) closeSupportModalBtn.addEventListener('click', closeSupport);
+                if (cancelSupportModalBtn) cancelSupportModalBtn.addEventListener('click', closeSupport);
+
+                // Close on clicking outside modal content
+                supportFeedbackModal.addEventListener('click', (e) => {
+                    if (e.target === supportFeedbackModal) {
+                        closeSupport();
+                    }
+                });
+
+                if (supportFeedbackForm) {
+                    supportFeedbackForm.addEventListener('submit', async (e) => {
+                        e.preventDefault();
+                        supportFormMsg.style.display = 'none';
+                        
+                        const name = document.getElementById('supportAthleteName').value.trim();
+                        const contact = document.getElementById('supportContactInfo').value.trim();
+                        const content = document.getElementById('supportContent').value.trim();
+                        
+                        if (!content) {
+                            supportFormMsg.className = 'support-form-msg error';
+                            supportFormMsg.textContent = 'Vui lòng nhập nội dung phản hồi.';
+                            supportFormMsg.style.display = 'block';
+                            return;
+                        }
+                        
+                        const submitBtn = document.getElementById('submitSupportBtn');
+                        const originalBtnContent = submitBtn.innerHTML;
+                        submitBtn.disabled = true;
+                        submitBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Đang gửi...';
+                        
+                        try {
+                            const response = await fetch('/api/support', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({
+                                    athlete_name: name,
+                                    contact_info: contact,
+                                    content: content
+                                })
+                            });
+                            
+                            const result = await response.json();
+                            if (response.ok && result.status === 'success') {
+                                supportFormMsg.className = 'support-form-msg success';
+                                supportFormMsg.textContent = result.message || 'Gửi phản hồi thành công!';
+                                supportFormMsg.style.display = 'block';
+                                supportFeedbackForm.reset();
+                                
+                                // Tự động đóng sau 2s
+                                setTimeout(closeSupport, 2000);
+                            } else {
+                                supportFormMsg.className = 'support-form-msg error';
+                                supportFormMsg.textContent = result.message || 'Gửi phản hồi thất bại. Vui lòng thử lại.';
+                                supportFormMsg.style.display = 'block';
+                            }
+                        } catch (err) {
+                            supportFormMsg.className = 'support-form-msg error';
+                            supportFormMsg.textContent = 'Có lỗi kết nối mạng. Vui lòng kiểm tra lại đường truyền.';
+                            supportFormMsg.style.display = 'block';
+                        } finally {
+                            submitBtn.disabled = false;
+                            submitBtn.innerHTML = originalBtnContent;
+                        }
+                    });
+                }
+            }
+        });
+    </script>
+    
+
+    <!-- Modal Kiểm Tra Kết Nối Strava -->
+    <div id="checkConnectionModal" class="support-feedback-modal-wrapper support-modal-overlay">
+        <div class="support-modal-content" style="max-width: 500px;">
+            <div class="support-modal-header" style="border-color: rgba(255, 94, 54, 0.2);">
+                <h3 style="color: #ff5e36; display: flex; align-items: center; gap: 0.5rem; margin: 0; font-family: 'Outfit';">
+                    <i class="fa-brands fa-strava" style="font-size: 1.4rem;"></i> Kiểm Tra Kết Nối Strava
+                </h3>
+                <button class="support-modal-close" onclick="closeCheckConnectionModal()">&times;</button>
+            </div>
+            <div class="support-modal-body" style="padding: 1.5rem 1.8rem 1.8rem 1.8rem;">
+                <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 1.2rem; line-height: 1.5;">
+                    Nhập Họ tên của bạn để kiểm tra nhanh trạng thái liên kết dữ liệu Strava cá nhân với giải chạy.
+                </p>
+                <div style="margin-bottom: 1.2rem; display: flex; gap: 0.5rem;">
+                    <input type="text" id="searchAthleteConnInput" placeholder="Nhập tên vận động viên..." class="form-control" style="margin-bottom: 0; flex: 1; height: 38px;" onkeyup="if(event.key === 'Enter') triggerSearchConnection()">
+                    <button class="btn btn-primary" onclick="triggerSearchConnection()" style="padding: 0 1.2rem; height: 38px; background: linear-gradient(135deg, #ff5e36 0%, #ff9a3c 100%); border: none; display: flex; align-items: center; justify-content: center;">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                    </button>
+                </div>
+                <div id="searchConnectionResults" style="max-height: 250px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.8rem;">
+                    <!-- Kết quả tìm kiếm render ở đây -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Popup Nhắc Nhở Tự Động (Smart Trigger Popup) -->
+    <div id="smartReminderModal" class="support-modal-overlay" style="z-index: 1000;">
+        <div class="support-modal-content" style="max-width: 450px; text-align: center; border-color: rgba(255, 94, 54, 0.3); background: rgba(10, 8, 20, 0.95); backdrop-filter: blur(15px); padding: 2.2rem 2rem;">
+            <div style="font-size: 3rem; color: #ff5e36; margin-bottom: 0.8rem; animation: pulse-icon 1.5s infinite ease-in-out;">
+                <i class="fa-brands fa-strava"></i>
+            </div>
+            <h3 style="font-family: 'Outfit'; color: #ff5e36; font-size: 1.35rem; margin-bottom: 0.8rem; font-weight: 700;">
+                KẾT NỐI STRAVA CỦA BẠN!
+            </h3>
+            <p style="font-size: 0.92rem; color: var(--text-main); line-height: 1.6; margin-bottom: 1.8rem; text-align: left; white-space: pre-line;">
+                Chào bạn! Hệ thống nhận thấy bạn chưa hoàn tất liên kết Strava cá nhân. Hãy liên kết ngay để các hoạt động chạy bộ/đi bộ được tự động ghi nhận chính xác 100% lên bảng thành tích.
+            </p>
+            
+            <div style="display: flex; flex-direction: column; gap: 0.8rem;">
+                <a id="smartReminderAuthBtn" href="#" class="btn btn-primary" style="background: linear-gradient(135deg, #ff5e36 0%, #ff9a3c 100%); border: none; padding: 0.8rem; font-weight: 700; border-radius: 10px; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; color: #fff; line-height: 1.5; font-size: 0.95rem;">
+                    <i class="fa-brands fa-strava"></i> LIÊN KẾT TÀI KHOẢN NGAY
+                </a>
+                <button class="btn btn-secondary" onclick="closeSmartReminderModal(true)" style="padding: 0.8rem; font-weight: 600; border-radius: 10px; line-height: 1.5; font-size: 0.9rem;">
+                    Nhắc tôi sau
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script Xử Lý Check Connection & Smart Reminder -->
+    <script>
+        // Mở Modal tìm kiếm liên kết
+        function openCheckConnectionModal() {
+            const modal = document.getElementById('checkConnectionModal');
+            if (modal) {
+                modal.classList.add('active');
+                document.body.style.overflow = 'hidden';
+                document.getElementById('searchAthleteConnInput').value = '';
+                document.getElementById('searchConnectionResults').innerHTML = '';
+            }
+        }
+
+        // Đóng Modal tìm kiếm
+        function closeCheckConnectionModal() {
+            const modal = document.getElementById('checkConnectionModal');
+            if (modal) {
+                modal.classList.remove('active');
+                document.body.style.overflow = '';
+            }
+        }
+
+        // Chạy tìm kiếm kết quả VĐV
+        async function triggerSearchConnection() {
+            const input = document.getElementById('searchAthleteConnInput');
+            const resultsDiv = document.getElementById('searchConnectionResults');
+            const q = input.value.trim();
+            
+            if (!q) {
+                resultsDiv.innerHTML = '<p style="text-align: center; color: var(--text-muted); font-size: 0.85rem; padding: 1rem;">Vui lòng nhập tên để tìm kiếm.</p>';
+                return;
+            }
+            
+            resultsDiv.innerHTML = '<p style="text-align: center; color: var(--text-muted); font-size: 0.85rem; padding: 1rem;"><i class="fa-solid fa-spinner fa-spin"></i> Đang tìm kiếm...</p>';
+            
+            try {
+                const response = await fetch(`/api/athlete/search-connection?q=${encodeURIComponent(q)}`);
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    const results = data.results || [];
+                    if (results.length === 0) {
+                        resultsDiv.innerHTML = '<p style="text-align: center; color: var(--text-muted); font-size: 0.85rem; padding: 1rem;">Không tìm thấy vận động viên nào khớp với tên này.</p>';
+                        return;
+                    }
+                    
+                    let html = '';
+                    results.forEach(r => {
+                        html += `
+                        <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.08); padding: 0.8rem; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; text-align: left;">
+                            <div>
+                                <strong style="color: var(--text-main); font-size: 0.9rem;">${escapeHtml(r.full_name)}</strong>
+                                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;"><i class="fa-solid fa-users"></i> ${escapeHtml(r.department)}</div>
+                            </div>
+                            <div>
+                                ${r.is_linked ? `
+                                    <span style="background: rgba(40, 167, 69, 0.1); color: #28a745; border: 1px solid rgba(40, 167, 69, 0.25); padding: 0.25rem 0.6rem; border-radius: 6px; font-size: 0.75rem; font-weight: 600; display: inline-flex; align-items: center; gap: 0.25rem;">
+                                        <i class="fa-solid fa-circle-check"></i> Đã liên kết
+                                    </span>
+                                ` : `
+                                    <a href="${r.auth_url}" class="btn btn-primary btn-sm" style="background: linear-gradient(135deg, #ff5e36 0%, #ff9a3c 100%); border: none; padding: 0.35rem 0.7rem; font-size: 0.75rem; font-weight: 700; border-radius: 6px; text-decoration: none; color: #fff; display: inline-flex; align-items: center; gap: 0.25rem; box-shadow: 0 4px 10px rgba(255, 94, 54, 0.3);">
+                                        <i class="fa-brands fa-strava"></i> Liên kết
+                                    </a>
+                                `}
+                            </div>
+                        </div>
+                        `;
+                    });
+                    resultsDiv.innerHTML = html;
+                } else {
+                    resultsDiv.innerHTML = '<p style="text-align: center; color: #ff5e36; font-size: 0.85rem; padding: 1rem;">Lỗi tìm kiếm dữ liệu.</p>';
+                }
+            } catch (err) {
+                resultsDiv.innerHTML = '<p style="text-align: center; color: #ff5e36; font-size: 0.85rem; padding: 1rem;">Lỗi kết nối hệ thống.</p>';
+            }
+        }
+
+        function escapeHtml(text) {
+            return text
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        // Đóng Smart Reminder Modal
+        function closeSmartReminderModal(setCooldown = false) {
+            const modal = document.getElementById('smartReminderModal');
+            if (modal) {
+                modal.classList.remove('active');
+                document.body.style.overflow = '';
+            }
+            if (setCooldown) {
+                // Đọc thời gian cooldown từ cấu hình DB (tính bằng giờ, mặc định là 12)
+                const cooldownHours = parseFloat('12') || 12;
+                localStorage.setItem('sso_reminder_cooldown', (Date.now() + cooldownHours * 60 * 60 * 1000).toString());
+            }
+        }
+
+        // Tự động kiểm tra nhắc nhở khi tải trang
+        window.addEventListener('DOMContentLoaded', async () => {
+            const isRulesPage = window.location.pathname === '/rules';
+            const isAdminPage = window.location.pathname.startsWith('/admin');
+            const isRegisterPage = window.location.pathname === '/register';
+            
+            if (isRulesPage || isAdminPage || isRegisterPage) return;
+            
+            // Kiểm tra cấu hình bật/tắt popup nhắc nhở
+            const isPopupEnabled = 'true' === 'true';
+            if (!isPopupEnabled) return;
+            
+            const athleteId = localStorage.getItem('sso_athlete_id');
+            const isLinkedLocal = localStorage.getItem('sso_strava_linked');
+            
+            if (athleteId && isLinkedLocal === 'false') {
+                // Kiểm tra cooldown
+                const cooldown = localStorage.getItem('sso_reminder_cooldown');
+                if (cooldown && Date.now() < parseInt(cooldown)) {
+                    return;
+                }
+                
+                try {
+                    const response = await fetch(`/api/athlete/status/${athleteId}`);
+                    if (!response.ok) return;
+                    const data = await response.json();
+                    
+                    if (data.status === 'success') {
+                        if (data.is_linked) {
+                            localStorage.setItem('sso_strava_linked', 'true');
+                        } else {
+                            // Thực sự chưa liên kết, tìm auth_url để gán cho nút bấm
+                            const searchResponse = await fetch(`/api/athlete/search-connection?q=${encodeURIComponent(data.full_name)}`);
+                            const searchData = await searchResponse.json();
+                            
+                            if (searchData.status === 'success' && searchData.results && searchData.results.length > 0) {
+                                const match = searchData.results.find(r => r.id.toString() === athleteId.toString());
+                                if (match && match.auth_url) {
+                                    const authBtn = document.getElementById('smartReminderAuthBtn');
+                                    if (authBtn) {
+                                        authBtn.href = match.auth_url;
+                                    }
+                                    
+                                    // Hiển thị popup nhắc nhở sau 2 giây
+                                    setTimeout(() => {
+                                        const modal = document.getElementById('smartReminderModal');
+                                        if (modal) {
+                                            modal.classList.add('active');
+                                            document.body.style.overflow = 'hidden';
+                                        }
+                                    }, 2000);
+                                }
+                            }
+                        }
+                    }
+                } catch (err) {
+                    console.error("Error during smart connection check:", err);
+                }
+            }
+        });
+    </script>
+
+    <!-- Floating Quick Access Bar -->
+    <div id="quickAccessBar" style="display: none; position: fixed; bottom: 0; left: 0; right: 0; z-index: 1000; background: rgba(10, 8, 20, 0.92); backdrop-filter: blur(20px); border-top: 1px solid rgba(143, 205, 240, 0.25); padding: 0.6rem 1rem; box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4); animation: slideUpBar 0.4s ease;">
+        <div style="max-width: 900px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 0.6rem; flex: 1; min-width: 0;">
+                <div id="quickAccessAvatar" style="width: 32px; height: 32px; border-radius: 50%; background: var(--primary-gradient); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.85rem; color: #0a0814; flex-shrink: 0;"></div>
+                <div style="min-width: 0;">
+                    <span style="font-size: 0.78rem; color: var(--text-muted); display: block; line-height: 1;">Xin chào</span>
+                    <span id="quickAccessName" style="font-size: 0.92rem; color: var(--text-main); font-weight: 600; font-family: 'Outfit', sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; max-width: 200px;"></span>
+                </div>
+            </div>
+            <div style="display: flex; gap: 0.5rem; flex-shrink: 0;">
+                <a id="quickAccessProfileBtn" href="#" style="background: var(--primary-gradient); color: #0a0814; padding: 0.4rem 0.8rem; border-radius: 20px; font-size: 0.8rem; font-weight: 700; text-decoration: none; display: inline-flex; align-items: center; gap: 0.3rem; transition: all 0.3s ease;">
+                    <i class="fa-solid fa-user"></i> Hồ sơ
+                </a>
+                <button onclick="clearQuickAccess()" style="background: none; border: 1px solid rgba(255,255,255,0.15); color: var(--text-muted); padding: 0.4rem 0.5rem; border-radius: 20px; font-size: 0.7rem; cursor: pointer; transition: all 0.3s ease;" title="Đăng xuất phiên truy cập nhanh">
+                    <i class="fa-solid fa-right-from-bracket"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+    <style>
+        @keyframes slideUpBar { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        #quickAccessBar a:hover { box-shadow: 0 0 12px rgba(143, 205, 240, 0.4); transform: scale(1.05); }
+        #quickAccessBar button:hover { border-color: rgba(255,100,100,0.5); color: #ff6b6b; }
+        /* Thêm padding-bottom cho body để tránh nội dung bị che bởi floating bar */
+        body.has-quick-access { padding-bottom: 60px; }
+    </style>
+    <script>
+        function initQuickAccess() {
+            const athleteId = localStorage.getItem('sso_athlete_id');
+            const athleteName = localStorage.getItem('sso_athlete_name');
+            if (!athleteId || !athleteName) return;
+
+            const bar = document.getElementById('quickAccessBar');
+            const nameEl = document.getElementById('quickAccessName');
+            const avatarEl = document.getElementById('quickAccessAvatar');
+            const profileBtn = document.getElementById('quickAccessProfileBtn');
+
+            nameEl.textContent = athleteName;
+            avatarEl.textContent = athleteName.charAt(0).toUpperCase();
+            profileBtn.href = '/profile/' + athleteId;
+            bar.style.display = 'block';
+            document.body.classList.add('has-quick-access');
+
+            // Tự động highlight hàng VĐV trên BXH (nếu đang ở trang chủ)
+            setTimeout(() => {
+                const rows = document.querySelectorAll('tr[data-athlete-id]');
+                rows.forEach(row => {
+                    if (row.getAttribute('data-athlete-id') === athleteId) {
+                        row.style.background = 'rgba(143, 205, 240, 0.08)';
+                        row.style.borderLeft = '3px solid #8fcdf0';
+                        row.style.boxShadow = '0 0 10px rgba(143, 205, 240, 0.1)';
+                    }
+                });
+            }, 300);
+        }
+
+        function clearQuickAccess() {
+            localStorage.removeItem('sso_athlete_id');
+            localStorage.removeItem('sso_athlete_name');
+            localStorage.removeItem('sso_strava_linked');
+            const bar = document.getElementById('quickAccessBar');
+            bar.style.display = 'none';
+            document.body.classList.remove('has-quick-access');
+            // Bỏ highlight hàng VĐV trên BXH
+            document.querySelectorAll('tr[data-athlete-id]').forEach(row => {
+                row.style.background = '';
+                row.style.borderLeft = '';
+                row.style.boxShadow = '';
+            });
+        }
+
+        // Kiểm tra xem trình duyệt có phải là In-App Webview (Zalo, FB, Instagram, etc.) hay không
+        function checkInAppWebview() {
+            const ua = navigator.userAgent || navigator.vendor || window.opera;
+            const isInApp = (
+                /zalo/i.test(ua) || 
+                /FBAN/i.test(ua) || 
+                /FBAV/i.test(ua) || 
+                /Instagram/i.test(ua) || 
+                /Messenger/i.test(ua) || 
+                /GSA/i.test(ua) || // Google Search App iOS
+                (/iPhone|iPad|iPod/i.test(ua) && !/Safari/i.test(ua) && !/CriOS/i.test(ua)) || // iOS webview
+                (/Android/i.test(ua) && /Version\/[0-9.]+/i.test(ua) && !/Chrome/i.test(ua)) // Android webview
+            );
+            
+            if (isInApp) {
+                const banner = document.getElementById('webviewWarningBanner');
+                if (banner) {
+                    banner.style.display = 'flex';
+                }
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initQuickAccess();
+            checkInAppWebview();
+        });
+    </script>
+
+    
+</body>
+</html>

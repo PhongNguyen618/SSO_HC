@@ -1,0 +1,8 @@
+﻿=== SO SANH BACKUP vs LIVE (Event 1 - SSO HC, truoc 16/6) ===
+
+VDV (Backup)                        Backup   Live  Thieu   Strava
+----------------------------------------------------------------------
+  HUYNH CONG HUU                        13    N/A    ???  NOT REG
+
+TONG SO HOAT DONG BI THIEU: 0
+SO VDV BI THIEU HOAT DONG: 0

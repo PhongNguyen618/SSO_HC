@@ -1,76 +1,68 @@
-import sys
-import json
+import sqlite3
 import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from backend.database import SessionLocal, Activity
-
-def restore_activities(backup_file="static/uploads/deleted_activities_backup.jsonl"):
-    if not os.path.exists(backup_file):
-        print(f"File backup {backup_file} không tồn tại.")
-        return
-        
-    db = SessionLocal()
-    restored_count = 0
-    skipped_count = 0
+def restore_activities():
+    backup_db = "static/uploads/backups/SSO_HC_auto_v1.4.0_20260704_081714.db"
     
-    try:
-        with open(backup_file, "r", encoding="utf-8") as f:
-            for line in f:
-                if not line.strip():
-                    continue
-                try:
-                    act_data = json.loads(line.strip())
-                    
-                    # Bỏ qua thời gian backup khi khôi phục vào bảng Activity
-                    act_id = act_data.get("id")
-                    
-                    # Kiểm tra xem hoạt động đã tồn tại lại trong DB chưa
-                    exists = db.query(Activity).filter(Activity.id == act_id).first()
-                    if exists:
-                        skipped_count += 1
-                        continue
-                        
-                    # Tạo đối tượng Activity mới
-                    new_act = Activity(
-                        id=act_data.get("id"),
-                        athlete_id=act_data.get("athlete_id"),
-                        event_id=act_data.get("event_id"),
-                        athlete_name_raw=act_data.get("athlete_name_raw"),
-                        name=act_data.get("name"),
-                        type=act_data.get("type"),
-                        sport_type=act_data.get("sport_type"),
-                        distance_km=act_data.get("distance_km"),
-                        moving_time_min=act_data.get("moving_time_min"),
-                        elapsed_time_min=act_data.get("elapsed_time_min"),
-                        pace_min_km=act_data.get("pace_min_km"),
-                        elevation_gain_m=act_data.get("elevation_gain_m"),
-                        activity_date=act_data.get("activity_date"),
-                        activity_time=act_data.get("activity_time"),
-                        kcal_burned=act_data.get("kcal_burned"),
-                        mets_value=act_data.get("mets_value"),
-                        is_suspicious=act_data.get("is_suspicious", False),
-                        suspicion_reason=act_data.get("suspicion_reason"),
-                        distance_km_raw=act_data.get("distance_km_raw"),
-                        kcal_burned_raw=act_data.get("kcal_burned_raw"),
-                        multiplier=act_data.get("multiplier", 1.0)
-                    )
-                    db.add(new_act)
-                    restored_count += 1
-                except Exception as line_err:
-                    print(f"Lỗi khi giải mã dòng dữ liệu: {line_err}")
-                    
-        if restored_count > 0:
-            db.commit()
-            print(f"Đã khôi phục thành công {restored_count} hoạt động vào Database. (Bỏ qua {skipped_count} hoạt động đã tồn tại)")
+    if not os.path.exists(backup_db):
+        backups_dir = "static/uploads/backups"
+        if os.path.exists(backups_dir):
+            files = sorted([f for f in os.listdir(backups_dir) if f.endswith(".db")])
+            if files:
+                backup_db = os.path.join(backups_dir, files[-1])
+                print(f"Using latest auto backup found: {backup_db}")
+            else:
+                print("No auto backup DB files found.")
+                return
         else:
-            print(f"Không có hoạt động nào cần khôi phục. (Bỏ qua {skipped_count} hoạt động đã tồn tại)")
+            print("No auto backup directory found.")
+            return
+
+    target_dbs = ["SSO_HC.db", "SSO_HC_backup_v1.4.0_1783161208.db"]
+    
+    print(f"Reading activities for Athlete ID 51 from {backup_db}...")
+    conn_b = sqlite3.connect(backup_db)
+    cur_b = conn_b.cursor()
+    
+    cur_b.execute("SELECT * FROM activities WHERE athlete_id = 51")
+    col_names = [description[0] for description in cur_b.description]
+    rows = cur_b.fetchall()
+    conn_b.close()
+    
+    print(f"Found {len(rows)} activities to restore.")
+    if not rows:
+        print("No activities found for athlete ID 51 in backup.")
+        return
+
+    for target in target_dbs:
+        if not os.path.exists(target):
+            print(f"Target DB {target} does not exist. Skipping.")
+            continue
             
-    except Exception as e:
-        db.rollback()
-        print(f"Lỗi hệ thống trong quá trình khôi phục: {e}")
-    finally:
-        db.close()
+        print(f"Restoring to {target}...")
+        conn_t = sqlite3.connect(target)
+        cur_t = conn_t.cursor()
+        
+        inserted = 0
+        skipped = 0
+        for r in rows:
+            act_data = dict(zip(col_names, r))
+            
+            cur_t.execute("SELECT id FROM activities WHERE id = ?", (act_data["id"],))
+            if cur_t.fetchone():
+                skipped += 1
+                continue
+                
+            placeholders = ", ".join(["?"] * len(col_names))
+            columns = ", ".join(col_names)
+            query = f"INSERT INTO activities ({columns}) VALUES ({placeholders})"
+            
+            cur_t.execute(query, tuple(r))
+            inserted += 1
+            
+        conn_t.commit()
+        conn_t.close()
+        print(f"  Result for {target}: Restored {inserted} activities, skipped {skipped} duplicates.")
 
 if __name__ == "__main__":
     restore_activities()

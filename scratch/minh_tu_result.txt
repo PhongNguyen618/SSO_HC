@@ -1,0 +1,14 @@
+﻿=== VDV 'Minh Tu' trong BACKUP MOI (SSO_HC_backup_v1.4.0_1783262525.db) ===
+.venv\Scripts\python.exe : Traceback (most recent call last):
+At line:1 char:1
++ .venv\Scripts\python.exe scratch/check_minh_tu.py 2>&1 | Out-File -En ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Traceback (most recent call last)::String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  File "C:\Users\PC\Desktop\SSO_HC\scratch\check_minh_tu.py", line 13, in <module>
+    print(f"  ID={r[0]}, Ten={r[1]}, Strava={r[2]}, Linked={r[3]}")
+  File "C:\Users\PC\AppData\Local\Programs\Python\Python312\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u1ebf' in position 27: character maps to <undefined>
