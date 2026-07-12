@@ -2443,6 +2443,7 @@ def admin_dashboard(
             "departments": departments,
             "all_competitions": all_competitions,
             "selected_event_id": selected_event_id,
+            "selected_event": selected_event,
             "hidden_departments": hidden_departments,
             "time_stamp": int(time.time()),
             "dup_strava_alerts": dup_strava_alerts,
