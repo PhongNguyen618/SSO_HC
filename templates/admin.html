@@ -1343,17 +1343,27 @@
         </div>
 
         <div class="glass-card" style="margin-top: 2rem; background: rgba(255,255,255,0.01); border-color: rgba(245, 175, 25, 0.2);">
-            {% if selected_event_id %}
             <form action="/admin/rewards/hidden-departments" method="POST">
-                <input type="hidden" name="event_id" class="hidden-event-id" value="{{ selected_event_id }}">
+                <input type="hidden" name="event_id" value="{{ selected_event_id or '' }}">
                 <h3 class="admin-section-title" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
                     <span style="display: flex; align-items: center; gap: 0.5rem;"><i class="fa-solid fa-eye-slash" style="color: var(--color-orange);"></i> Ẩn/Hiện Giải Thưởng Theo Phòng Ban</span>
                     <button type="submit" class="btn btn-primary btn-sm" style="background: var(--accent-orange); color: var(--text-dark); border: none; padding: 0.4rem 1.2rem; font-size: 0.85rem; border-radius: 8px;">
                         <i class="fa-solid fa-floppy-disk"></i> Lưu Cấu Hình
                     </button>
                 </h3>
+                
+                <div style="margin-bottom: 1.5rem; max-width: 400px;">
+                    <label style="font-weight: 600; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.4rem; display: block;">Chọn Giải Đấu Cần Cấu Hình Ẩn Giải Thưởng:</label>
+                    <select class="form-control" onchange="window.location.href = '/admin?event_id=' + this.value + '#tab-rewards'" style="background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); color: var(--text-color); padding: 0.4rem 0.8rem; height: auto; border-radius: 8px; font-weight: 600;">
+                        <option value="" {% if not selected_event_id %}selected{% endif %}>Cấu hình mặc định hệ thống (Toàn cục)</option>
+                        {% for comp in all_competitions %}
+                        <option value="{{ comp.id }}" {% if selected_event_id == comp.id %}selected{% endif %}>{{ comp.title }} (ID: {{ comp.id }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
                 <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.5rem; border-left: 3px solid var(--color-orange); padding-left: 0.6rem; background: rgba(245, 175, 25, 0.03); padding-top: 0.5rem; padding-bottom: 0.5rem; border-radius: 0 6px 6px 0;">
-                    <i class="fa-solid fa-circle-info" style="color: var(--color-orange);"></i> Đang cấu hình cho giải đấu: <strong id="hidden-reward-event-title" style="color: var(--text-color);">{{ selected_event.title if selected_event else 'Giải đấu hiện tại' }}</strong>.
+                    <i class="fa-solid fa-circle-info" style="color: var(--color-orange);"></i> Đang cấu hình cho giải đấu: <strong style="color: var(--text-color);">{{ selected_event.title if selected_event else 'Giải đấu hiện tại' }}</strong>.
                     <br><span style="font-size: 0.8rem; opacity: 0.8;">Tích chọn các phòng ban muốn <strong>ẩn hoàn toàn</strong> thông tin giải thưởng ở trang cá nhân và bảng xếp hạng.</span>
                 </p>
                 <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1rem; margin-bottom: 0.5rem;">
@@ -1365,14 +1375,6 @@
                     {% endfor %}
                 </div>
             </form>
-            {% else %}
-            <h3 class="admin-section-title">
-                <span><i class="fa-solid fa-eye-slash" style="color: var(--color-orange);"></i> Ẩn/Hiện Giải Thưởng Theo Phòng Ban</span>
-            </h3>
-            <p style="color: var(--text-muted); padding: 1rem 0; text-align: center; margin: 0;">
-                Vui lòng chọn một Giải đấu cụ thể ở phía trên để cấu hình ẩn giải thưởng theo phòng ban.
-            </p>
-            {% endif %}
         </div>
     </div>
 
@@ -3199,24 +3201,7 @@
                 } catch (e) {
                     console.error("Lỗi cập nhật Badges:", e);
                 }
-                
-                // D. Cập nhật tên giải đấu và checkbox ẩn giải thưởng theo phòng ban
-                try {
-                    const eventTitleEl = document.getElementById('hidden-reward-event-title');
-                    if (eventTitleEl && data.event_title) {
-                        eventTitleEl.innerText = data.event_title;
-                    }
-                    
-                    // Lấy tất cả checkbox hidden_depts
-                    const checkboxes = document.querySelectorAll('input[name="hidden_depts"]');
-                    if (checkboxes.length > 0) {
-                        checkboxes.forEach(cb => {
-                            cb.checked = data.hidden_departments ? data.hidden_departments.includes(cb.value) : false;
-                        });
-                    }
-                } catch (e) {
-                    console.error("Lỗi cập nhật Hidden Rewards:", e);
-                }
+
             })
             .catch(err => {
                 alert(`Lỗi khi tải cấu hình giải chạy: ${err.message}`);
