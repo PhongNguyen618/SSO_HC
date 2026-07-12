@@ -114,6 +114,8 @@ class CompetitionEvent(Base):
     avatar_frame = Column(String, nullable=True) # Đường dẫn khung viền avatar riêng của giải đấu
 
     activities = relationship("Activity", back_populates="event", cascade="all, delete-orphan")
+    hidden_reward_configs = relationship("HiddenRewardConfig", back_populates="event", cascade="all, delete-orphan")
+
 
 class CompetitionRegistration(Base):
     __tablename__ = "competition_registrations"
@@ -134,6 +136,15 @@ class EventMultiplier(Base):
     description = Column(String, nullable=True)
     
     event = relationship("CompetitionEvent")
+
+class HiddenRewardConfig(Base):
+    __tablename__ = "hidden_reward_configs"
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    event_id = Column(Integer, ForeignKey("competition_events.id", ondelete="CASCADE"), nullable=False)
+    department = Column(String, nullable=False)
+
+    event = relationship("CompetitionEvent", back_populates="hidden_reward_configs")
+
 
 class SupportTicket(Base):
     __tablename__ = "support_tickets"

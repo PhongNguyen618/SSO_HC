@@ -361,6 +361,7 @@
 </div>
 
 <!-- Award Status Card -->
+{% if not hide_rewards %}
 <div class="award-progress-card">
     <h3 style="font-family: 'Outfit', sans-serif; display: flex; align-items: center; justify-content: space-between;">
         <span><i class="fa-solid fa-gift" style="color: var(--color-gold);"></i> Trạng Thái Giải Thưởng</span>
@@ -402,6 +403,7 @@
         {% endif %}
     </div>
 </div>
+{% endif %}
 
 <!-- KPI Metrics Grid -->
 <div class="kpi-grid">
@@ -720,11 +722,16 @@
 {% block scripts %}
 <script>
     // Set progress bar width on load
+    {% if not hide_rewards %}
     window.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => {
-            document.getElementById('awardProgressBar').style.width = '{{ progress_percent }}%';
+            const bar = document.getElementById('awardProgressBar');
+            if (bar) {
+                bar.style.width = '{{ progress_percent }}%';
+            }
         }, 100);
     });
+    {% endif %}
 
     // --- CHART.JS VISUALIZATION LOGIC ---
 

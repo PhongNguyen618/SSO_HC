@@ -1341,6 +1341,37 @@
                 </div>
             </form>
         </div>
+
+        <div class="glass-card" style="margin-top: 2rem; background: rgba(255,255,255,0.01); border-color: rgba(245, 175, 25, 0.2);">
+            <h3 class="admin-section-title">
+                <span><i class="fa-solid fa-eye-slash" style="color: var(--color-orange);"></i> Ẩn/Hiện Giải Thưởng Theo Phòng Ban</span>
+            </h3>
+            {% if selected_event_id %}
+            <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1.5rem;">
+                Tích chọn các phòng ban muốn <strong>ẩn hoàn toàn</strong> thông tin giải thưởng (số tiền và thanh tiến trình) ở trang cá nhân và bảng xếp hạng cho giải đấu hiện tại.
+            </p>
+            <form action="/admin/rewards/hidden-departments" method="POST">
+                <input type="hidden" name="event_id" value="{{ selected_event_id }}">
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                    {% for dept in departments %}
+                    <label style="display: flex; align-items: center; gap: 0.6rem; cursor: pointer; color: var(--text-color);">
+                        <input type="checkbox" name="hidden_depts" value="{{ dept }}" {% if dept in hidden_departments %}checked{% endif %} style="width: 18px; height: 18px; accent-color: var(--color-orange);">
+                        <span>{{ dept }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+                <div style="text-align: right;">
+                    <button type="submit" class="btn btn-primary" style="background: var(--gradient-orange); border: none;">
+                        <i class="fa-solid fa-floppy-disk"></i> Lưu Cấu Hình Ẩn Giải Thưởng
+                    </button>
+                </div>
+            </form>
+            {% else %}
+            <p style="color: var(--text-muted); padding: 1rem 0; text-align: center;">
+                Vui lòng chọn một Giải đấu cụ thể ở phía trên để cấu hình ẩn giải thưởng theo phòng ban.
+            </p>
+            {% endif %}
+        </div>
     </div>
 
     <!-- TAB: QUẢN LÝ HUY HIỆU -->

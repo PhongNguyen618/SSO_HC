@@ -21,7 +21,7 @@ load_dotenv()
 # Ví dụ: https://yourdomain.com hoặc http://localhost:8000 khi dev local
 APP_URL = os.getenv("APP_URL", "").rstrip("/")
 
-from backend.database import SessionLocal, init_db, get_db, Config, Athlete, Activity, MetsRule, RewardRule, hash_password, CompetitionEvent, CompetitionRegistration, EventMultiplier, SupportTicket
+from backend.database import SessionLocal, init_db, get_db, Config, Athlete, Activity, MetsRule, RewardRule, hash_password, CompetitionEvent, CompetitionRegistration, EventMultiplier, SupportTicket, HiddenRewardConfig
 from backend.calculations import get_award_info, get_multiplier_for_date
 from backend.sync_engine import sync_club_activities, get_config_dict, update_config, link_unlinked_activities, import_excel_files
 from backend.auth import get_admin_session, COOKIE_NAME, verify_password
@@ -839,10 +839,15 @@ def index(
         athlete_stats = athlete_stats_query.order_by(func.sum(Activity.kcal_burned).desc()).all()
      
     # Tính giải thưởng tương ứng cho từng VĐV trên BXH
+    hidden_depts = set()
+    if event_id:
+        hidden_depts = {r.department for r in db.query(HiddenRewardConfig).filter(HiddenRewardConfig.event_id == event_id).all()}
+
     ranked_athletes = []
     for rank, item in enumerate(athlete_stats, 1):
         metric_value = item.total_dist if is_distance else item.total_kcal
         award_info = get_award_info(item.gender, metric_value or 0, db, event_id=event_id)
+        is_hidden = item.department in hidden_depts
         ranked_athletes.append({
             "rank": rank,
             "id": item.id,
@@ -853,8 +858,9 @@ def index(
             "total_dist": round(item.total_dist or 0, 1),
             "total_time": round((item.total_time or 0) / 60.0, 1), # Đổi sang giờ
             "total_kcal": int(item.total_kcal or 0),
-            "award": award_info["reward_amount"],
-            "has_award": award_info["has_award"]
+            "award": 0 if is_hidden else award_info["reward_amount"],
+            "has_award": False if is_hidden else award_info["has_award"],
+            "hide_rewards": is_hidden
         })
 
     # 3. Xếp hạng theo Phòng ban
@@ -1796,6 +1802,15 @@ def profile_page(
     metric_value = total_dist if is_distance else total_kcal
     metric_unit = "KM" if is_distance else "KCAL"
     
+    hide_rewards = False
+    if selected_event_id and athlete.department:
+        is_hidden = db.query(HiddenRewardConfig).filter(
+            HiddenRewardConfig.event_id == selected_event_id,
+            HiddenRewardConfig.department == athlete.department
+        ).first()
+        if is_hidden:
+            hide_rewards = True
+            
     award_info = get_award_info(athlete.gender, metric_value, db, event_id=selected_event_id)
     
     progress_percent = 100
@@ -1906,7 +1921,8 @@ def profile_page(
             "selected_event": selected_event,
             "selected_event_id": selected_event_id,
             "metric_value": metric_value,
-            "metric_unit": metric_unit
+            "metric_unit": metric_unit,
+            "hide_rewards": hide_rewards
         }
     )
 
@@ -2404,6 +2420,10 @@ def admin_dashboard(
             "athletes": [{"id": a.id, "full_name": a.full_name, "department": a.department or "Chưa rõ", "strava_name": a.strava_name} for a in conflict_aths]
         })
 
+    hidden_departments = []
+    if selected_event_id:
+        hidden_departments = [r.department for r in db.query(HiddenRewardConfig).filter(HiddenRewardConfig.event_id == selected_event_id).all()]
+
     return templates.TemplateResponse(
         request=request,
         name="admin.html",
@@ -2423,6 +2443,7 @@ def admin_dashboard(
             "departments": departments,
             "all_competitions": all_competitions,
             "selected_event_id": selected_event_id,
+            "hidden_departments": hidden_departments,
             "time_stamp": int(time.time()),
             "dup_strava_alerts": dup_strava_alerts,
             "dup_token_alerts": dup_token_alerts
@@ -4249,6 +4270,29 @@ def edit_rewards_rules(
     except Exception as e:
         db.rollback()
         return RedirectResponse(f"/admin?error=Loi cap nhat giai thuong: {str(e)}&event_id={event_id or ''}#tab-rewards", status_code=303)
+
+@app.post("/admin/rewards/hidden-departments")
+def save_hidden_departments(
+    request: Request,
+    event_id: int = Form(...),
+    hidden_depts: list[str] = Form(default=[]),
+    db: Session = Depends(get_db)
+):
+    admin = get_admin_session(request, db)
+    if not admin:
+        return RedirectResponse("/admin?error=Chua dang nhap", status_code=303)
+        
+    try:
+        db.query(HiddenRewardConfig).filter(HiddenRewardConfig.event_id == event_id).delete()
+        for dept in hidden_depts:
+            if dept.strip():
+                config = HiddenRewardConfig(event_id=event_id, department=dept.strip())
+                db.add(config)
+        db.commit()
+        return RedirectResponse(f"/admin?success=Cap nhat cau hinh an giai thuong thanh cong&event_id={event_id}#tab-rewards", status_code=303)
+    except Exception as e:
+        db.rollback()
+        return RedirectResponse(f"/admin?error=Loi khi luu cau hinh an giai thuong: {str(e)}&event_id={event_id}#tab-rewards", status_code=303)
 
 @app.post("/admin/badges/edit")
 def edit_badges_rules(

@@ -219,4 +219,33 @@ Chúng tôi đã tích hợp thành công cơ chế đồng bộ kết hợp (Hy
 Chúng tôi đã viết script kiểm thử tự động `scratch/test_hybrid_sync.py` để kiểm chứng logic lọc trùng:
 * **Lọc trùng hoạt động An Bui (cào từ cả 2 nguồn):** Hệ thống phát hiện hoạt động trùng lặp và loại bỏ in-memory -> **[ĐẠT]** (Chỉ lưu đúng 1 hoạt động duy nhất vào DB, không bị x2 cự ly).
 * **Đồng bộ VĐV chưa uỷ quyền (Nguyễn Bình):** Nhặt hoạt động qua Scraper và tự động cập nhật ID số `"11111"` -> **[ĐẠT]**.
+
+---
+
+## 9. Bổ sung tính năng Ẩn/Hiện trạng thái giải thưởng theo Phòng ban và Giải đấu
+
+Chúng tôi đã triển khai thành công tính năng cho phép ẩn hiển thị giải thưởng (tiền thưởng VND và thanh tiến trình) của một phòng ban cụ thể trong một giải đấu cụ thể. Cấu hình này sẽ bảo mật thông tin giải thưởng ở cả Trang cá nhân và Bảng xếp hạng trang chủ.
+
+### Chi tiết thay đổi:
+* **Database Schema & Migrations (`backend/database.py`):**
+  * Định nghĩa bảng mới `HiddenRewardConfig` lưu thông tin phòng ban bị ẩn theo giải đấu (`event_id` khóa ngoại trỏ tới `CompetitionEvent.id` có `ondelete="CASCADE"`).
+  * Thiết lập quan hệ `hidden_reward_configs` và cấu hình tự động tạo bảng qua `Base.metadata.create_all` an toàn cho dữ liệu cũ.
+* **Giao diện Admin (`templates/admin.html`):**
+  * Thêm khối cấu hình **"Ẩn/Hiện Giải Thưởng Theo Phòng Ban"** với giao diện tích chọn checkbox các phòng ban đang có và nút lưu.
+  * Tự động thay đổi danh sách phòng ban đã ẩn khi chuyển đổi giải đấu cần cấu hình trên dropdown.
+* **Backend Logic (`backend/main.py`):**
+  * Thêm endpoint POST `/admin/rewards/hidden-departments` để xử lý lưu cấu hình Admin.
+  * Cập nhật hàm `admin_dashboard` để lấy danh sách phòng ban đang ẩn của giải đấu và truyền cho giao diện admin.
+  * Cập nhật `profile_page` kiểm tra phòng ban VĐV có bị ẩn trong giải đấu được chọn hay không và truyền cờ `hide_rewards` sang.
+  * Cập nhật `index` (BXH trang chủ) để tự động gán cờ `hide_rewards` cho các VĐV thuộc phòng ban bị cấu hình ẩn trong giải đấu được chọn, đồng thời đặt số tiền thưởng hiển thị của họ về `0` và `has_award = False`.
+* **Giao diện Người dùng (`templates/profile.html` & `templates/index.html`):**
+  * Trang profile: Bọc thẻ hiển thị tiến trình giải thưởng `.award-progress-card` và code JS cập nhật thanh tiến trình để ẩn hoàn toàn khi `hide_rewards` là `True`.
+  * Trang BXH trang chủ: Render nhãn `Ẩn` màu xám kèm icon `fa-eye-slash` (con mắt gạch chéo) tại ô giải thưởng của các VĐV thuộc phòng bị ẩn để vừa bảo mật vừa giữ được cấu trúc giao diện cân đối.
+
+### Kết quả xác minh (Unit Tests):
+Chúng tôi đã viết script kiểm thử tự động [test_hide_rewards.py](file:///c:/Users/PC/Desktop/SSO_HC/scratch/test_hide_rewards.py) sử dụng database SQLite thực tế:
+* **Kiểm tra trạng thái DB:** Thiết lập cấu hình ẩn phòng ban cho giải đấu thử nghiệm thành công -> **[ĐẠT]**.
+* **Kiểm tra Logic trang Profile:** VĐV phòng bị ẩn có `hide_rewards = True`, VĐV phòng bình thường có `hide_rewards = False` -> **[ĐẠT]**.
+* **Kiểm tra Logic BXH trang chủ:** VĐV phòng bị ẩn có cự ly đạt giải nhưng hiển thị tiền thưởng bằng `0`, cờ ẩn `hide_rewards = True`. VĐV phòng bình thường vẫn hiện đúng tiền thưởng -> **[ĐẠT]**.
+* **Kiểm tra Cascade Delete:** Xóa giải đấu thử nghiệm, xác nhận cấu hình ẩn giải thưởng tương ứng tự động bị xóa theo nhờ ràng buộc khóa ngoại CASCADE -> **[ĐẠT]**.
 ```

@@ -566,7 +566,11 @@
                         </td>
                         {% if col_configs.show_col_award %}
                         <td style="text-align: center;" class="col-overall-award">
-                            {% if ath.has_award %}
+                            {% if ath.hide_rewards %}
+                            <span class="award-tag no" style="background: rgba(255, 255, 255, 0.05); color: var(--text-muted);" title="Giải thưởng đã ẩn">
+                                <i class="fa-solid fa-eye-slash"></i> Ẩn
+                            </span>
+                            {% elif ath.has_award %}
                             <span class="award-tag yes" title="Đã đạt mốc thưởng">
                                 <i class="fa-solid fa-gift"></i> {{ ath.award | currency }}
                             </span>
