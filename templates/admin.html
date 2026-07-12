@@ -1345,7 +1345,7 @@
         <div class="glass-card" style="margin-top: 2rem; background: rgba(255,255,255,0.01); border-color: rgba(245, 175, 25, 0.2);">
             {% if selected_event_id %}
             <form action="/admin/rewards/hidden-departments" method="POST">
-                <input type="hidden" name="event_id" value="{{ selected_event_id }}">
+                <input type="hidden" name="event_id" class="hidden-event-id" value="{{ selected_event_id }}">
                 <h3 class="admin-section-title" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
                     <span style="display: flex; align-items: center; gap: 0.5rem;"><i class="fa-solid fa-eye-slash" style="color: var(--color-orange);"></i> Ẩn/Hiện Giải Thưởng Theo Phòng Ban</span>
                     <button type="submit" class="btn btn-primary btn-sm" style="background: var(--accent-orange); color: var(--text-dark); border: none; padding: 0.4rem 1.2rem; font-size: 0.85rem; border-radius: 8px;">
@@ -3074,124 +3074,148 @@
             })
             .then(data => {
                 // A. Cập nhật METs
-                const metsList = document.getElementById('metsRulesList');
-                if (metsList) {
-                    const header = metsList.firstElementChild.outerHTML;
-                    metsList.innerHTML = header;
-                    data.mets.forEach(m => {
-                        const div = document.createElement('div');
-                        div.className = 'mets-row-input';
-                        div.innerHTML = `
-                            <input type="text" name="sport_type" class="form-control" value="${m.sport_type}" required>
-                            <input type="number" step="0.1" name="min_speed" class="form-control" value="${m.min_speed}" required>
-                            <input type="number" step="0.1" name="max_speed" class="form-control" value="${m.max_speed}" required>
-                            <input type="number" step="0.1" name="met_value" class="form-control" value="${m.met_value}" required>
-                            <button type="button" class="remove-row-btn" onclick="removeMetsRow(this)"><i class="fa-solid fa-circle-minus"></i></button>
-                        `;
-                        metsList.appendChild(div);
-                    });
+                try {
+                    const metsList = document.getElementById('metsRulesList');
+                    if (metsList) {
+                        const header = metsList.firstElementChild.outerHTML;
+                        metsList.innerHTML = header;
+                        if (data.mets && data.mets.length > 0) {
+                            data.mets.forEach(m => {
+                                const div = document.createElement('div');
+                                div.className = 'mets-row-input';
+                                div.innerHTML = `
+                                    <input type="text" name="sport_type" class="form-control" value="${m.sport_type}" required>
+                                    <input type="number" step="0.1" name="min_speed" class="form-control" value="${m.min_speed}" required>
+                                    <input type="number" step="0.1" name="max_speed" class="form-control" value="${m.max_speed}" required>
+                                    <input type="number" step="0.1" name="met_value" class="form-control" value="${m.met_value}" required>
+                                    <button type="button" class="remove-row-btn" onclick="removeMetsRow(this)"><i class="fa-solid fa-circle-minus"></i></button>
+                                `;
+                                metsList.appendChild(div);
+                            });
+                        }
+                    }
+                } catch (e) {
+                    console.error("Lỗi cập nhật METs:", e);
                 }
                 
                 // B. Cập nhật Rewards
-                const linearConfig = document.getElementById('linearRewardConfig');
-                const rewardsList = document.getElementById('rewardsRulesList');
-                const addRewardBtn = document.getElementById('btn-add-reward-row');
-                
-                if (data.reward_type === 'linear') {
-                    if (linearConfig) linearConfig.style.display = 'block';
-                    if (rewardsList) {
-                        rewardsList.style.display = 'none';
-                        const header = rewardsList.firstElementChild.outerHTML;
-                        rewardsList.innerHTML = header;
-                    }
-                    if (addRewardBtn) addRewardBtn.style.display = 'none';
+                try {
+                    const linearConfig = document.getElementById('linearRewardConfig');
+                    const rewardsList = document.getElementById('rewardsRulesList');
+                    const addRewardBtn = document.getElementById('btn-add-reward-row');
                     
-                    document.getElementById('input_reward_linear_kcal').value = data.reward_linear_kcal || 100;
-                    document.getElementById('input_reward_linear_amount').value = data.reward_linear_amount || 5000;
-                } else {
-                    if (linearConfig) linearConfig.style.display = 'none';
-                    if (rewardsList) {
-                        rewardsList.style.display = 'block';
-                        const header = rewardsList.firstElementChild.outerHTML;
-                        rewardsList.innerHTML = header;
-                        data.rewards.forEach(r => {
-                            const div = document.createElement('div');
-                            div.className = 'rewards-row-input';
-                            div.innerHTML = `
-                                <select name="gender" class="form-control" required>
-                                    <option value="Nam" ${r.gender === 'Nam' ? 'selected' : ''}>Nam</option>
-                                    <option value="Nữ" ${r.gender === 'Nữ' ? 'selected' : ''}>Nữ</option>
-                                </select>
-                                <input type="number" step="1" name="kcal_threshold" class="form-control" value="${parseInt(r.kcal_threshold)}" required>
-                                <input type="number" step="1000" name="reward_amount" class="form-control" value="${parseInt(r.reward_amount)}" required>
-                                <button type="button" class="remove-row-btn" onclick="removeMetsRow(this)"><i class="fa-solid fa-circle-minus"></i></button>
-                            `;
-                            rewardsList.appendChild(div);
-                        });
+                    if (data.reward_type === 'linear') {
+                        if (linearConfig) linearConfig.style.display = 'block';
+                        if (rewardsList) {
+                            rewardsList.style.display = 'none';
+                            const header = rewardsList.firstElementChild.outerHTML;
+                            rewardsList.innerHTML = header;
+                        }
+                        if (addRewardBtn) addRewardBtn.style.display = 'none';
+                        
+                        const inputLinearKcal = document.getElementById('input_reward_linear_kcal');
+                        if (inputLinearKcal) inputLinearKcal.value = data.reward_linear_kcal || 100;
+                        const inputLinearAmount = document.getElementById('input_reward_linear_amount');
+                        if (inputLinearAmount) inputLinearAmount.value = data.reward_linear_amount || 5000;
+                    } else {
+                        if (linearConfig) linearConfig.style.display = 'none';
+                        if (rewardsList) {
+                            rewardsList.style.display = 'block';
+                            const header = rewardsList.firstElementChild.outerHTML;
+                            rewardsList.innerHTML = header;
+                            if (data.rewards && data.rewards.length > 0) {
+                                data.rewards.forEach(r => {
+                                    const div = document.createElement('div');
+                                    div.className = 'rewards-row-input';
+                                    div.innerHTML = `
+                                        <select name="gender" class="form-control" required>
+                                            <option value="Nam" ${r.gender === 'Nam' ? 'selected' : ''}>Nam</option>
+                                            <option value="Nữ" ${r.gender === 'Nữ' ? 'selected' : ''}>Nữ</option>
+                                        </select>
+                                        <input type="number" step="1" name="kcal_threshold" class="form-control" value="${parseInt(r.kcal_threshold)}" required>
+                                        <input type="number" step="1000" name="reward_amount" class="form-control" value="${parseInt(r.reward_amount)}" required>
+                                        <button type="button" class="remove-row-btn" onclick="removeMetsRow(this)"><i class="fa-solid fa-circle-minus"></i></button>
+                                    `;
+                                    rewardsList.appendChild(div);
+                                });
+                            }
+                        }
+                        if (addRewardBtn) addRewardBtn.style.display = 'inline-block';
                     }
-                    if (addRewardBtn) addRewardBtn.style.display = 'inline-block';
+                } catch (e) {
+                    console.error("Lỗi cập nhật Rewards:", e);
                 }
                 
                 // C. Cập nhật Badges
-                const tbody = document.querySelector('#tab-badges table tbody');
-                if (tbody) {
-                    tbody.innerHTML = '';
-                    data.badges.forEach(b => {
-                        let unitText = b.unit;
-                        if (b.unit === 'activities') unitText = 'Hoạt động';
-                        else if (b.unit === 'run_distance_km') unitText = 'km Chạy';
-                        else if (b.unit === 'ride_distance_km') unitText = 'km Đạp xe';
-                        else if (b.unit === 'total_time_hours') unitText = 'giờ';
-                        else if (b.unit === 'total_kcal') unitText = 'KCAL';
-                        else if (b.unit === 'max_streak_days') unitText = 'ngày liên tục';
-                        
-                        const tr = document.createElement('tr');
-                        tr.innerHTML = `
-                            <td>
-                                <span style="font-family: monospace; font-weight:600; color:var(--text-muted);">${b.id}</span>
-                                <input type="hidden" name="id" value="${b.id}">
-                                <input type="hidden" name="unit" class="badge-unit-input" value="${b.unit}">
-                            </td>
-                            <td>
-                                <input type="text" name="name" class="form-control" value="${b.name}" style="padding:0.4rem; font-size:0.85rem;" required>
-                            </td>
-                            <td>
-                                <input type="text" name="description" class="form-control" value="${b.description}" style="padding:0.4rem; font-size:0.85rem;" required>
-                            </td>
-                            <td>
-                                <div style="display: flex; align-items: center; gap: 0.4rem;">
-                                    <i class="fa-solid ${b.icon}" style="color: ${b.color}; font-size: 1.2rem; width: 20px; text-align: center;"></i>
-                                    <input type="text" name="icon" class="form-control" value="${b.icon}" style="padding:0.4rem; font-size:0.85rem; font-family: monospace;" required>
-                                </div>
-                            </td>
-                            <td style="text-align: center;">
-                                <input type="color" name="color" value="${b.color}" style="width: 40px; height: 30px; border: 1px solid var(--border-color); background: none; cursor: pointer; border-radius: 4px;" required>
-                            </td>
-                            <td>
-                                <input type="number" step="1" name="threshold" class="form-control" value="${parseInt(b.threshold)}" style="padding:0.4rem; font-size:0.85rem; text-align:right;" required>
-                            </td>
-                            <td>
-                                <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">
-                                    ${unitText}
-                                </span>
-                            </td>
-                        `;
-                        tbody.appendChild(tr);
-                    });
+                try {
+                    const tbody = document.querySelector('#tab-badges table tbody');
+                    if (tbody) {
+                        tbody.innerHTML = '';
+                        if (data.badges && data.badges.length > 0) {
+                            data.badges.forEach(b => {
+                                let unitText = b.unit;
+                                if (b.unit === 'activities') unitText = 'Hoạt động';
+                                else if (b.unit === 'run_distance_km') unitText = 'km Chạy';
+                                else if (b.unit === 'ride_distance_km') unitText = 'km Đạp xe';
+                                else if (b.unit === 'total_time_hours') unitText = 'giờ';
+                                else if (b.unit === 'total_kcal') unitText = 'KCAL';
+                                else if (b.unit === 'max_streak_days') unitText = 'ngày liên tục';
+                                
+                                const tr = document.createElement('tr');
+                                tr.innerHTML = `
+                                    <td>
+                                        <span style="font-family: monospace; font-weight:600; color:var(--text-muted);">${b.id}</span>
+                                        <input type="hidden" name="id" value="${b.id}">
+                                        <input type="hidden" name="unit" class="badge-unit-input" value="${b.unit}">
+                                    </td>
+                                    <td>
+                                        <input type="text" name="name" class="form-control" value="${b.name}" style="padding:0.4rem; font-size:0.85rem;" required>
+                                    </td>
+                                    <td>
+                                        <input type="text" name="description" class="form-control" value="${b.description}" style="padding:0.4rem; font-size:0.85rem;" required>
+                                    </td>
+                                    <td>
+                                        <div style="display: flex; align-items: center; gap: 0.4rem;">
+                                            <i class="fa-solid ${b.icon}" style="color: ${b.color}; font-size: 1.2rem; width: 20px; text-align: center;"></i>
+                                            <input type="text" name="icon" class="form-control" value="${b.icon}" style="padding:0.4rem; font-size:0.85rem; font-family: monospace;" required>
+                                        </div>
+                                    </td>
+                                    <td style="text-align: center;">
+                                        <input type="color" name="color" value="${b.color}" style="width: 40px; height: 30px; border: 1px solid var(--border-color); background: none; cursor: pointer; border-radius: 4px;" required>
+                                    </td>
+                                    <td>
+                                        <input type="number" step="1" name="threshold" class="form-control" value="${parseInt(b.threshold)}" style="padding:0.4rem; font-size:0.85rem; text-align:right;" required>
+                                    </td>
+                                    <td>
+                                        <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">
+                                            ${unitText}
+                                        </span>
+                                    </td>
+                                `;
+                                tbody.appendChild(tr);
+                            });
+                        }
+                    }
+                } catch (e) {
+                    console.error("Lỗi cập nhật Badges:", e);
                 }
                 
                 // D. Cập nhật tên giải đấu và checkbox ẩn giải thưởng theo phòng ban
-                const eventTitleEl = document.getElementById('hidden-reward-event-title');
-                if (eventTitleEl && data.event_title) {
-                    eventTitleEl.innerText = data.event_title;
-                }
-                
-                // Lấy tất cả checkbox hidden_depts
-                const checkboxes = document.querySelectorAll('input[name="hidden_depts"]');
-                if (checkboxes.length > 0) {
-                    checkboxes.forEach(cb => {
-                        cb.checked = data.hidden_departments ? data.hidden_departments.includes(cb.value) : false;
-                    });
+                try {
+                    const eventTitleEl = document.getElementById('hidden-reward-event-title');
+                    if (eventTitleEl && data.event_title) {
+                        eventTitleEl.innerText = data.event_title;
+                    }
+                    
+                    // Lấy tất cả checkbox hidden_depts
+                    const checkboxes = document.querySelectorAll('input[name="hidden_depts"]');
+                    if (checkboxes.length > 0) {
+                        checkboxes.forEach(cb => {
+                            cb.checked = data.hidden_departments ? data.hidden_departments.includes(cb.value) : false;
+                        });
+                    }
+                } catch (e) {
+                    console.error("Lỗi cập nhật Hidden Rewards:", e);
                 }
             })
             .catch(err => {
