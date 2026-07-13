@@ -5795,28 +5795,6 @@ async def admin_edit_competition(
                 
                 comp.avatar_frame = f"/static/uploads/frames/{frame_filename}"
         
-        # Tự động cập nhật hồi tố trạng thái nghi vấn cho toàn bộ hoạt động hiện có của giải đấu này theo cấu hình luật mới
-        db_activities = db.query(Activity).filter(Activity.event_id == comp.id).all()
-        if db_activities:
-            from backend.calculations import check_suspicious_activity
-            configs = get_config_dict(db)
-            for act in db_activities:
-                is_suspicious_new, suspicion_reason_new = check_suspicious_activity(
-                    sport_type=act.sport_type,
-                    distance_km=act.distance_km_raw if act.distance_km_raw is not None else act.distance_km,
-                    pace_min_km=act.pace_min_km,
-                    elevation_gain_m=act.elevation_gain_m,
-                    configs=configs,
-                    is_manual=act.is_manual if act.is_manual is not None else False,
-                    has_heartrate=act.has_heartrate if act.has_heartrate is not None else False,
-                    average_heartrate=act.average_heartrate,
-                    moving_time_min=act.moving_time_min,
-                    elapsed_time_min=act.elapsed_time_min,
-                    event_obj=comp
-                )
-                act.is_suspicious = is_suspicious_new
-                act.suspicion_reason = suspicion_reason_new
-        
         db.commit()
         return RedirectResponse("/admin?success=Cập nhật giải đấu thành công#tab-competitions", status_code=303)
     except Exception as e:
