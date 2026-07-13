@@ -5249,6 +5249,7 @@ def export_rewards_excel(
         data.append({
             "Mã VĐV": ath.id,
             "Họ và Tên": ath.full_name,
+            "Tên Strava": ath.strava_name or "Chưa liên kết",
             "Phòng ban": ath.department or "Chưa phân phòng",
             "Giới tính": ath.gender or "Khác",
             f"Tổng thành tích ({metric_unit})": round(metric_value, 2),
@@ -5264,7 +5265,7 @@ def export_rewards_excel(
         item["Hạng"] = rank
 
     # Sắp xếp lại cột cho đẹp
-    columns = ["Hạng", "Mã VĐV", "Họ và Tên", "Phòng ban", "Giới tính", f"Tổng thành tích ({metric_unit})", "Số tiền thưởng (VND)", "Trạng thái"]
+    columns = ["Hạng", "Mã VĐV", "Họ và Tên", "Tên Strava", "Phòng ban", "Giới tính", f"Tổng thành tích ({metric_unit})", "Số tiền thưởng (VND)", "Trạng thái"]
     df = pd.DataFrame(data)
     if not df.empty:
         df = df[columns]
