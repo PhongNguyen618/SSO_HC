@@ -649,7 +649,11 @@ def sync_athlete_activities_api(db, athlete, access_token, start_date_str: str =
                 "total_elevation_gain": float(ra.get("total_elevation_gain", 0.0)),
                 "type": ra.get("type", "Run"),
                 "sport_type": ra.get("sport_type") or ra.get("type") or "Run",
-                "start_date_local": ra.get("start_date_local")
+                "start_date_local": ra.get("start_date_local"),
+                "is_manual": bool(ra.get("manual", False)),
+                "has_heartrate": bool(ra.get("has_heartrate", False)),
+                "average_heartrate": float(ra.get("average_heartrate")) if ra.get("average_heartrate") is not None else None,
+                "max_heartrate": float(ra.get("max_heartrate")) if ra.get("max_heartrate") is not None else None
             })
             
         print(f"Sync Engine (User API): Found {len(formatted_acts)} valid activities for {athlete.full_name}.")
@@ -878,6 +882,11 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
         pace_min_km = 0.0
         if distance_km > 0:
             pace_min_km = round(moving_time_min / distance_km, 2)
+
+        is_manual = bool(act.get("is_manual", False))
+        has_heartrate = bool(act.get("has_heartrate", False))
+        average_heartrate = act.get("average_heartrate")
+        max_heartrate = act.get("max_heartrate")
 
         # Phân giải VĐV sớm để phục vụ kiểm tra trùng lặp
         athlete = None
@@ -1160,7 +1169,13 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
             distance_km=distance_km,
             pace_min_km=pace_min_km,
             elevation_gain_m=elevation_gain_m,
-            configs=configs
+            configs=configs,
+            is_manual=is_manual,
+            has_heartrate=has_heartrate,
+            average_heartrate=average_heartrate,
+            moving_time_min=moving_time_min,
+            elapsed_time_min=elapsed_time_min,
+            event_obj=event
         )
 
         # Tính multiplier cho ngày hoạt động thực tế
@@ -1188,7 +1203,11 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
             mets_value=mets_value,
             multiplier=activity_multiplier,
             is_suspicious=is_suspicious,
-            suspicion_reason=suspicion_reason
+            suspicion_reason=suspicion_reason,
+            is_manual=is_manual,
+            has_heartrate=has_heartrate,
+            average_heartrate=average_heartrate,
+            max_heartrate=max_heartrate
         )
         
         db.add(new_activity)
@@ -1616,6 +1635,11 @@ def sync_single_athlete_all_events(db: Session, athlete):
             pace_min_km = 0.0
             if distance_km > 0:
                 pace_min_km = round(moving_time_min / distance_km, 2)
+
+            is_manual = bool(act.get("is_manual", False))
+            has_heartrate = bool(act.get("has_heartrate", False))
+            average_heartrate = act.get("average_heartrate")
+            max_heartrate = act.get("max_heartrate")
                 
             start_date_local = act.get("start_date_local")
             act_time_str = None
@@ -1677,7 +1701,13 @@ def sync_single_athlete_all_events(db: Session, athlete):
                 distance_km=distance_km,
                 pace_min_km=pace_min_km,
                 elevation_gain_m=elevation_gain_m,
-                configs=configs
+                configs=configs,
+                is_manual=is_manual,
+                has_heartrate=has_heartrate,
+                average_heartrate=average_heartrate,
+                moving_time_min=moving_time_min,
+                elapsed_time_min=elapsed_time_min,
+                event_obj=event
             )
             
             activity_multiplier = get_multiplier_for_date(act_date_str, event_id, db)
@@ -1704,7 +1734,11 @@ def sync_single_athlete_all_events(db: Session, athlete):
                 mets_value=mets_value,
                 multiplier=activity_multiplier,
                 is_suspicious=is_suspicious,
-                suspicion_reason=suspicion_reason
+                suspicion_reason=suspicion_reason,
+                is_manual=is_manual,
+                has_heartrate=has_heartrate,
+                average_heartrate=average_heartrate,
+                max_heartrate=max_heartrate
             )
             db.add(new_activity)
             new_count += 1

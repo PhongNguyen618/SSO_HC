@@ -190,7 +190,19 @@ def get_award_info(gender: str, total_kcal: float, db: Session, event_id: int = 
         "has_award": award_amount > 0
     }
 
-def check_suspicious_activity(sport_type: str, distance_km: float, pace_min_km: float, elevation_gain_m: float, configs: dict) -> tuple[bool, str]:
+def check_suspicious_activity(
+    sport_type: str, 
+    distance_km: float, 
+    pace_min_km: float, 
+    elevation_gain_m: float, 
+    configs: dict,
+    is_manual: bool = False,
+    has_heartrate: bool = False,
+    average_heartrate: float = None,
+    moving_time_min: float = 0.0,
+    elapsed_time_min: float = 0.0,
+    event_obj = None
+) -> tuple[bool, str]:
     """
     Kiểm tra và đánh giá xem hoạt động có dấu hiệu nghi ngờ gian lận không.
     Trả về: (is_suspicious, reason)
@@ -280,6 +292,36 @@ def check_suspicious_activity(sport_type: str, distance_km: float, pace_min_km: 
                 reasons.append(f"{sport_type}: Khoảng cách bất thường ({distance_km} km)")
             if elevation_gain_m > 50.0:
                 reasons.append(f"{sport_type}: Elevation bất thường ({elevation_gain_m} m)")
+
+    # ================= LOGIC CHỐNG GIAN LẬN NÂNG CAO =================
+    if event_obj:
+        # Luật 1: Kiểm tra Manual (Nhập tay thủ công)
+        if getattr(event_obj, 'flag_manual_activities', False) and is_manual:
+            reasons.append("Hoạt động nhập tay thủ công (không có GPS)")
+
+        # Luật 2: Kiểm tra Tỷ lệ nghỉ ngơi
+        if moving_time_min >= 1.0 and elapsed_time_min > 0.0:
+            max_rest_ratio = getattr(event_obj, 'max_rest_ratio', None)
+            if max_rest_ratio is not None:
+                try:
+                    max_rest_ratio = float(max_rest_ratio)
+                    rest_ratio = (elapsed_time_min - moving_time_min) / moving_time_min
+                    if rest_ratio > max_rest_ratio:
+                        reasons.append(f"Thời gian ngắt quãng nghỉ quá lâu ({round(rest_ratio * 100, 1)}% > {round(max_rest_ratio * 100, 1)}%)")
+                except (ValueError, TypeError):
+                    pass
+
+        # Luật 3: Kiểm tra Nhịp tim bất thường
+        if getattr(event_obj, 'heartrate_check', False) and sport_type in ['Run', 'Walk']:
+            if has_heartrate and average_heartrate is not None:
+                try:
+                    average_heartrate = float(average_heartrate)
+                    # Chỉ kiểm tra nếu đang chạy với tốc độ nhanh (Pace < 4.0 tức vận tốc > 15 km/h)
+                    if 0 < pace_min_km < 4.0:
+                        if average_heartrate < 90.0:
+                            reasons.append(f"Nhịp tim quá thấp ({round(average_heartrate)} bpm) so với vận tốc vận động (Pace {pace_min_km} min/km)")
+                except (ValueError, TypeError):
+                    pass
 
     if reasons:
         return True, "; ".join(reasons)

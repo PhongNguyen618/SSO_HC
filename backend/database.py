@@ -112,6 +112,9 @@ class CompetitionEvent(Base):
     ranking_sports = Column(String, default="All", nullable=True) # Mặc định là tất cả bộ môn "All"
     rules_group_qr = Column(String, nullable=True) # Đường dẫn QR code group Strava riêng của giải đấu
     avatar_frame = Column(String, nullable=True) # Đường dẫn khung viền avatar riêng của giải đấu
+    flag_manual_activities = Column(Boolean, default=False, nullable=True)
+    heartrate_check = Column(Boolean, default=False, nullable=True)
+    max_rest_ratio = Column(Float, default=1.0, nullable=True)
 
     activities = relationship("Activity", back_populates="event", cascade="all, delete-orphan")
     hidden_reward_configs = relationship("HiddenRewardConfig", back_populates="event", cascade="all, delete-orphan")
@@ -182,6 +185,10 @@ class Activity(Base):
     distance_km_raw = Column(Float, nullable=True)
     kcal_burned_raw = Column(Float, nullable=True)
     multiplier = Column(Float, default=1.0)
+    is_manual = Column(Boolean, default=False, nullable=True)
+    has_heartrate = Column(Boolean, default=False, nullable=True)
+    average_heartrate = Column(Float, nullable=True)
+    max_heartrate = Column(Float, nullable=True)
 
     athlete = relationship("Athlete", back_populates="activities")
     event = relationship("CompetitionEvent", back_populates="activities")
@@ -274,6 +281,27 @@ def init_db(excel_filepath: str = "TDTT_SSO.xlsx"):
             conn.execute(text("ALTER TABLE activities ADD COLUMN activity_time TEXT"))
             conn.commit()
 
+    if 'is_manual' not in columns:
+        print("Database Migration: Adding is_manual column to activities...")
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE activities ADD COLUMN is_manual BOOLEAN DEFAULT 0"))
+            conn.commit()
+    if 'has_heartrate' not in columns:
+        print("Database Migration: Adding has_heartrate column to activities...")
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE activities ADD COLUMN has_heartrate BOOLEAN DEFAULT 0"))
+            conn.commit()
+    if 'average_heartrate' not in columns:
+        print("Database Migration: Adding average_heartrate column to activities...")
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE activities ADD COLUMN average_heartrate FLOAT"))
+            conn.commit()
+    if 'max_heartrate' not in columns:
+        print("Database Migration: Adding max_heartrate column to activities...")
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE activities ADD COLUMN max_heartrate FLOAT"))
+            conn.commit()
+
     # Di trú các cột cho mets_rules, reward_rules, badge_rules
     mets_columns = [c['name'] for c in inspector.get_columns('mets_rules')]
     if 'event_id' not in mets_columns:
@@ -349,6 +377,22 @@ def init_db(excel_filepath: str = "TDTT_SSO.xlsx"):
         print("Database Migration: Adding avatar_frame column to competition_events...")
         with engine.connect() as conn:
             conn.execute(text("ALTER TABLE competition_events ADD COLUMN avatar_frame TEXT"))
+            conn.commit()
+
+    if 'flag_manual_activities' not in comp_columns:
+        print("Database Migration: Adding flag_manual_activities column to competition_events...")
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE competition_events ADD COLUMN flag_manual_activities BOOLEAN DEFAULT 0"))
+            conn.commit()
+    if 'heartrate_check' not in comp_columns:
+        print("Database Migration: Adding heartrate_check column to competition_events...")
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE competition_events ADD COLUMN heartrate_check BOOLEAN DEFAULT 0"))
+            conn.commit()
+    if 'max_rest_ratio' not in comp_columns:
+        print("Database Migration: Adding max_rest_ratio column to competition_events...")
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE competition_events ADD COLUMN max_rest_ratio FLOAT DEFAULT 1.0"))
             conn.commit()
 
     # Phục hồi các giải đấu đang bị giới hạn về 4 môn mặc định hoặc NULL/rỗng trở lại thành 'All' để tính calo cho tất cả các môn như ban đầu

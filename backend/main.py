@@ -5595,6 +5595,9 @@ async def admin_add_competition(
     show_rewards_in_rules: bool = Form(True),
     department_members: str = Form(""),
     ranking_metric: str = Form("kcal"),
+    flag_manual_activities: bool = Form(False),
+    heartrate_check: bool = Form(False),
+    max_rest_ratio: float = Form(1.0),
     banner_file: UploadFile = File(None),
     avatar_frame_file: UploadFile = File(None),
     db: Session = Depends(get_db)
@@ -5649,7 +5652,10 @@ async def admin_add_competition(
             show_rewards_in_rules=show_rewards_in_rules,
             department_members=dept_json if dept_json else None,
             ranking_metric=ranking_metric.strip(),
-            ranking_sports=ranking_sports_str
+            ranking_sports=ranking_sports_str,
+            flag_manual_activities=flag_manual_activities,
+            heartrate_check=heartrate_check,
+            max_rest_ratio=max_rest_ratio
         )
         db.add(new_comp)
         db.flush() # Sinh ID cho new_comp trước khi lưu ảnh
@@ -5700,6 +5706,9 @@ async def admin_edit_competition(
     show_rewards_in_rules: bool = Form(True),
     department_members: str = Form(""),
     ranking_metric: str = Form("kcal"),
+    flag_manual_activities: bool = Form(False),
+    heartrate_check: bool = Form(False),
+    max_rest_ratio: float = Form(1.0),
     banner_file: UploadFile = File(None),
     avatar_frame_file: UploadFile = File(None),
     db: Session = Depends(get_db)
@@ -5743,6 +5752,9 @@ async def admin_edit_competition(
         comp.department_members = dept_json if dept_json else None
         comp.ranking_metric = ranking_metric.strip()
         comp.ranking_sports = ranking_sports_str
+        comp.flag_manual_activities = flag_manual_activities
+        comp.heartrate_check = heartrate_check
+        comp.max_rest_ratio = max_rest_ratio
         
         # Cập nhật banner nếu có upload mới
         if banner_file and banner_file.filename:
