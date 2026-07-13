@@ -1044,6 +1044,29 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
                 except Exception as commit_err:
                     db.rollback()
                     print(f"Sync Engine: Error committing activity re-assignment: {commit_err}")
+            
+            # Cập nhật lại trạng thái nghi vấn theo luật mới của giải đấu khi đồng bộ lại
+            is_suspicious_exist, suspicion_reason_exist = check_suspicious_activity(
+                sport_type=sport_type,
+                distance_km=distance_km,
+                pace_min_km=pace_min_km,
+                elevation_gain_m=elevation_gain_m,
+                configs=configs,
+                is_manual=is_manual,
+                has_heartrate=has_heartrate,
+                average_heartrate=average_heartrate,
+                moving_time_min=moving_time_min,
+                elapsed_time_min=elapsed_time_min,
+                event_obj=event
+            )
+            exists.is_suspicious = is_suspicious_exist
+            exists.suspicion_reason = suspicion_reason_exist
+            try:
+                db.commit()
+            except Exception as commit_err:
+                db.rollback()
+                print(f"Sync Engine: Error committing activity suspicious status update: {commit_err}")
+
             seen_ids.add(act_id)
             continue
             
@@ -1686,6 +1709,28 @@ def sync_single_athlete_all_events(db: Session, athlete):
                     except Exception as commit_err:
                         db.rollback()
                         print(f"Sync Single Athlete: Error committing activity re-assignment: {commit_err}")
+                
+                # Cập nhật lại trạng thái nghi vấn theo luật mới của giải đấu khi đồng bộ lại
+                is_suspicious_exist, suspicion_reason_exist = check_suspicious_activity(
+                    sport_type=sport_type,
+                    distance_km=distance_km,
+                    pace_min_km=pace_min_km,
+                    elevation_gain_m=elevation_gain_m,
+                    configs=configs,
+                    is_manual=is_manual,
+                    has_heartrate=has_heartrate,
+                    average_heartrate=average_heartrate,
+                    moving_time_min=moving_time_min,
+                    elapsed_time_min=elapsed_time_min,
+                    event_obj=event
+                )
+                exists.is_suspicious = is_suspicious_exist
+                exists.suspicion_reason = suspicion_reason_exist
+                try:
+                    db.commit()
+                except Exception as commit_err:
+                    db.rollback()
+                    print(f"Sync Single Athlete: Error committing activity suspicious status update: {commit_err}")
                 continue
                 
             # Tính toán METs & KCAL
