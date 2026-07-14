@@ -1430,9 +1430,15 @@
     <!-- CSS Modal Tự Định Nghĩa -->
     <style>
         @media print {
+            :root, body {
+                --text-color: #111111 !important;
+                --text-muted: #555555 !important;
+                --text-main: #111111 !important;
+                --border-color: #dddddd !important;
+            }
             body, html {
                 background: #ffffff !important;
-                color: #000000 !important;
+                color: #111111 !important;
                 font-family: Arial, sans-serif !important;
                 -webkit-print-color-adjust: exact !important;
                 print-color-adjust: exact !important;
@@ -1480,43 +1486,43 @@
                 background: #ffffff !important;
                 border: 1px solid #dddddd !important;
                 box-shadow: none !important;
-                color: #000000 !important;
+                color: #111111 !important;
                 margin-bottom: 1.2rem !important;
                 padding: 1rem !important;
                 page-break-inside: avoid;
                 border-radius: 4px !important;
             }
-            .kpi-card div span {
-                color: #000000 !important;
+            /* Giữ nguyên màu text KPI của từng khối do inline color chỉ định */
+            .kpi-card div span[style*="color"] {
+                /* Cho phép inline color (như hồng, vàng, xanh) hiển thị */
             }
-            .kpi-card div span[style*="font-size: 1.6rem"] {
-                color: #111111 !important;
-                font-weight: bold !important;
+            .kpi-card div span:not([style*="color"]) {
+                color: #555555 !important;
             }
             /* Định dạng bảng in rõ nét */
             table {
                 border-collapse: collapse !important;
                 width: 100% !important;
-                color: #000000 !important;
+                color: #111111 !important;
             }
             th {
                 background-color: #f5f5f5 !important;
-                color: #000000 !important;
+                color: #111111 !important;
                 border: 1px solid #cccccc !important;
                 padding: 0.5rem !important;
                 font-weight: bold !important;
             }
             td {
-                color: #000000 !important;
+                color: #222222 !important;
                 border: 1px solid #e5e5e5 !important;
                 padding: 0.5rem !important;
             }
             tr[style*="background: rgba"] {
                 background: #fafafa !important;
             }
-            /* Tăng tương phản chữ (ép tất cả văn bản trong tab thống kê thành màu đen rõ nét) */
-            #tab-analytics, #tab-analytics * {
-                color: #000000 !important;
+            /* Chữ tiêu đề trang in */
+            h3, h4 {
+                color: #111111 !important;
             }
             h3 {
                 border-bottom: 2px solid #333333 !important;
@@ -4111,6 +4117,37 @@
         }
         window.print();
     }
+
+    // Tự động chuyển đổi màu nhãn biểu đồ Chart.js khi in ấn
+    window.addEventListener('beforeprint', () => {
+        if (adminKcalChartInstance) {
+            // Line Chart ticks & grids
+            adminKcalChartInstance.options.scales.x.ticks.color = '#333333';
+            adminKcalChartInstance.options.scales.y.ticks.color = '#333333';
+            adminKcalChartInstance.options.scales.y.grid.color = 'rgba(0, 0, 0, 0.1)';
+            adminKcalChartInstance.update();
+        }
+        if (adminSportChartInstance) {
+            // Doughnut Chart legend text
+            adminSportChartInstance.options.plugins.legend.labels.color = '#222222';
+            adminSportChartInstance.update();
+        }
+    });
+
+    window.addEventListener('afterprint', () => {
+        if (adminKcalChartInstance) {
+            // Khôi phục Line Chart
+            adminKcalChartInstance.options.scales.x.ticks.color = '#94B5DE';
+            adminKcalChartInstance.options.scales.y.ticks.color = '#94B5DE';
+            adminKcalChartInstance.options.scales.y.grid.color = 'rgba(255, 255, 255, 0.05)';
+            adminKcalChartInstance.update();
+        }
+        if (adminSportChartInstance) {
+            // Khôi phục Doughnut Chart
+            adminSportChartInstance.options.plugins.legend.labels.color = '#e4e3e8';
+            adminSportChartInstance.update();
+        }
+    });
 
     function copyZaloSummary() {
         if (!statsData) {
