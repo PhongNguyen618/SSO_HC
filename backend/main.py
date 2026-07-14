@@ -2379,6 +2379,180 @@ def admin_dashboard(
         }
     }
 
+    # === BÁO CÁO SƠ KẾT CHI TIẾT (chỉ khi chọn giải đấu cụ thể) ===
+    if selected_event_id and selected_event:
+        is_distance_metric = getattr(selected_event, "ranking_metric", "kcal") == "distance"
+        event_start = getattr(selected_event, "start_date", None) or "2020-01-01"
+        event_end = getattr(selected_event, "end_date", None) or "2030-12-31"
+        base_act_filters = [
+            Activity.event_id == selected_event_id,
+            Activity.activity_date >= str(event_start),
+            Activity.activity_date <= str(event_end),
+        ]
+
+        # --- 1. Bảng thống kê theo Môn thể thao ---
+        sport_table_query = db.query(
+            Activity.sport_type,
+            func.count(Activity.id).label("cnt"),
+            func.sum(Activity.distance_km).label("total_km"),
+            func.sum(Activity.kcal_burned).label("total_kcal")
+        ).filter(*base_act_filters).group_by(Activity.sport_type).order_by(func.count(Activity.id).desc()).all()
+
+        sport_table = []
+        for s in sport_table_query:
+            sport_table.append({
+                "sport_type": s.sport_type,
+                "count": s.cnt or 0,
+                "total_km": round(s.total_km or 0, 1),
+                "total_kcal": int(s.total_kcal or 0)
+            })
+        stats_data["sport_table"] = sport_table
+
+        # --- 2. BXH Chạy bộ + Đi bộ (Run & Walk) Top 5 Nam/Nữ ---
+        run_walk_top = {}
+        for gender in ["Nam", "Nữ"]:
+            rw_query = db.query(
+                Athlete.id, Athlete.full_name, Athlete.department,
+                func.sum(Activity.distance_km).label("total_dist"),
+                func.sum(Activity.kcal_burned).label("total_kcal"),
+                func.count(Activity.id).label("act_count")
+            ).join(Activity, Athlete.id == Activity.athlete_id)\
+             .join(CompetitionRegistration, (Athlete.id == CompetitionRegistration.athlete_id) & (CompetitionRegistration.event_id == selected_event_id))\
+             .filter(
+                 Athlete.is_active == True,
+                 Athlete.gender == gender,
+                 Activity.sport_type.in_(["Run", "Walk"]),
+                 *base_act_filters
+             ).group_by(Athlete.id)\
+             .order_by(func.sum(Activity.distance_km).desc())\
+             .limit(5).all()
+
+            rw_list = []
+            for rank, item in enumerate(rw_query, 1):
+                rw_list.append({
+                    "rank": rank,
+                    "full_name": item.full_name,
+                    "department": item.department or "Chưa rõ",
+                    "total_km": round(item.total_dist or 0, 1),
+                    "total_kcal": int(item.total_kcal or 0),
+                    "act_count": item.act_count or 0
+                })
+            run_walk_top[gender] = rw_list
+        stats_data["run_walk_top"] = run_walk_top
+
+        # --- 3. BXH Phòng ban ---
+        # Đếm thành viên đăng ký mỗi phòng ban
+        dept_member_q = db.query(
+            Athlete.department,
+            func.count(Athlete.id).label("cnt")
+        ).join(CompetitionRegistration, (Athlete.id == CompetitionRegistration.athlete_id) & (CompetitionRegistration.event_id == selected_event_id))\
+         .filter(Athlete.is_active == True)\
+         .group_by(Athlete.department).all()
+        dept_member_map = {dm.department: dm.cnt for dm in dept_member_q}
+
+        # Thống kê hoạt động phòng ban
+        dept_stats_q = db.query(
+            Athlete.department,
+            func.sum(Activity.kcal_burned).label("total_kcal"),
+            func.sum(Activity.distance_km).label("total_dist"),
+            func.sum(Activity.moving_time_min).label("total_time"),
+            func.count(func.distinct(Athlete.id)).label("active_members")
+        ).join(Activity, Athlete.id == Activity.athlete_id)\
+         .join(CompetitionRegistration, (Athlete.id == CompetitionRegistration.athlete_id) & (CompetitionRegistration.event_id == selected_event_id))\
+         .filter(Athlete.is_active == True, *base_act_filters)\
+         .group_by(Athlete.department).all()
+
+        dept_ranking = []
+        for d in dept_stats_q:
+            members = dept_member_map.get(d.department, d.active_members or 1)
+            if members == 0:
+                members = 1
+            tk = d.total_kcal or 0
+            td = d.total_dist or 0
+            tt = d.total_time or 0
+            dept_ranking.append({
+                "department": d.department or "Chưa rõ",
+                "members": members,
+                "active": d.active_members or 0,
+                "total_km": round(td, 1),
+                "total_kcal": int(tk),
+                "total_hours": round(tt / 60.0, 1),
+                "avg_kcal": round(tk / members, 0),
+                "avg_km": round(td / members, 2)
+            })
+
+        if is_distance_metric:
+            dept_ranking.sort(key=lambda x: x["avg_km"], reverse=True)
+        else:
+            dept_ranking.sort(key=lambda x: x["avg_kcal"], reverse=True)
+
+        for idx, d in enumerate(dept_ranking, 1):
+            d["rank"] = idx
+        stats_data["dept_ranking"] = dept_ranking
+
+        # --- 4. Tiền thưởng theo Phòng ban ---
+        hidden_depts_set = {r.department for r in db.query(HiddenRewardConfig).filter(HiddenRewardConfig.event_id == selected_event_id).all()}
+
+        reward_dept_map = {}  # dept -> {"count": 0, "total": 0, "male": 0, "female": 0}
+        reward_gender_total = {"Nam": 0.0, "Nữ": 0.0}
+        reward_athletes_with = 0
+
+        for ath in athletes_for_reward:
+            act_ath_q2 = db.query(Activity).filter(Activity.athlete_id == ath.id, Activity.event_id == selected_event_id)
+            if allowed_sports and "All" not in allowed_sports:
+                act_ath_q2 = act_ath_q2.filter(Activity.sport_type.in_(allowed_sports))
+            ath_acts2 = act_ath_q2.all()
+
+            ath_kcal2 = sum(a.kcal_burned for a in ath_acts2) or 0.0
+            ath_dist2 = sum(a.distance_km for a in ath_acts2) or 0.0
+            mv2 = ath_dist2 if is_distance_metric else ath_kcal2
+
+            aw2 = get_award_info(ath.gender, mv2, db, event_id=selected_event_id)
+            is_hidden = (ath.department or "") in hidden_depts_set
+            rw_amount = 0 if is_hidden else aw2.get("reward_amount", 0.0)
+
+            if rw_amount > 0:
+                reward_athletes_with += 1
+                dept_key = ath.department or "Chưa rõ"
+                if dept_key not in reward_dept_map:
+                    reward_dept_map[dept_key] = {"count": 0, "total": 0.0}
+                reward_dept_map[dept_key]["count"] += 1
+                reward_dept_map[dept_key]["total"] += rw_amount
+                reward_gender_total[ath.gender] = reward_gender_total.get(ath.gender, 0) + rw_amount
+
+        reward_by_dept = []
+        for dept_name, info in sorted(reward_dept_map.items(), key=lambda x: x[1]["total"], reverse=True):
+            reward_by_dept.append({
+                "department": dept_name,
+                "count": info["count"],
+                "total": info["total"]
+            })
+
+        stats_data["reward_by_dept"] = reward_by_dept
+        stats_data["reward_athletes_with"] = reward_athletes_with
+        stats_data["reward_gender"] = reward_gender_total
+
+        # --- 5. Tỷ lệ tham gia theo Phòng ban ---
+        participation = []
+        for dm in dept_member_q:
+            dept_name = dm.department or "Chưa rõ"
+            registered = dm.cnt
+            active_cnt = db.query(func.count(func.distinct(Activity.athlete_id))).join(
+                Athlete, Athlete.id == Activity.athlete_id
+            ).filter(
+                Athlete.department == dm.department,
+                *base_act_filters
+            ).scalar() or 0
+            rate = round(active_cnt / registered * 100, 0) if registered > 0 else 0
+            participation.append({
+                "department": dept_name,
+                "registered": registered,
+                "active": active_cnt,
+                "rate": int(rate)
+            })
+        participation.sort(key=lambda x: x["active"], reverse=True)
+        stats_data["participation"] = participation
+
     # Lấy danh sách phòng ban động để phục vụ autocomplete
     db_depts = db.query(Athlete.department).filter(Athlete.department != None, Athlete.department != '').distinct().order_by(Athlete.department).all()
     departments = [r[0] for r in db_depts] if db_depts else [
@@ -5266,23 +5440,196 @@ def export_rewards_excel(
 
     # Sắp xếp lại cột cho đẹp
     columns = ["Hạng", "Mã VĐV", "Họ và Tên", "Tên Strava", "Phòng ban", "Giới tính", f"Tổng thành tích ({metric_unit})", "Số tiền thưởng (VND)", "Trạng thái"]
-    df = pd.DataFrame(data)
-    if not df.empty:
-        df = df[columns]
+    df_rewards = pd.DataFrame(data)
+    if not df_rewards.empty:
+        df_rewards = df_rewards[columns]
     else:
-        df = pd.DataFrame(columns=columns)
+        df_rewards = pd.DataFrame(columns=columns)
 
-    # Xuất ra file Excel dùng pandas BytesIO
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        df.to_excel(writer, index=False, sheet_name="Báo cáo giải thưởng")
-        
-        # Tự động căn chỉnh độ rộng cột
-        worksheet = writer.sheets["Báo cáo giải thưởng"]
-        for col in worksheet.columns:
-            max_len = max(len(str(cell.value or '')) for cell in col)
-            col_letter = col[0].column_letter
-            worksheet.column_dimensions[col_letter].width = max(max_len + 3, 12)
+        if event_id and selected_event:
+            # === 1. SHEET 1: Tổng quan & Bộ môn ===
+            # Tính KPIs tổng quan
+            total_active_athletes = len(athletes)
+            
+            event_start = getattr(selected_event, "start_date", None) or "2020-01-01"
+            event_end = getattr(selected_event, "end_date", None) or "2030-12-31"
+            base_act_filters = [
+                Activity.event_id == event_id,
+                Activity.activity_date >= str(event_start),
+                Activity.activity_date <= str(event_end),
+            ]
+            
+            total_valid_activities = db.query(Activity).filter(*base_act_filters).count()
+            total_kcal_burned = db.query(func.sum(Activity.kcal_burned)).filter(*base_act_filters).scalar() or 0.0
+            total_distance = db.query(func.sum(Activity.distance_km)).filter(*base_act_filters).scalar() or 0.0
+            total_moving_time_min = db.query(func.sum(Activity.moving_time_min)).filter(*base_act_filters).scalar() or 0.0
+            total_hours = total_moving_time_min / 60.0
+            
+            # Tính tổng tiền thưởng cho riêng giải đấu này
+            from backend.calculations import get_award_info
+            total_reward_val = 0.0
+            hidden_depts = {r.department for r in db.query(HiddenRewardConfig).filter(HiddenRewardConfig.event_id == event_id).all()}
+            for ath in athletes:
+                act_ath_q = db.query(Activity).filter(Activity.athlete_id == ath.id, Activity.event_id == event_id)
+                if allowed_sports and "All" not in allowed_sports:
+                    act_ath_q = act_ath_q.filter(Activity.sport_type.in_(allowed_sports))
+                ath_acts = act_ath_q.all()
+                ath_kcal = sum(a.kcal_burned for a in ath_acts) or 0.0
+                ath_dist = sum(a.distance_km for a in ath_acts) or 0.0
+                mv = ath_dist if is_distance else ath_kcal
+                aw_info = get_award_info(ath.gender, mv, db, event_id=event_id)
+                is_hidden = (ath.department or "") in hidden_depts
+                total_reward_val += 0.0 if is_hidden else aw_info.get("reward_amount", 0.0)
+
+            df_kpis = pd.DataFrame([
+                {"Thông số": "Tên giải đấu", "Giá trị": selected_event.title},
+                {"Thông số": "Thời gian diễn ra", "Giá trị": f"{event_start} -> {event_end}"},
+                {"Thông số": "Chỉ số xếp hạng", "Giá trị": "Quãng đường (KM)" if is_distance else "Năng lượng (KCAL)"},
+                {"Thông số": "Số VĐV đăng ký tham gia", "Giá trị": total_active_athletes},
+                {"Thông số": "Tổng số hoạt động ghi nhận", "Giá trị": total_valid_activities},
+                {"Thông số": "Tổng quãng đường", "Giá trị": f"{round(total_distance, 1)} km"},
+                {"Thông số": "Tổng năng lượng tiêu hao", "Giá trị": f"{int(total_kcal_burned)} KCAL"},
+                {"Thông số": "Tổng thời gian vận động", "Giá trị": f"{round(total_hours, 1)} giờ"},
+                {"Thông số": "Tổng chi phí giải thưởng", "Giá trị": f"{int(total_reward_val):,} VNĐ"}
+            ])
+            df_kpis.to_excel(writer, index=False, sheet_name="Tổng quan & Bộ môn", startrow=0, startcol=0)
+
+            # Query sport stats
+            sport_table_query = db.query(
+                Activity.sport_type.label("Bộ môn"),
+                func.count(Activity.id).label("Số hoạt động"),
+                func.sum(Activity.distance_km).label("Tổng KM"),
+                func.sum(Activity.kcal_burned).label("Tổng KCAL")
+            ).filter(*base_act_filters).group_by(Activity.sport_type).order_by(func.count(Activity.id).desc()).all()
+            
+            sport_rows = []
+            for s in sport_table_query:
+                sport_rows.append({
+                    "Bộ môn": s[0],
+                    "Số hoạt động": s[1] or 0,
+                    "Tổng KM": round(s[2] or 0, 1),
+                    "Tổng KCAL": int(s[3] or 0)
+                })
+            df_sports = pd.DataFrame(sport_rows)
+            df_sports.to_excel(writer, index=False, sheet_name="Tổng quan & Bộ môn", startrow=12, startcol=0)
+
+            # === 2. SHEET 2: BXH Phòng ban ===
+            dept_member_q = db.query(
+                Athlete.department,
+                func.count(Athlete.id).label("cnt")
+            ).join(CompetitionRegistration, (Athlete.id == CompetitionRegistration.athlete_id) & (CompetitionRegistration.event_id == event_id))\
+             .filter(Athlete.is_active == True)\
+             .group_by(Athlete.department).all()
+            dept_member_map = {dm.department: dm.cnt for dm in dept_member_q}
+
+            dept_stats_q = db.query(
+                Athlete.department,
+                func.sum(Activity.kcal_burned).label("total_kcal"),
+                func.sum(Activity.distance_km).label("total_dist"),
+                func.sum(Activity.moving_time_min).label("total_time"),
+                func.count(func.distinct(Athlete.id)).label("active_members")
+            ).join(Activity, Athlete.id == Activity.athlete_id)\
+             .join(CompetitionRegistration, (Athlete.id == CompetitionRegistration.athlete_id) & (CompetitionRegistration.event_id == event_id))\
+             .filter(Athlete.is_active == True, *base_act_filters)\
+             .group_by(Athlete.department).all()
+
+            dept_ranking = []
+            for d in dept_stats_q:
+                members = dept_member_map.get(d.department, d.active_members or 1) or 1
+                tk = d.total_kcal or 0
+                td = d.total_dist or 0
+                tt = d.total_time or 0
+                dept_ranking.append({
+                    "Phòng ban": d.department or "Chưa rõ",
+                    "Thành viên": members,
+                    "Tham gia thực tế": d.active_members or 0,
+                    "Tổng KM": round(td, 1),
+                    "Tổng KCAL": int(tk),
+                    "Tổng thời gian (giờ)": round(tt / 60.0, 1),
+                    "TB KCAL/người": round(tk / members, 0),
+                    "TB KM/người": round(td / members, 2)
+                })
+            if is_distance:
+                dept_ranking.sort(key=lambda x: x["TB KM/người"], reverse=True)
+            else:
+                dept_ranking.sort(key=lambda x: x["TB KCAL/người"], reverse=True)
+            for idx, d in enumerate(dept_ranking, 1):
+                d["Hạng"] = idx
+            
+            df_dept = pd.DataFrame(dept_ranking)
+            if not df_dept.empty:
+                df_dept = df_dept[["Hạng", "Phòng ban", "Thành viên", "Tham gia thực tế", "Tổng KM", "Tổng KCAL", "TB KCAL/người", "TB KM/người"]]
+            df_dept.to_excel(writer, index=False, sheet_name="BXH Phòng ban")
+
+            # === 3. SHEET 3: BXH Cá nhân Run-Walk ===
+            run_walk_rows = []
+            for gender in ["Nam", "Nữ"]:
+                rw_query = db.query(
+                    Athlete.full_name, Athlete.department,
+                    func.sum(Activity.distance_km).label("total_dist"),
+                    func.sum(Activity.kcal_burned).label("total_kcal"),
+                    func.count(Activity.id).label("act_count")
+                ).join(Activity, Athlete.id == Activity.athlete_id)\
+                 .join(CompetitionRegistration, (Athlete.id == CompetitionRegistration.athlete_id) & (CompetitionRegistration.event_id == event_id))\
+                 .filter(
+                     Athlete.is_active == True,
+                     Athlete.gender == gender,
+                     Activity.sport_type.in_(["Run", "Walk"]),
+                     *base_act_filters
+                 ).group_by(Athlete.id)\
+                 .order_by(func.sum(Activity.distance_km).desc())\
+                 .limit(5).all()
+                
+                for rank, item in enumerate(rw_query, 1):
+                    run_walk_rows.append({
+                        "Giới tính": gender,
+                        "Hạng": rank,
+                        "Họ và Tên": item.full_name,
+                        "Phòng ban": item.department or "Chưa rõ",
+                        "Tổng quãng đường (KM)": round(item.total_dist or 0, 1),
+                        "Tổng năng lượng (KCAL)": int(item.total_kcal or 0),
+                        "Số buổi": item.act_count or 0
+                    })
+            df_runwalk = pd.DataFrame(run_walk_rows)
+            df_runwalk.to_excel(writer, index=False, sheet_name="BXH Run-Walk")
+
+            # === 4. SHEET 4: Tỷ lệ Tham gia ===
+            participation_rows = []
+            for dm in dept_member_q:
+                dept_name = dm.department or "Chưa rõ"
+                registered = dm.cnt
+                active_cnt = db.query(func.count(func.distinct(Activity.athlete_id))).join(
+                    Athlete, Athlete.id == Activity.athlete_id
+                ).filter(
+                    Athlete.department == dm.department,
+                    *base_act_filters
+                ).scalar() or 0
+                rate = round(active_cnt / registered * 100, 1) if registered > 0 else 0.0
+                participation_rows.append({
+                    "Đơn vị": dept_name,
+                    "Số VĐV đăng ký": registered,
+                    "Có hoạt động thực tế": active_cnt,
+                    "Tỷ lệ tham gia (%)": rate
+                })
+            participation_rows.sort(key=lambda x: x["Có hoạt động thực tế"], reverse=True)
+            df_part = pd.DataFrame(participation_rows)
+            df_part.to_excel(writer, index=False, sheet_name="Tỷ lệ tham gia các đơn vị")
+
+            # === 5. SHEET 5: Chi tiết Nhận thưởng ===
+            df_rewards.to_excel(writer, index=False, sheet_name="Chi tiết nhận thưởng")
+        else:
+            # Nếu không lọc giải đấu, xuất sheet mặc định
+            df_rewards.to_excel(writer, index=False, sheet_name="Báo cáo giải thưởng")
+            
+        # Tự động căn chỉnh độ rộng cột trên tất cả các sheet
+        for sheet_name in writer.sheets:
+            worksheet = writer.sheets[sheet_name]
+            for col in worksheet.columns:
+                max_len = max(len(str(cell.value or '')) for cell in col)
+                col_letter = col[0].column_letter
+                worksheet.column_dimensions[col_letter].width = max(max_len + 3, 12)
             
     output.seek(0)
 
