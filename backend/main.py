@@ -1511,7 +1511,7 @@ def register_athlete(
             try:
                 # Cho phép cập nhật cả Họ và tên mới và Strava Name mới nếu họ chỉnh sửa lỗi viết nhầm
                 exists.full_name = full_name.strip()
-                exists.department = department
+                exists.department = department.strip()
                 exists.weight = weight
                 if strava_name and strava_name.strip():
                     exists.strava_name = strava_name.strip()
@@ -1628,11 +1628,11 @@ def register_athlete(
 
     try:
         new_athlete = Athlete(
-            full_name=full_name,
-            gender=gender,
-            department=department,
+            full_name=full_name.strip(),
+            gender=gender.strip(),
+            department=department.strip(),
             weight=weight,
-            strava_name=strava_name,
+            strava_name=strava_name.strip(),
             is_active=True
         )
         db.add(new_athlete)
@@ -4033,11 +4033,11 @@ def admin_add_athlete(
         return RedirectResponse(f"/admin?error=Ten Strava {strava_name} da ton tai", status_code=303)
         
     athlete = Athlete(
-        full_name=full_name,
-        gender=gender,
-        department=department,
+        full_name=full_name.strip(),
+        gender=gender.strip(),
+        department=department.strip(),
         weight=weight,
-        strava_name=strava_name,
+        strava_name=strava_name.strip(),
         is_active=True
     )
     db.add(athlete)
@@ -4094,11 +4094,11 @@ def admin_edit_athlete(
         # Nếu thay đổi strava_name hoặc cân nặng, cần tính toán lại hoạt động cũ
         recalculate = (athlete.strava_name != strava_name or athlete.weight != weight)
         
-        athlete.full_name = full_name
-        athlete.gender = gender
-        athlete.department = department
+        athlete.full_name = full_name.strip()
+        athlete.gender = gender.strip()
+        athlete.department = department.strip()
         athlete.weight = weight
-        athlete.strava_name = strava_name
+        athlete.strava_name = strava_name.strip()
         athlete.is_active = is_active
         db.commit()
         
