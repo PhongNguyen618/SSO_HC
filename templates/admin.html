@@ -1443,6 +1443,18 @@
                 -webkit-print-color-adjust: exact !important;
                 print-color-adjust: exact !important;
             }
+            /* Ghi đè trực tiếp cho các trình duyệt không biên dịch lại biến CSS khi in */
+            [style*="color: var(--text-color)"],
+            [style*="color:var(--text-color)"],
+            [style*="color: var(--text-main)"],
+            [style*="color:var(--text-main)"],
+            .glass-card, .kpi-card {
+                color: #111111 !important;
+            }
+            [style*="color: var(--text-muted)"],
+            [style*="color:var(--text-muted)"] {
+                color: #555555 !important;
+            }
             /* Hiển thị tiêu đề in chứa logo Trung tâm */
             .print-header {
                 display: flex !important;
