@@ -1439,7 +1439,7 @@
             body, html {
                 background: #ffffff !important;
                 color: #111111 !important;
-                font-family: Arial, sans-serif !important;
+                font-family: 'Outfit', 'Be Vietnam Pro', sans-serif !important;
                 -webkit-print-color-adjust: exact !important;
                 print-color-adjust: exact !important;
             }
@@ -4122,34 +4122,42 @@
         window.print();
     }
 
-    // Tự động chuyển đổi màu nhãn biểu đồ Chart.js khi in ấn
+    // Tự động chuyển đổi màu và font nhãn biểu đồ Chart.js khi in ấn
     window.addEventListener('beforeprint', () => {
+        const brandFont = "'Outfit', 'Be Vietnam Pro', sans-serif";
         if (adminKcalChartInstance) {
-            // Line Chart ticks & grids
-            adminKcalChartInstance.options.scales.x.ticks.color = '#333333';
-            adminKcalChartInstance.options.scales.y.ticks.color = '#333333';
-            adminKcalChartInstance.options.scales.y.grid.color = 'rgba(0, 0, 0, 0.1)';
-            adminKcalChartInstance.update();
+            // Line Chart ticks, grids & font
+            adminKcalChartInstance.options.scales.x.ticks.color = '#111111';
+            adminKcalChartInstance.options.scales.x.ticks.font = { family: brandFont, size: 10, weight: 'bold' };
+            adminKcalChartInstance.options.scales.y.ticks.color = '#111111';
+            adminKcalChartInstance.options.scales.y.ticks.font = { family: brandFont, size: 10, weight: 'bold' };
+            adminKcalChartInstance.options.scales.y.grid.color = 'rgba(0, 0, 0, 0.12)';
+            adminKcalChartInstance.update('none'); // Cập nhật đồng bộ không hiệu ứng để chụp ảnh in tức thì
         }
         if (adminSportChartInstance) {
-            // Doughnut Chart legend text
-            adminSportChartInstance.options.plugins.legend.labels.color = '#222222';
-            adminSportChartInstance.update();
+            // Doughnut Chart legend text, font & size
+            adminSportChartInstance.options.plugins.legend.labels.color = '#111111';
+            adminSportChartInstance.options.plugins.legend.labels.font = { family: brandFont, size: 11, weight: '600' };
+            adminSportChartInstance.update('none'); // Cập nhật đồng bộ
         }
     });
 
     window.addEventListener('afterprint', () => {
+        const defaultFont = "'Be Vietnam Pro'";
         if (adminKcalChartInstance) {
             // Khôi phục Line Chart
             adminKcalChartInstance.options.scales.x.ticks.color = '#94B5DE';
+            adminKcalChartInstance.options.scales.x.ticks.font = { family: defaultFont };
             adminKcalChartInstance.options.scales.y.ticks.color = '#94B5DE';
+            adminKcalChartInstance.options.scales.y.ticks.font = { family: defaultFont };
             adminKcalChartInstance.options.scales.y.grid.color = 'rgba(255, 255, 255, 0.05)';
-            adminKcalChartInstance.update();
+            adminKcalChartInstance.update('none');
         }
         if (adminSportChartInstance) {
             // Khôi phục Doughnut Chart
             adminSportChartInstance.options.plugins.legend.labels.color = '#e4e3e8';
-            adminSportChartInstance.update();
+            adminSportChartInstance.options.plugins.legend.labels.font = { family: defaultFont, size: 11 };
+            adminSportChartInstance.update('none');
         }
     });
 
