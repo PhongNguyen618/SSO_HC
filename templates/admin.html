@@ -40,6 +40,7 @@
 
     <!-- 2. LOGGED-IN ADMIN PANEL -->
     {% else %}
+    <div class="no-print">
     
     <!-- Header Admin -->
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
@@ -266,9 +267,10 @@
         </p>
     </div>
     {% endif %}
+    </div> <!-- /no-print wrapper for top admin elements -->
 
     <!-- Admin Tabs Menu -->
-    <div class="tab-header" style="margin-bottom: 1.5rem;">
+    <div class="tab-header no-print" style="margin-bottom: 1.5rem;">
         <button class="tab-btn active" onclick="switchAdminTab(event, 'tab-config')">
             <i class="fa-solid fa-sliders"></i> Cấu hình API & Rules
         </button>
@@ -1453,9 +1455,6 @@
                 margin: 0 !important;
                 padding: 0 !important;
                 background: transparent !important;
-                position: absolute !important;
-                left: 0 !important;
-                top: 0 !important;
             }
             /* Tách đồ thị thành hàng ngang (2 cột song song) trên trang 1 */
             div[style*="display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr))"] {
