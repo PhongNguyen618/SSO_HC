@@ -847,7 +847,8 @@ def index(
     for rank, item in enumerate(athlete_stats, 1):
         metric_value = item.total_dist if is_distance else item.total_kcal
         award_info = get_award_info(item.gender, metric_value or 0, db, event_id=event_id)
-        is_hidden = item.department in hidden_depts
+        is_sso = (item.department or "").strip().upper().startswith("SSO")
+        is_hidden = (not is_sso) or (item.department in hidden_depts)
         ranked_athletes.append({
             "rank": rank,
             "id": item.id,
@@ -2208,6 +2209,10 @@ def admin_dashboard(
     total_reward = 0.0
     from backend.calculations import get_award_info
     
+    hidden_depts = set()
+    if selected_event_id:
+        hidden_depts = {r.department for r in db.query(HiddenRewardConfig).filter(HiddenRewardConfig.event_id == selected_event_id).all()}
+        
     # Lấy danh sách VĐV tương ứng
     if selected_event_id:
         athletes_for_reward = db.query(Athlete).join(
@@ -2235,7 +2240,13 @@ def admin_dashboard(
         metric_value = ath_dist if is_distance else ath_kcal
         
         award_info = get_award_info(ath.gender, metric_value, db, event_id=selected_event_id)
-        total_reward += award_info.get("reward_amount", 0.0)
+        
+        # Chỉ VĐV thuộc khối SSO mới được nhận giải thưởng tiền mặt
+        is_sso = (ath.department or "").strip().upper().startswith("SSO")
+        is_hidden = (not is_sso) or (ath.department in hidden_depts)
+        
+        if not is_hidden:
+            total_reward += award_info.get("reward_amount", 0.0)
 
     # 2. Thống kê Calo/Km theo tuần (12 tuần gần nhất) và tháng (6 tháng gần nhất)
     import datetime
@@ -5189,7 +5200,8 @@ def export_excel(
     for rank, item in enumerate(athlete_stats, 1):
         metric_value = item.total_dist if is_distance else item.total_kcal
         award_info = get_award_info(item.gender, metric_value or 0, db, event_id=event_id)
-        is_hidden = item.department in hidden_depts
+        is_sso = (item.department or "").strip().upper().startswith("SSO")
+        is_hidden = (not is_sso) or (item.department in hidden_depts)
         reward_amount = 0.0 if is_hidden else award_info.get("reward_amount", 0.0)
         has_award = False if is_hidden else award_info.get("has_award", False)
         
@@ -5432,7 +5444,8 @@ def export_rewards_excel(
         metric_value = total_dist if is_distance else total_kcal
         
         award_info = get_award_info(ath.gender, metric_value, db, event_id=event_id)
-        is_hidden = (ath.department or "") in hidden_depts
+        is_sso = (ath.department or "").strip().upper().startswith("SSO")
+        is_hidden = (not is_sso) or ((ath.department or "") in hidden_depts)
         reward_amount = 0.0 if is_hidden else award_info.get("reward_amount", 0.0)
         
         data.append({
@@ -5494,7 +5507,8 @@ def export_rewards_excel(
                 ath_dist = sum(a.distance_km for a in ath_acts) or 0.0
                 mv = ath_dist if is_distance else ath_kcal
                 aw_info = get_award_info(ath.gender, mv, db, event_id=event_id)
-                is_hidden = (ath.department or "") in hidden_depts
+                is_sso = (ath.department or "").strip().upper().startswith("SSO")
+                is_hidden = (not is_sso) or ((ath.department or "") in hidden_depts)
                 total_reward_val += 0.0 if is_hidden else aw_info.get("reward_amount", 0.0)
 
             df_kpis = pd.DataFrame([
