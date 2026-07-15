@@ -5181,10 +5181,18 @@ def export_excel(
     else:
         athlete_stats = athlete_stats_query.order_by(func.sum(Activity.kcal_burned).desc()).all()
 
+    hidden_depts = set()
+    if event_id:
+        hidden_depts = {r.department for r in db.query(HiddenRewardConfig).filter(HiddenRewardConfig.event_id == event_id).all()}
+
     ranked_athletes = []
     for rank, item in enumerate(athlete_stats, 1):
         metric_value = item.total_dist if is_distance else item.total_kcal
         award_info = get_award_info(item.gender, metric_value or 0, db, event_id=event_id)
+        is_hidden = item.department in hidden_depts
+        reward_amount = 0.0 if is_hidden else award_info.get("reward_amount", 0.0)
+        has_award = False if is_hidden else award_info.get("has_award", False)
+        
         ranked_athletes.append({
             "Hạng": rank,
             "Họ và Tên": item.full_name,
@@ -5193,7 +5201,7 @@ def export_excel(
             "Quãng đường (km)": round(item.total_dist or 0, 1),
             "Thời gian (giờ)": round((item.total_time or 0) / 60.0, 1),
             "Năng lượng (KCAL)": int(item.total_kcal or 0),
-            "Mức thưởng đạt được": f"{int(award_info['reward_amount']):,} VND".replace(",", ".") if award_info["has_award"] else "Chưa đạt mốc"
+            "Mức thưởng đạt được": f"{int(reward_amount):,} VND".replace(",", ".") if has_award else ("Ẩn giải thưởng" if is_hidden and award_info.get("has_award", False) else "Chưa đạt mốc")
         })
     df_personal = pd.DataFrame(ranked_athletes)
     if df_personal.empty:
@@ -5402,6 +5410,11 @@ def export_rewards_excel(
     else:
         athletes = db.query(Athlete).filter(Athlete.is_active == True).all()
 
+    # Lấy danh sách phòng ban ẩn giải thưởng của giải đấu này
+    hidden_depts = set()
+    if event_id:
+        hidden_depts = {r.department for r in db.query(HiddenRewardConfig).filter(HiddenRewardConfig.event_id == event_id).all()}
+
     # 3. Tính toán thành tích và giải thưởng
     data = []
     for ath in athletes:
@@ -5419,6 +5432,8 @@ def export_rewards_excel(
         metric_value = total_dist if is_distance else total_kcal
         
         award_info = get_award_info(ath.gender, metric_value, db, event_id=event_id)
+        is_hidden = (ath.department or "") in hidden_depts
+        reward_amount = 0.0 if is_hidden else award_info.get("reward_amount", 0.0)
         
         data.append({
             "Mã VĐV": ath.id,
@@ -5427,8 +5442,8 @@ def export_rewards_excel(
             "Phòng ban": ath.department or "Chưa phân phòng",
             "Giới tính": ath.gender or "Khác",
             f"Tổng thành tích ({metric_unit})": round(metric_value, 2),
-            "Số tiền thưởng (VND)": int(award_info.get("reward_amount", 0.0)),
-            "Trạng thái": "Có giải thưởng" if award_info.get("reward_amount", 0.0) > 0 else "Chưa đạt mốc"
+            "Số tiền thưởng (VND)": int(reward_amount),
+            "Trạng thái": "Ẩn giải thưởng (Không nhận giải)" if is_hidden and award_info.get("reward_amount", 0.0) > 0 else ("Có giải thưởng" if reward_amount > 0 else "Chưa đạt mốc")
         })
 
     # Sắp xếp danh sách nhận thưởng giảm dần theo Số tiền thưởng và Thành tích
@@ -5470,7 +5485,6 @@ def export_rewards_excel(
             # Tính tổng tiền thưởng cho riêng giải đấu này
             from backend.calculations import get_award_info
             total_reward_val = 0.0
-            hidden_depts = {r.department for r in db.query(HiddenRewardConfig).filter(HiddenRewardConfig.event_id == event_id).all()}
             for ath in athletes:
                 act_ath_q = db.query(Activity).filter(Activity.athlete_id == ath.id, Activity.event_id == event_id)
                 if allowed_sports and "All" not in allowed_sports:
