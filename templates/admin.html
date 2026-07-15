@@ -1030,7 +1030,7 @@
                                 <tbody>
                                     {% for a in stats_data.run_walk_top[gender] %}
                                     {% set is_sso = (a.department or "").strip().upper().startswith("SSO") %}
-                                    <tr class="row-rank-athlete" data-is-sso="{% if is_sso %}true{% else %}false{% endif %}" style="border-bottom: 1px solid rgba(255,255,255,0.04); transition: background 0.2s;" onmouseover="this.style.background='rgba({% if gender == 'Nam' %}76,175,80{% else %}233,30,99{% endif %},0.05)'" onmouseout="this.style.background='transparent'">
+                                    <tr class="row-rank-athlete" data-gender="{{ gender }}" data-is-sso="{% if is_sso %}true{% else %}false{% endif %}" style="border-bottom: 1px solid rgba(255,255,255,0.04); transition: background 0.2s;" onmouseover="this.style.background='rgba({% if gender == 'Nam' %}76,175,80{% else %}233,30,99{% endif %},0.05)'" onmouseout="this.style.background='transparent'">
                                         <td style="padding: 0.5rem; text-align: center; font-size: 1.1rem;">
                                             {% if a.rank == 1 %}🥇{% elif a.rank == 2 %}🥈{% elif a.rank == 3 %}🥉{% else %}<span style="color: var(--text-muted);">{{ a.rank }}</span>{% endif %}
                                         </td>
@@ -4907,15 +4907,27 @@
         toggleKcalTrend(trendType);
 
         // 5. Lọc các bảng chi tiết
-        // Lọc VĐV
+        // 5. Lọc các bảng chi tiết
+        // Lọc VĐV Chạy & Đi bộ có giới hạn Top 5 cho mỗi giới tính dựa trên scope
+        let countGender = { 'Nam': 0, 'Nữ': 0 };
         document.querySelectorAll('.row-rank-athlete').forEach(row => {
             const isSsoAttr = row.getAttribute('data-is-sso');
+            const genderAttr = row.getAttribute('data-gender');
+            
+            let matchScope = false;
             if (scope === 'all') {
-                row.style.display = '';
+                matchScope = true;
             } else if (scope === 'sso') {
-                row.style.display = isSsoAttr === 'true' ? '' : 'none';
+                matchScope = isSsoAttr === 'true';
             } else {
-                row.style.display = isSsoAttr === 'false' ? '' : 'none';
+                matchScope = isSsoAttr === 'false';
+            }
+            
+            if (matchScope && countGender[genderAttr] < 5) {
+                row.style.display = '';
+                countGender[genderAttr]++;
+            } else {
+                row.style.display = 'none';
             }
         });
 
