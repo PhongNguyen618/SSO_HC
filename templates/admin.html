@@ -872,41 +872,41 @@
                         <thead>
                             <tr style="border-bottom: 2px solid rgba(143,205,240,0.2);">
                                 <th style="text-align: left; padding: 0.6rem 0.8rem; color: var(--text-muted); font-weight: 600; font-size: 0.78rem; text-transform: uppercase;">Chỉ số thống kê</th>
-                                <th style="padding: 0.6rem 0.8rem; color: #8FCDF0; font-weight: 600; font-size: 0.78rem; text-transform: uppercase;">Khối SSO (Nội bộ)</th>
-                                <th style="padding: 0.6rem 0.8rem; color: #ff9800; font-weight: 600; font-size: 0.78rem; text-transform: uppercase;">Ngoài SSO (Khách mời)</th>
-                                <th style="padding: 0.6rem 0.8rem; color: var(--text-muted); font-weight: 600; font-size: 0.78rem; text-transform: uppercase;">Tổng cộng</th>
+                                <th class="col-compare-sso" style="padding: 0.6rem 0.8rem; color: #8FCDF0; font-weight: 600; font-size: 0.78rem; text-transform: uppercase;">Khối SSO (Nội bộ)</th>
+                                <th class="col-compare-non-sso" style="padding: 0.6rem 0.8rem; color: #ff9800; font-weight: 600; font-size: 0.78rem; text-transform: uppercase;">Ngoài SSO (Khách mời)</th>
+                                <th class="col-compare-total" style="padding: 0.6rem 0.8rem; color: var(--text-muted); font-weight: 600; font-size: 0.78rem; text-transform: uppercase;">Tổng cộng</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr style="border-bottom: 1px solid rgba(255,255,255,0.04);">
                                 <td style="text-align: left; padding: 0.6rem 0.8rem; font-weight: 600; color: var(--text-muted);">Số VĐV tham gia</td>
-                                <td style="color: #8FCDF0; font-weight: 700; font-size: 1rem;">{{ stats_data.groups.sso.athletes }}</td>
-                                <td style="color: #ff9800; font-weight: 700; font-size: 1rem;">{{ stats_data.groups.non_sso.athletes }}</td>
-                                <td style="color: var(--text-color); font-weight: 700;">{{ stats_data.kpis.total_athletes }}</td>
+                                <td class="col-compare-sso" style="color: #8FCDF0; font-weight: 700; font-size: 1rem;">{{ stats_data.groups.sso.athletes }}</td>
+                                <td class="col-compare-non-sso" style="color: #ff9800; font-weight: 700; font-size: 1rem;">{{ stats_data.groups.non_sso.athletes }}</td>
+                                <td class="col-compare-total" style="color: var(--text-color); font-weight: 700;">{{ stats_data.kpis.total_athletes }}</td>
                             </tr>
                             <tr style="border-bottom: 1px solid rgba(255,255,255,0.04);">
                                 <td style="text-align: left; padding: 0.6rem 0.8rem; font-weight: 600; color: var(--text-muted);">Tổng số hoạt động</td>
-                                <td style="color: #8FCDF0;">{{ "{:,}".format(stats_data.groups.sso.activities) }}</td>
-                                <td style="color: #ff9800;">{{ "{:,}".format(stats_data.groups.non_sso.activities) }}</td>
-                                <td style="color: var(--text-color);">{{ "{:,}".format(stats_data.kpis.total_activities) }}</td>
+                                <td class="col-compare-sso" style="color: #8FCDF0;">{{ "{:,}".format(stats_data.groups.sso.activities) }}</td>
+                                <td class="col-compare-non-sso" style="color: #ff9800;">{{ "{:,}".format(stats_data.groups.non_sso.activities) }}</td>
+                                <td class="col-compare-total" style="color: var(--text-color);">{{ "{:,}".format(stats_data.kpis.total_activities) }}</td>
                             </tr>
                             <tr style="border-bottom: 1px solid rgba(255,255,255,0.04);">
                                 <td style="text-align: left; padding: 0.6rem 0.8rem; font-weight: 600; color: var(--text-muted);">Tổng quãng đường</td>
-                                <td style="color: #8FCDF0; font-weight: 600;">{{ "{:,.1f}".format(stats_data.groups.sso.dist) }} km</td>
-                                <td style="color: #ff9800; font-weight: 600;">{{ "{:,.1f}".format(stats_data.groups.non_sso.dist) }} km</td>
-                                <td style="color: var(--text-color);">{{ "{:,.1f}".format(stats_data.kpis.total_dist) }} km</td>
+                                <td class="col-compare-sso" style="color: #8FCDF0; font-weight: 600;">{{ "{:,.1f}".format(stats_data.groups.sso.dist) }} km</td>
+                                <td class="col-compare-non-sso" style="color: #ff9800; font-weight: 600;">{{ "{:,.1f}".format(stats_data.groups.non_sso.dist) }} km</td>
+                                <td class="col-compare-total" style="color: var(--text-color);">{{ "{:,.1f}".format(stats_data.kpis.total_dist) }} km</td>
                             </tr>
                             <tr style="border-bottom: 1px solid rgba(255,255,255,0.04);">
                                 <td style="text-align: left; padding: 0.6rem 0.8rem; font-weight: 600; color: var(--text-muted);">Tổng năng lượng tiêu hao</td>
-                                <td style="color: #8FCDF0;">{{ "{:,.0f}".format(stats_data.groups.sso.kcal) }} KCAL</td>
-                                <td style="color: #ff9800;">{{ "{:,.0f}".format(stats_data.groups.non_sso.kcal) }} KCAL</td>
-                                <td style="color: var(--text-color);">{{ "{:,.0f}".format(stats_data.kpis.total_kcal) }} KCAL</td>
+                                <td class="col-compare-sso" style="color: #8FCDF0;">{{ "{:,.0f}".format(stats_data.groups.sso.kcal) }} KCAL</td>
+                                <td class="col-compare-non-sso" style="color: #ff9800;">{{ "{:,.0f}".format(stats_data.groups.non_sso.kcal) }} KCAL</td>
+                                <td class="col-compare-total" style="color: var(--text-color);">{{ "{:,.0f}".format(stats_data.kpis.total_kcal) }} KCAL</td>
                             </tr>
                             <tr style="border-bottom: 1px solid rgba(255,255,255,0.04);">
                                 <td style="text-align: left; padding: 0.6rem 0.8rem; font-weight: 600; color: var(--text-muted);">Tổng thời gian vận động</td>
-                                <td style="color: #8FCDF0;">{{ "{:,.1f}".format(stats_data.groups.sso.hours) }} giờ</td>
-                                <td style="color: #ff9800;">{{ "{:,.1f}".format(stats_data.groups.non_sso.hours) }} giờ</td>
-                                <td style="color: var(--text-color);">{{ "{:,.1f}".format(stats_data.kpis.total_hours) }} giờ</td>
+                                <td class="col-compare-sso" style="color: #8FCDF0;">{{ "{:,.1f}".format(stats_data.groups.sso.hours) }} giờ</td>
+                                <td class="col-compare-non-sso" style="color: #ff9800;">{{ "{:,.1f}".format(stats_data.groups.non_sso.hours) }} giờ</td>
+                                <td class="col-compare-total" style="color: var(--text-color);">{{ "{:,.1f}".format(stats_data.kpis.total_hours) }} giờ</td>
                             </tr>
                         </tbody>
                     </table>
@@ -4606,23 +4606,39 @@
         if (kpiHours) kpiHours.innerHTML = hours.toLocaleString(undefined, {maximumFractionDigits: 1}) + ' <span style="font-size:0.8rem; font-weight:400; color: var(--text-muted);">giờ</span>';
         if (kpiReward) kpiReward.innerHTML = reward.toLocaleString(undefined, {maximumFractionDigits: 0}) + ' <span style="font-size:0.8rem; font-weight:400; color: var(--text-muted);">VNĐ</span>';
 
-        // 3. Ẩn/Hiện thẻ KPI, card so sánh và card tiền thưởng tùy theo scope
+        // 3. Ẩn/Hiện thẻ KPI, các cột so sánh và card tiền thưởng tùy theo scope
         const kpiRewardCard = document.getElementById('kpi-reward-card');
         const cardRewardDept = document.getElementById('card-reward-dept');
         const cardCompareGroups = document.getElementById('card-compare-groups');
         
+        if (cardCompareGroups) cardCompareGroups.style.display = 'block'; // Luôn hiện card so sánh
+        
+        // Lấy tất cả các ô cột so sánh đối tượng
+        const ssoCols = document.querySelectorAll('.col-compare-sso');
+        const nonSsoCols = document.querySelectorAll('.col-compare-non-sso');
+        const totalCols = document.querySelectorAll('.col-compare-total');
+        
         if (scope === 'non_sso') {
             if (kpiRewardCard) kpiRewardCard.style.display = 'none';
             if (cardRewardDept) cardRewardDept.style.display = 'none';
-            if (cardCompareGroups) cardCompareGroups.style.display = 'none';
+            
+            ssoCols.forEach(el => el.style.display = 'none');
+            nonSsoCols.forEach(el => el.style.display = '');
+            totalCols.forEach(el => el.style.display = 'none');
         } else if (scope === 'sso') {
             if (kpiRewardCard) kpiRewardCard.style.display = 'flex';
             if (cardRewardDept) cardRewardDept.style.display = 'block';
-            if (cardCompareGroups) cardCompareGroups.style.display = 'none';
+            
+            ssoCols.forEach(el => el.style.display = '');
+            nonSsoCols.forEach(el => el.style.display = 'none');
+            totalCols.forEach(el => el.style.display = 'none');
         } else { // 'all'
             if (kpiRewardCard) kpiRewardCard.style.display = 'flex';
             if (cardRewardDept) cardRewardDept.style.display = 'block';
-            if (cardCompareGroups) cardCompareGroups.style.display = 'block';
+            
+            ssoCols.forEach(el => el.style.display = '');
+            nonSsoCols.forEach(el => el.style.display = '');
+            totalCols.forEach(el => el.style.display = '');
         }
 
         // 4. Cập nhật Biểu đồ Xu hướng Calo (Line Chart)
