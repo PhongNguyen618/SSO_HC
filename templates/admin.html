@@ -4909,12 +4909,11 @@
         toggleKcalTrend(trendType);
 
         // 5. Lọc các bảng chi tiết
-        // 5. Lọc các bảng chi tiết
         // Lọc VĐV Chạy & Đi bộ có giới hạn Top 5 cho mỗi giới tính dựa trên scope
         let countGender = { 'Nam': 0, 'Nữ': 0 };
         document.querySelectorAll('.row-rank-athlete').forEach(row => {
             const isSsoAttr = row.getAttribute('data-is-sso');
-            const genderAttr = row.getAttribute('data-gender');
+            const genderAttr = row.getAttribute('data-gender') || '';
             
             let matchScope = false;
             if (scope === 'all') {
@@ -4925,9 +4924,15 @@
                 matchScope = isSsoAttr === 'false';
             }
             
-            if (matchScope && countGender[genderAttr] < 5) {
+            // Chuẩn hóa và so khớp giới tính không phân biệt Unicode tổ hợp/dựng sẵn
+            let genderKey = 'Nam';
+            if (genderAttr.toLowerCase().includes('nữ') || genderAttr.toLowerCase().includes('nu')) {
+                genderKey = 'Nữ';
+            }
+            
+            if (matchScope && countGender[genderKey] < 5) {
                 row.style.display = '';
-                countGender[genderAttr]++;
+                countGender[genderKey]++;
             } else {
                 row.style.display = 'none';
             }
@@ -5101,6 +5106,7 @@
     // Khởi tạo đồ thị
     window.addEventListener('DOMContentLoaded', () => {
         initAdminCharts();
+        switchScope('all');
     });
     // ===== HỆ SỐ NHÂN THÀNH TÍCH (MULTIPLIER) JS =====
 
