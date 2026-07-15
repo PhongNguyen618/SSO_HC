@@ -705,7 +705,9 @@
                 <img src="/branding/LOGO_A2.png" style="height: 60px; width: auto; object-fit: contain;" alt="Logo Trung tâm">
                 <div>
                     <h2 style="margin: 0; font-size: 1.15rem; font-family: 'Outfit', sans-serif; font-weight: 800; color: #111111; letter-spacing: 0.5px; text-transform: uppercase;">Trung tâm Điều độ Hệ thống điện miền Nam</h2>
-                    <p style="margin: 2px 0 0 0; font-size: 0.75rem; color: #555555; font-weight: bold; text-transform: uppercase; letter-spacing: 0.3px;">Giải chạy bộ phong trào SSO HC</p>
+                    <p style="margin: 2px 0 0 0; font-size: 0.75rem; color: #555555; font-weight: bold; text-transform: uppercase; letter-spacing: 0.3px;">
+                        {% if selected_event %}{{ selected_event.title }}{% else %}Giải chạy bộ phong trào SSO HC{% endif %}
+                    </p>
                 </div>
             </div>
             <div style="text-align: right;">
