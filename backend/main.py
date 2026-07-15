@@ -2456,25 +2456,75 @@ def admin_dashboard(
     # 3. Cơ cấu hoạt động theo bộ môn (Sport Type Distribution)
     sport_query = db.query(
         Activity.sport_type,
+        Athlete.department,
         func.count(Activity.id).label("count"),
         func.sum(Activity.kcal_burned).label("kcal"),
         func.sum(Activity.distance_km).label("dist")
-    )
+    ).join(Athlete, Activity.athlete_id == Athlete.id)
     if selected_event_id:
         sport_query = sport_query.filter(Activity.event_id == selected_event_id)
         if allowed_sports and "All" not in allowed_sports:
             sport_query = sport_query.filter(Activity.sport_type.in_(allowed_sports))
-    sport_stats = sport_query.group_by(Activity.sport_type).all()
+        # Áp dụng khoảng thời gian diễn ra giải đấu cho biểu đồ
+        if selected_event:
+            event_start = getattr(selected_event, "start_date", None)
+            event_end = getattr(selected_event, "end_date", None)
+            if event_start:
+                sport_query = sport_query.filter(Activity.activity_date >= str(event_start))
+            if event_end:
+                sport_query = sport_query.filter(Activity.activity_date <= str(event_end))
+    sport_stats = sport_query.group_by(Activity.sport_type, Athlete.department).all()
 
-    sport_labels = []
-    sport_kcal = []
-    sport_count = []
-    sport_dist = []
+    # Phân nhóm theo SSO và non-SSO
+    sports_dist = {}
     for stat in sport_stats:
-        sport_labels.append(stat.sport_type)
-        sport_kcal.append(round(stat.kcal or 0, 1))
-        sport_count.append(stat.count or 0)
-        sport_dist.append(round(stat.dist or 0, 1))
+        stype = stat.sport_type
+        dept = stat.department or ""
+        is_sso = dept.strip().upper().startswith("SSO")
+        
+        if stype not in sports_dist:
+            sports_dist[stype] = {
+                "sso": {"kcal": 0.0, "count": 0, "dist": 0.0},
+                "non_sso": {"kcal": 0.0, "count": 0, "dist": 0.0},
+                "all": {"kcal": 0.0, "count": 0, "dist": 0.0}
+            }
+        
+        kcal_val = float(stat.kcal or 0.0)
+        cnt_val = int(stat.count or 0)
+        dist_val = float(stat.dist or 0.0)
+        
+        key = "sso" if is_sso else "non_sso"
+        sports_dist[stype][key]["kcal"] += kcal_val
+        sports_dist[stype][key]["count"] += cnt_val
+        sports_dist[stype][key]["dist"] += dist_val
+        
+        sports_dist[stype]["all"]["kcal"] += kcal_val
+        sports_dist[stype]["all"]["count"] += cnt_val
+        sports_dist[stype]["all"]["dist"] += dist_val
+
+    # Sắp xếp các nhãn theo thứ tự kcal giảm dần của 'all'
+    sorted_sports = sorted(sports_dist.keys(), key=lambda x: sports_dist[x]["all"]["kcal"], reverse=True)
+
+    sports_data_groups = {
+        "all": {
+            "labels": [s for s in sorted_sports if sports_dist[s]["all"]["kcal"] > 0],
+            "kcal": [round(sports_dist[s]["all"]["kcal"], 1) for s in sorted_sports if sports_dist[s]["all"]["kcal"] > 0],
+            "counts": [sports_dist[s]["all"]["count"] for s in sorted_sports if sports_dist[s]["all"]["kcal"] > 0],
+            "dists": [round(sports_dist[s]["all"]["dist"], 1) for s in sorted_sports if sports_dist[s]["all"]["kcal"] > 0]
+        },
+        "sso": {
+            "labels": [s for s in sorted_sports if sports_dist[s]["sso"]["kcal"] > 0],
+            "kcal": [round(sports_dist[s]["sso"]["kcal"], 1) for s in sorted_sports if sports_dist[s]["sso"]["kcal"] > 0],
+            "counts": [sports_dist[s]["sso"]["count"] for s in sorted_sports if sports_dist[s]["sso"]["kcal"] > 0],
+            "dists": [round(sports_dist[s]["sso"]["dist"], 1) for s in sorted_sports if sports_dist[s]["sso"]["kcal"] > 0]
+        },
+        "non_sso": {
+            "labels": [s for s in sorted_sports if sports_dist[s]["non_sso"]["kcal"] > 0],
+            "kcal": [round(sports_dist[s]["non_sso"]["kcal"], 1) for s in sorted_sports if sports_dist[s]["non_sso"]["kcal"] > 0],
+            "counts": [sports_dist[s]["non_sso"]["count"] for s in sorted_sports if sports_dist[s]["non_sso"]["kcal"] > 0],
+            "dists": [round(sports_dist[s]["non_sso"]["dist"], 1) for s in sorted_sports if sports_dist[s]["non_sso"]["kcal"] > 0]
+        }
+    }
 
     stats_data = {
         "metric": metric,
@@ -2519,12 +2569,7 @@ def admin_dashboard(
             "sso": monthly_kcal_sso,
             "non_sso": monthly_kcal_non_sso
         },
-        "sports": {
-            "labels": sport_labels,
-            "kcal": sport_kcal,
-            "counts": sport_count,
-            "dists": sport_dist
-        }
+        "sports": sports_data_groups
     }
 
     # === BÁO CÁO SƠ KẾT CHI TIẾT (chỉ khi chọn giải đấu cụ thể) ===
@@ -2541,19 +2586,62 @@ def admin_dashboard(
         # --- 1. Bảng thống kê theo Môn thể thao ---
         sport_table_query = db.query(
             Activity.sport_type,
+            Athlete.department,
             func.count(Activity.id).label("cnt"),
             func.sum(Activity.distance_km).label("total_km"),
             func.sum(Activity.kcal_burned).label("total_kcal")
-        ).filter(*base_act_filters).group_by(Activity.sport_type).order_by(func.count(Activity.id).desc()).all()
+        ).join(Athlete, Activity.athlete_id == Athlete.id)\
+         .filter(*base_act_filters)\
+         .group_by(Activity.sport_type, Athlete.department).all()
 
-        sport_table = []
+        sport_dict = {}
         for s in sport_table_query:
-            sport_table.append({
-                "sport_type": s.sport_type,
-                "count": s.cnt or 0,
-                "total_km": round(s.total_km or 0, 1),
-                "total_kcal": int(s.total_kcal or 0)
-            })
+            stype = s.sport_type
+            dept = s.department or ""
+            is_sso = dept.strip().upper().startswith("SSO")
+            
+            if stype not in sport_dict:
+                sport_dict[stype] = {
+                    "sport_type": stype,
+                    "count": 0,
+                    "total_km": 0.0,
+                    "total_kcal": 0.0,
+                    "sso_count": 0,
+                    "sso_km": 0.0,
+                    "sso_kcal": 0.0,
+                    "non_sso_count": 0,
+                    "non_sso_km": 0.0,
+                    "non_sso_kcal": 0.0
+                }
+            
+            cnt = s.cnt or 0
+            km = float(s.total_km or 0.0)
+            kcal = float(s.total_kcal or 0.0)
+            
+            sport_dict[stype]["count"] += cnt
+            sport_dict[stype]["total_km"] += km
+            sport_dict[stype]["total_kcal"] += kcal
+            
+            if is_sso:
+                sport_dict[stype]["sso_count"] += cnt
+                sport_dict[stype]["sso_km"] += km
+                sport_dict[stype]["sso_kcal"] += kcal
+            else:
+                sport_dict[stype]["non_sso_count"] += cnt
+                sport_dict[stype]["non_sso_km"] += km
+                sport_dict[stype]["non_sso_kcal"] += kcal
+
+        sport_table = list(sport_dict.values())
+        sport_table.sort(key=lambda x: x["count"], reverse=True)
+        
+        for item in sport_table:
+            item["total_km"] = round(item["total_km"], 1)
+            item["total_kcal"] = int(item["total_kcal"])
+            item["sso_km"] = round(item["sso_km"], 1)
+            item["sso_kcal"] = int(item["sso_kcal"])
+            item["non_sso_km"] = round(item["non_sso_km"], 1)
+            item["non_sso_kcal"] = int(item["non_sso_kcal"])
+            
         stats_data["sport_table"] = sport_table
 
         # --- 2. BXH Chạy bộ + Đi bộ (Run & Walk) Top 5 Nam/Nữ ---
@@ -2563,6 +2651,7 @@ def admin_dashboard(
                 Athlete.id, Athlete.full_name, Athlete.department,
                 func.sum(Activity.distance_km).label("total_dist"),
                 func.sum(Activity.kcal_burned).label("total_kcal"),
+                func.sum(Activity.moving_time_min).label("total_time"),
                 func.count(Activity.id).label("act_count")
             ).join(Activity, Athlete.id == Activity.athlete_id)\
              .join(CompetitionRegistration, (Athlete.id == CompetitionRegistration.athlete_id) & (CompetitionRegistration.event_id == selected_event_id))\
@@ -2573,7 +2662,7 @@ def admin_dashboard(
                  *base_act_filters
              ).group_by(Athlete.id)\
              .order_by(func.sum(Activity.distance_km).desc())\
-             .limit(5).all()
+             .all()
 
             rw_list = []
             for rank, item in enumerate(rw_query, 1):
@@ -2583,10 +2672,46 @@ def admin_dashboard(
                     "department": item.department or "Chưa rõ",
                     "total_km": round(item.total_dist or 0, 1),
                     "total_kcal": int(item.total_kcal or 0),
+                    "total_hours": round((item.total_time or 0.0) / 60.0, 1),
                     "act_count": item.act_count or 0
                 })
             run_walk_top[gender] = rw_list
         stats_data["run_walk_top"] = run_walk_top
+
+        # --- 2.5. BXH Tổng VĐV Nội Bộ SSO (Theo kCal) Top 10 Nam/Nữ ---
+        sso_kcal_top = {}
+        for gender in ["Nam", "Nữ"]:
+            sso_kcal_query = db.query(
+                Athlete.id, Athlete.full_name, Athlete.department,
+                func.sum(Activity.distance_km).label("total_dist"),
+                func.sum(Activity.kcal_burned).label("total_kcal"),
+                func.sum(Activity.moving_time_min).label("total_time"),
+                func.count(Activity.id).label("act_count")
+            ).join(Activity, Athlete.id == Activity.athlete_id)\
+             .join(CompetitionRegistration, (Athlete.id == CompetitionRegistration.athlete_id) & (CompetitionRegistration.event_id == selected_event_id))\
+             .filter(
+                 Athlete.is_active == True,
+                 Athlete.gender == gender,
+                 func.upper(func.trim(Athlete.department)).like("SSO%"),
+                 *base_act_filters
+             ).group_by(Athlete.id)\
+             .order_by(func.sum(Activity.kcal_burned).desc())\
+             .limit(10)\
+             .all()
+
+            sso_kcal_list = []
+            for rank, item in enumerate(sso_kcal_query, 1):
+                sso_kcal_list.append({
+                    "rank": rank,
+                    "full_name": item.full_name,
+                    "department": item.department or "Chưa rõ",
+                    "total_km": round(item.total_dist or 0, 1),
+                    "total_kcal": int(item.total_kcal or 0),
+                    "total_hours": round((item.total_time or 0.0) / 60.0, 1),
+                    "act_count": item.act_count or 0
+                })
+            sso_kcal_top[gender] = sso_kcal_list
+        stats_data["sso_kcal_top"] = sso_kcal_top
 
         # --- 3. BXH Phòng ban ---
         # Đếm thành viên đăng ký mỗi phòng ban
@@ -5746,7 +5871,7 @@ def export_rewards_excel(
                      *base_act_filters
                  ).group_by(Athlete.id)\
                  .order_by(func.sum(Activity.distance_km).desc())\
-                 .limit(5).all()
+                 .all()
                 
                 for rank, item in enumerate(rw_query, 1):
                     run_walk_rows.append({

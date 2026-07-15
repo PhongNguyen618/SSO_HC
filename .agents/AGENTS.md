@@ -25,3 +25,9 @@ Tài liệu này ghi lại các lỗi đã xảy ra và các bài học kinh ngh
   - Các hoạt động ngoài khoảng thời gian này phải bị bỏ qua ngay lập tức để tránh việc các hoạt động lịch sử trước đây (ví dụ hoạt động từ năm 2019, 2020, 2024, 2025) bị nạp nhầm vào giải chạy mới khi quét CLB.
 - **Cơ chế dọn dẹp (Cleanup):**
   - Tích hợp tính năng tự động dọn dẹp các hoạt động nằm ngoài mốc thời gian của giải đấu đang hoạt động vào nút dọn dẹp hệ thống trên trang quản trị Admin để xử lý nhanh sự cố dữ liệu.
+
+## 4. Quản lý cú pháp và ghép code Javascript (Giao diện Admin)
+- **Kiểm tra kỹ lưỡng dấu đóng ngoặc khi bổ sung hàm JS:**
+  - Khi viết thêm các hàm xử lý dữ liệu động ở Frontend (như `applySportFilters`), bắt buộc phải kiểm tra thủ công sự trùng khớp của toàn bộ dấu ngoặc nhọn `{}` và ngoặc đơn `()`. Việc thiếu dù chỉ một dấu đóng ngoặc sẽ phá vỡ cú pháp toàn cục của file HTML/JS, làm toàn bộ script ngừng chạy và đơ trang quản trị.
+  - Khi thực hiện ghép code bằng các công cụ tự động (`replace_file_content`, `multi_replace_file_content`), hãy kiểm tra lại kết quả thay thế (`diff`) để đảm bảo không bị ghép lệch dòng hoặc ghi đè sai vị trí.
+
