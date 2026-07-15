@@ -934,7 +934,7 @@
                 </h4>
                 
                 <!-- Bộ lọc môn thể thao dạng Dropdown -->
-                <div id="sport-filter-dropdown" class="dropdown" style="margin-bottom: 1.2rem; display: inline-block; position: relative;">
+                <div id="sport-filter-dropdown" class="dropdown no-print" style="margin-bottom: 1.2rem; display: inline-block; position: relative;">
                     <button class="btn btn-secondary btn-sm dropdown-toggle" type="button" id="btnSportFilterDropdown" onclick="toggleSportDropdown(event)" style="background: rgba(255,255,255,0.05); color: var(--text-color); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 0.4rem 1rem; font-size: 0.8rem; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 0.4rem; transition: all 0.2s;">
                         <i class="fa-solid fa-filter"></i> Lọc bộ môn hiển thị <i class="fa-solid fa-chevron-down" style="font-size: 0.7rem; margin-left: 0.2rem;"></i>
                     </button>
@@ -1817,8 +1817,13 @@
                 height: 240px !important;
             }
             /* Ngăn vỡ trang giữa chừng */
-            .glass-card, table, tr {
-                page-break-inside: avoid;
+            table, tr {
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+            }
+            h4 + div, h4 + table, h5 + div, h5 + table, .print-grid-2col {
+                page-break-before: avoid !important;
+                break-before: avoid !important;
             }
         }
 
