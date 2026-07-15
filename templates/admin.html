@@ -812,7 +812,7 @@
         </div>
 
         <!-- Khối Đồ thị -->
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+        <div class="print-grid-2col" style="margin-bottom: 2rem;">
             <!-- Biểu đồ Xu hướng Calo (Line Chart) -->
             <div class="glass-card" style="background: rgba(255,255,255,0.01); margin-bottom: 0; padding: 1.5rem;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.2rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">
@@ -1007,7 +1007,7 @@
                     </button>
                 </h4>
                 
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 1.5rem;">
+                <div class="print-grid-2col">
                     {% for gender in ["Nam", "Nữ"] %}
                     <div>
                         <h5 style="font-family: 'Outfit', sans-serif; font-size: 0.95rem; color: {% if gender == 'Nam' %}#4CAF50{% else %}#E91E63{% endif %}; display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.8rem; font-weight: 600;">
@@ -1064,7 +1064,7 @@
                     </button>
                 </h4>
                 
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 1.5rem;">
+                <div class="print-grid-2col">
                     {% for gender in ["Nam", "Nữ"] %}
                     <div>
                         <h5 style="font-family: 'Outfit', sans-serif; font-size: 0.92rem; color: {% if gender == 'Nam' %}#4CAF50{% else %}#E91E63{% endif %}; display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.8rem; font-weight: 600;">
@@ -1616,6 +1616,13 @@
 
     <!-- CSS Modal Tự Định Nghĩa -->
     <style>
+        /* Grid 2 cột hỗ trợ in ấn */
+        .print-grid-2col {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+            gap: 1.5rem;
+        }
+
         /* Ẩn hiện card trong thống kê phân tích */
         .card-hidden {
             opacity: 0.35 !important;
@@ -1713,21 +1720,19 @@
                 padding: 0 !important;
                 background: transparent !important;
             }
-            /* Tách đồ thị thành hàng ngang (2 cột song song) trên trang 1 */
-            div[style*="display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr))"] {
+            /* Tách đồ thị & BXH thành hàng ngang (2 cột song song) khi in */
+            .print-grid-2col {
                 display: flex !important;
                 flex-direction: row !important;
+                flex-wrap: nowrap !important;
                 gap: 1.5rem !important;
-                margin-bottom: 2rem !important;
+                width: 100% !important;
             }
-            div[style*="display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr))"] > div {
+            .print-grid-2col > div {
                 flex: 1 !important;
                 width: 50% !important;
+                min-width: 0 !important;
                 margin-bottom: 0 !important;
-            }
-            /* Override grid Section 4 & 5 khi in */
-            div[style*="display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr))"] {
-                display: block !important;
             }
             /* Ép ngắt trang để chi tiết báo cáo đẩy sang trang 2 */
             .print-page-break {
