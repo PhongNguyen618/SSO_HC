@@ -726,6 +726,13 @@
             </div>
         </div>
 
+        <!-- Scope Filter Tabs (SSO / Ngoài SSO / Tất cả) -->
+        <div class="scope-tabs no-print" style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem; background: rgba(0,0,0,0.2); padding: 0.3rem; border-radius: 8px; border: 1px solid var(--border-color); width: fit-content;">
+            <button type="button" id="tabScopeAll" class="btn btn-primary btn-sm active" onclick="switchScope('all')" style="border-radius: 6px; padding: 0.35rem 1rem; font-size: 0.8rem; border: none; font-weight: 600; cursor: pointer; transition: all 0.2s;">Toàn Giải Đấu</button>
+            <button type="button" id="tabScopeSSO" class="btn btn-secondary btn-sm" onclick="switchScope('sso')" style="border-radius: 6px; padding: 0.35rem 1rem; font-size: 0.8rem; border: none; background: transparent; color: var(--text-muted); font-weight: 600; cursor: pointer; transition: all 0.2s;">Khối SSO (Nội bộ)</button>
+            <button type="button" id="tabScopeNonSSO" class="btn btn-secondary btn-sm" onclick="switchScope('non_sso')" style="border-radius: 6px; padding: 0.35rem 1rem; font-size: 0.8rem; border: none; background: transparent; color: var(--text-muted); font-weight: 600; cursor: pointer; transition: all 0.2s;">Ngoài SSO (Khách mời)</button>
+        </div>
+
         <!-- Hàng KPIs tổng hợp -->
         <div class="kpi-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.2rem; margin-bottom: 2rem;">
             <div class="kpi-card" style="padding: 1.2rem; border-radius: 12px; background: rgba(143, 205, 240, 0.05); border: 1px solid rgba(143, 205, 240, 0.15); display: flex; align-items: center; gap: 1rem;">
@@ -734,7 +741,9 @@
                 </div>
                 <div>
                     <span style="display: block; font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Tổng VĐV Hoạt Động</span>
-                    <span style="font-size: 1.6rem; font-weight: 700; color: #8FCDF0;">{{ stats_data.kpis.total_athletes if stats_data else 0 }}</span>
+                    <span id="kpi-athletes-val" style="font-size: 1.6rem; font-weight: 700; color: #8FCDF0; display: block;">
+                        {{ stats_data.kpis.total_athletes if stats_data else 0 }}
+                    </span>
                 </div>
             </div>
             
@@ -744,7 +753,9 @@
                 </div>
                 <div>
                     <span style="display: block; font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Tổng Số Hoạt Động</span>
-                    <span style="font-size: 1.6rem; font-weight: 700; color: #ffc107;">{{ stats_data.kpis.total_activities if stats_data else 0 }}</span>
+                    <span id="kpi-activities-val" style="font-size: 1.6rem; font-weight: 700; color: #ffc107; display: block;">
+                        {{ stats_data.kpis.total_activities if stats_data else 0 }}
+                    </span>
                 </div>
             </div>
             
@@ -754,7 +765,9 @@
                 </div>
                 <div>
                     <span style="display: block; font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Tổng Calo Tiêu Thụ</span>
-                    <span style="font-size: 1.6rem; font-weight: 700; color: #F9BFBE;">{{ "{:,.0f}".format(stats_data.kpis.total_kcal) if stats_data else 0 }} <span style="font-size:0.8rem; font-weight:400; color: var(--text-muted);">KCAL</span></span>
+                    <span id="kpi-kcal-val" style="font-size: 1.6rem; font-weight: 700; color: #F9BFBE; display: block;">
+                        {{ "{:,.0f}".format(stats_data.kpis.total_kcal) if stats_data else 0 }} <span style="font-size:0.8rem; font-weight:400; color: var(--text-muted);">KCAL</span>
+                    </span>
                 </div>
             </div>
             
@@ -764,7 +777,9 @@
                 </div>
                 <div>
                     <span style="display: block; font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Tổng Quãng Đường</span>
-                    <span style="font-size: 1.6rem; font-weight: 700; color: #94B5DE;">{{ "{:,.1f}".format(stats_data.kpis.total_dist) if stats_data else 0 }} <span style="font-size:0.8rem; font-weight:400; color: var(--text-muted);">km</span></span>
+                    <span id="kpi-dist-val" style="font-size: 1.6rem; font-weight: 700; color: #94B5DE; display: block;">
+                        {{ "{:,.1f}".format(stats_data.kpis.total_dist) if stats_data else 0 }} <span style="font-size:0.8rem; font-weight:400; color: var(--text-muted);">km</span>
+                    </span>
                 </div>
             </div>
             
@@ -774,18 +789,20 @@
                 </div>
                 <div>
                     <span style="display: block; font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Tổng Thời Gian</span>
-                    <span style="font-size: 1.6rem; font-weight: 700; color: #20c997;">{{ "{:,.1f}".format(stats_data.kpis.total_hours) if stats_data else 0 }} <span style="font-size:0.8rem; font-weight:400; color: var(--text-muted);">giờ</span></span>
+                    <span id="kpi-hours-val" style="font-size: 1.6rem; font-weight: 700; color: #20c997; display: block;">
+                        {{ "{:,.1f}".format(stats_data.kpis.total_hours) if stats_data else 0 }} <span style="font-size:0.8rem; font-weight:400; color: var(--text-muted);">giờ</span>
+                    </span>
                 </div>
             </div>
 
-            <div class="kpi-card no-print" style="padding: 1.2rem; border-radius: 12px; background: rgba(233, 30, 99, 0.05); border: 1px solid rgba(233, 30, 99, 0.15); display: flex; align-items: center; gap: 1rem; justify-content: space-between; flex-wrap: wrap;">
+            <div id="kpi-reward-card" class="kpi-card no-print" style="padding: 1.2rem; border-radius: 12px; background: rgba(233, 30, 99, 0.05); border: 1px solid rgba(233, 30, 99, 0.15); display: flex; align-items: center; gap: 1rem; justify-content: space-between; flex-wrap: wrap;">
                 <div style="display: flex; align-items: center; gap: 1rem;">
                     <div style="width: 50px; height: 50px; border-radius: 50%; background: rgba(233, 30, 99, 0.15); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; color: #e91e63;">
                         <i class="fa-solid fa-money-bill-wave"></i>
                     </div>
                     <div>
-                        <span style="display: block; font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Tổng Chi Phí Giải Thưởng</span>
-                        <span style="font-size: 1.6rem; font-weight: 700; color: #e91e63;">{{ "{:,.0f}".format(stats_data.kpis.total_reward) if stats_data and stats_data.kpis.total_reward is defined else 0 }} <span style="font-size:0.8rem; font-weight:400; color: var(--text-muted);">VNĐ</span></span>
+                        <span style="display: block; font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Tổng Chi Phí Giải Thưởng (Khối SSO)</span>
+                        <span id="kpi-reward-val" style="font-size: 1.6rem; font-weight: 700; color: #e91e63;">{{ "{:,.0f}".format(stats_data.kpis.total_reward) if stats_data and stats_data.kpis.total_reward is defined else 0 }} <span style="font-size:0.8rem; font-weight:400; color: var(--text-muted);">VNĐ</span></span>
                     </div>
                 </div>
                 <button onclick="downloadRewardExcelReport()" class="btn btn-sm" style="background: rgba(233, 30, 99, 0.1); border: 1px solid rgba(233, 30, 99, 0.2); color: #e91e63; display: inline-flex; align-items: center; gap: 0.4rem; height: 32px; padding: 0 0.8rem; font-size: 0.78rem; border-radius: 6px; font-weight: bold; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='rgba(233, 30, 99, 0.2)'" onmouseout="this.style.background='rgba(233, 30, 99, 0.1)'" title="Tải danh sách chi tiết nhận thưởng cho Kế toán">
@@ -804,6 +821,7 @@
                     </h4>
                     <!-- Toggle Buttons -->
                     <div style="display: flex; gap: 0.4rem; background: rgba(0,0,0,0.2); padding: 0.25rem; border-radius: 20px; border: 1px solid var(--border-color);">
+                        <button type="button" id="btnToggleDay" class="btn btn-secondary btn-sm" onclick="toggleKcalTrend('day')" style="border-radius: 15px; padding: 0.25rem 0.75rem; font-size: 0.75rem; background: transparent; border: none; color: var(--text-muted);">Theo Ngày</button>
                         <button type="button" id="btnToggleWeek" class="btn btn-primary btn-sm active" onclick="toggleKcalTrend('week')" style="border-radius: 15px; padding: 0.25rem 0.75rem; font-size: 0.75rem; background: var(--color-primary); border: none;">Theo Tuần</button>
                         <button type="button" id="btnToggleMonth" class="btn btn-secondary btn-sm" onclick="toggleKcalTrend('month')" style="border-radius: 15px; padding: 0.25rem 0.75rem; font-size: 0.75rem; background: transparent; border: none; color: var(--text-muted);">Theo Tháng</button>
                     </div>
@@ -842,6 +860,59 @@
                     </button>
                 </div>
             </div>
+
+            <!-- SECTION 0: Phân tích theo Đối tượng -->
+            {% if stats_data.groups is defined %}
+            <div id="card-compare-groups" class="glass-card" style="background: rgba(255,255,255,0.01); padding: 1.5rem; margin-bottom: 1.5rem;">
+                <h4 style="font-family: 'Outfit', sans-serif; font-size: 1.05rem; color: #8FCDF0; display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">
+                    <i class="fa-solid fa-users-gear"></i> Phân Tích Thống Kê Theo Đối Tượng (Khối SSO vs Ngoài SSO)
+                </h4>
+                <div style="overflow-x: auto;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem; text-align: center;">
+                        <thead>
+                            <tr style="border-bottom: 2px solid rgba(143,205,240,0.2);">
+                                <th style="text-align: left; padding: 0.6rem 0.8rem; color: var(--text-muted); font-weight: 600; font-size: 0.78rem; text-transform: uppercase;">Chỉ số thống kê</th>
+                                <th style="padding: 0.6rem 0.8rem; color: #8FCDF0; font-weight: 600; font-size: 0.78rem; text-transform: uppercase;">Khối SSO (Nội bộ)</th>
+                                <th style="padding: 0.6rem 0.8rem; color: #ff9800; font-weight: 600; font-size: 0.78rem; text-transform: uppercase;">Ngoài SSO (Khách mời)</th>
+                                <th style="padding: 0.6rem 0.8rem; color: var(--text-muted); font-weight: 600; font-size: 0.78rem; text-transform: uppercase;">Tổng cộng</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr style="border-bottom: 1px solid rgba(255,255,255,0.04);">
+                                <td style="text-align: left; padding: 0.6rem 0.8rem; font-weight: 600; color: var(--text-muted);">Số VĐV tham gia</td>
+                                <td style="color: #8FCDF0; font-weight: 700; font-size: 1rem;">{{ stats_data.groups.sso.athletes }}</td>
+                                <td style="color: #ff9800; font-weight: 700; font-size: 1rem;">{{ stats_data.groups.non_sso.athletes }}</td>
+                                <td style="color: var(--text-color); font-weight: 700;">{{ stats_data.kpis.total_athletes }}</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid rgba(255,255,255,0.04);">
+                                <td style="text-align: left; padding: 0.6rem 0.8rem; font-weight: 600; color: var(--text-muted);">Tổng số hoạt động</td>
+                                <td style="color: #8FCDF0;">{{ "{:,}".format(stats_data.groups.sso.activities) }}</td>
+                                <td style="color: #ff9800;">{{ "{:,}".format(stats_data.groups.non_sso.activities) }}</td>
+                                <td style="color: var(--text-color);">{{ "{:,}".format(stats_data.kpis.total_activities) }}</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid rgba(255,255,255,0.04);">
+                                <td style="text-align: left; padding: 0.6rem 0.8rem; font-weight: 600; color: var(--text-muted);">Tổng quãng đường</td>
+                                <td style="color: #8FCDF0; font-weight: 600;">{{ "{:,.1f}".format(stats_data.groups.sso.dist) }} km</td>
+                                <td style="color: #ff9800; font-weight: 600;">{{ "{:,.1f}".format(stats_data.groups.non_sso.dist) }} km</td>
+                                <td style="color: var(--text-color);">{{ "{:,.1f}".format(stats_data.kpis.total_dist) }} km</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid rgba(255,255,255,0.04);">
+                                <td style="text-align: left; padding: 0.6rem 0.8rem; font-weight: 600; color: var(--text-muted);">Tổng năng lượng tiêu hao</td>
+                                <td style="color: #8FCDF0;">{{ "{:,.0f}".format(stats_data.groups.sso.kcal) }} KCAL</td>
+                                <td style="color: #ff9800;">{{ "{:,.0f}".format(stats_data.groups.non_sso.kcal) }} KCAL</td>
+                                <td style="color: var(--text-color);">{{ "{:,.0f}".format(stats_data.kpis.total_kcal) }} KCAL</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid rgba(255,255,255,0.04);">
+                                <td style="text-align: left; padding: 0.6rem 0.8rem; font-weight: 600; color: var(--text-muted);">Tổng thời gian vận động</td>
+                                <td style="color: #8FCDF0;">{{ "{:,.1f}".format(stats_data.groups.sso.hours) }} giờ</td>
+                                <td style="color: #ff9800;">{{ "{:,.1f}".format(stats_data.groups.non_sso.hours) }} giờ</td>
+                                <td style="color: var(--text-color);">{{ "{:,.1f}".format(stats_data.kpis.total_hours) }} giờ</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
 
             <!-- SECTION 1: Thống kê theo Môn thể thao -->
             <div class="glass-card" style="background: rgba(255,255,255,0.01); padding: 1.5rem; margin-bottom: 1.5rem;">
@@ -909,7 +980,8 @@
                             </thead>
                             <tbody>
                                 {% for a in stats_data.run_walk_top[gender] %}
-                                <tr style="border-bottom: 1px solid rgba(255,255,255,0.04); transition: background 0.2s;" onmouseover="this.style.background='rgba({% if gender == 'Nam' %}76,175,80{% else %}233,30,99{% endif %},0.05)'" onmouseout="this.style.background='transparent'">
+                                {% set is_sso = (a.department or "").strip().upper().startswith("SSO") %}
+                                <tr class="row-rank-athlete" data-is-sso="{% if is_sso %}true{% else %}false{% endif %}" style="border-bottom: 1px solid rgba(255,255,255,0.04); transition: background 0.2s;" onmouseover="this.style.background='rgba({% if gender == 'Nam' %}76,175,80{% else %}233,30,99{% endif %},0.05)'" onmouseout="this.style.background='transparent'">
                                     <td style="padding: 0.5rem; text-align: center; font-size: 1.1rem;">
                                         {% if a.rank == 1 %}🥇{% elif a.rank == 2 %}🥈{% elif a.rank == 3 %}🥉{% else %}<span style="color: var(--text-muted);">{{ a.rank }}</span>{% endif %}
                                     </td>
@@ -953,7 +1025,8 @@
                         </thead>
                         <tbody>
                             {% for d in stats_data.dept_ranking %}
-                            <tr style="border-bottom: 1px solid rgba(255,255,255,0.04); transition: background 0.2s; {% if d.rank <= 3 %}background: rgba(32,201,151,0.03);{% endif %}" onmouseover="this.style.background='rgba(32,201,151,0.06)'" onmouseout="this.style.background='{% if d.rank <= 3 %}rgba(32,201,151,0.03){% else %}transparent{% endif %}'">
+                            {% set is_sso = (d.department or "").strip().upper().startswith("SSO") %}
+                            <tr class="row-rank-dept" data-is-sso="{% if is_sso %}true{% else %}false{% endif %}" style="border-bottom: 1px solid rgba(255,255,255,0.04); transition: background 0.2s; {% if d.rank <= 3 %}background: rgba(32,201,151,0.03);{% endif %}" onmouseover="this.style.background='rgba(32,201,151,0.06)'" onmouseout="this.style.background='{% if d.rank <= 3 %}rgba(32,201,151,0.03){% else %}transparent{% endif %}'">
                                 <td style="padding: 0.5rem 0.6rem; text-align: center; font-size: 1.1rem;">
                                     {% if d.rank == 1 %}🥇{% elif d.rank == 2 %}🥈{% elif d.rank == 3 %}🥉{% else %}<span style="color: var(--text-muted);">{{ d.rank }}</span>{% endif %}
                                 </td>
@@ -977,7 +1050,7 @@
             <!-- SECTION 4 & 5: Tiền thưởng + Tỷ lệ tham gia (Grid 2 cột) -->
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 1.5rem; margin-bottom: 1.5rem;">
                 <!-- SECTION 4: Tiền thưởng theo Phòng ban -->
-                <div class="glass-card no-print" style="background: rgba(255,255,255,0.01); padding: 1.5rem; margin-bottom: 0;">
+                <div id="card-reward-dept" class="glass-card no-print" style="background: rgba(255,255,255,0.01); padding: 1.5rem; margin-bottom: 0;">
                     <h4 style="font-family: 'Outfit', sans-serif; font-size: 1.05rem; color: #e91e63; display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">
                         <i class="fa-solid fa-money-bill-wave"></i> 💰 Tiền Thưởng Theo Phòng Ban
                     </h4>
@@ -985,8 +1058,8 @@
                     <!-- Tổng quan thưởng -->
                     <div style="display: flex; gap: 0.8rem; flex-wrap: wrap; margin-bottom: 1rem;">
                         <div style="flex: 1; min-width: 120px; padding: 0.6rem 0.8rem; background: rgba(233,30,99,0.06); border: 1px solid rgba(233,30,99,0.12); border-radius: 8px; text-align: center;">
-                            <span style="display: block; font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">VĐV đạt thưởng</span>
-                            <span style="font-size: 1.2rem; font-weight: 700; color: #e91e63;">{{ stats_data.reward_athletes_with }}/{{ stats_data.kpis.total_athletes }}</span>
+                            <span style="display: block; font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">VĐV SSO đạt thưởng</span>
+                            <span style="font-size: 1.2rem; font-weight: 700; color: #e91e63;">{{ stats_data.reward_athletes_with }}/{{ stats_data.kpis.total_sso_athletes if (stats_data and stats_data.kpis.total_sso_athletes is defined) else stats_data.kpis.total_athletes }}</span>
                         </div>
                         {% if stats_data.reward_gender %}
                         <div style="flex: 1; min-width: 120px; padding: 0.6rem 0.8rem; background: rgba(76,175,80,0.06); border: 1px solid rgba(76,175,80,0.12); border-radius: 8px; text-align: center;">
@@ -1010,7 +1083,8 @@
                             </thead>
                             <tbody>
                                 {% for r in stats_data.reward_by_dept %}
-                                <tr style="border-bottom: 1px solid rgba(255,255,255,0.04); transition: background 0.2s;" onmouseover="this.style.background='rgba(233,30,99,0.05)'" onmouseout="this.style.background='transparent'">
+                                {% set is_sso = (r.department or "").strip().upper().startswith("SSO") %}
+                                <tr class="row-rank-reward" data-is-sso="{% if is_sso %}true{% else %}false{% endif %}" style="border-bottom: 1px solid rgba(255,255,255,0.04); transition: background 0.2s;" onmouseover="this.style.background='rgba(233,30,99,0.05)'" onmouseout="this.style.background='transparent'">
                                     <td style="padding: 0.5rem 0.6rem; font-weight: 600; color: var(--text-color);">{{ r.department }}</td>
                                     <td style="padding: 0.5rem 0.6rem; text-align: center; color: var(--text-muted);">{{ r.count }}</td>
                                     <td style="padding: 0.5rem 0.6rem; text-align: right; color: #e91e63; font-weight: 700;">{{ "{:,.0f}".format(r.total) }} <span style="font-size: 0.75rem; font-weight: 400; color: var(--text-muted);">VNĐ</span></td>
@@ -1046,7 +1120,8 @@
                                 {% for p in stats_data.participation %}
                                 {% set total_reg.val = total_reg.val + p.registered %}
                                 {% set total_active.val = total_active.val + p.active %}
-                                <tr style="border-bottom: 1px solid rgba(255,255,255,0.04); transition: background 0.2s;" onmouseover="this.style.background='rgba(143,205,240,0.05)'" onmouseout="this.style.background='transparent'">
+                                {% set is_sso = (p.department or "").strip().upper().startswith("SSO") %}
+                                <tr class="row-rank-participation" data-is-sso="{% if is_sso %}true{% else %}false{% endif %}" style="border-bottom: 1px solid rgba(255,255,255,0.04); transition: background 0.2s;" onmouseover="this.style.background='rgba(143,205,240,0.05)'" onmouseout="this.style.background='transparent'">
                                     <td style="padding: 0.5rem 0.6rem; font-weight: 600; color: var(--text-color);">{{ p.department }}</td>
                                     <td style="padding: 0.5rem 0.6rem; text-align: center; color: var(--text-muted);">{{ p.registered }}</td>
                                     <td style="padding: 0.5rem 0.6rem; text-align: center; color: {% if p.active == p.registered %}#4CAF50{% elif p.active == 0 %}#f44336{% else %}#ffc107{% endif %}; font-weight: 600;">{{ p.active }}</td>
@@ -4265,36 +4340,56 @@
         // 1. Biểu đồ Xu hướng Calo (Line Chart)
         const kcalCtx = document.getElementById('adminKcalChart').getContext('2d');
         const weeklyLabels = statsData.weekly.labels;
-        const weeklyKcal = statsData.weekly.kcal;
         
         adminKcalChartInstance = new Chart(kcalCtx, {
             type: 'line',
             data: {
                 labels: weeklyLabels,
-                datasets: [{
-                    label: 'Năng lượng (KCAL)',
-                    data: weeklyKcal,
-                    borderColor: '#8FCDF0',
-                    backgroundColor: 'rgba(143, 205, 240, 0.15)',
-                    borderWidth: 3,
-                    fill: true,
-                    tension: 0.3,
-                    pointBackgroundColor: '#8FCDF0',
-                    pointBorderColor: 'rgba(255,255,255,0.8)',
-                    pointHoverRadius: 6
-                }]
+                datasets: [
+                    {
+                        label: 'Khối SSO (Nội bộ)',
+                        data: statsData.weekly.sso,
+                        borderColor: '#8FCDF0',
+                        backgroundColor: 'rgba(143, 205, 240, 0.15)',
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.3,
+                        pointBackgroundColor: '#8FCDF0',
+                        pointBorderColor: 'rgba(255,255,255,0.8)',
+                        pointHoverRadius: 6
+                    },
+                    {
+                        label: 'Ngoài SSO (Khách mời)',
+                        data: statsData.weekly.non_sso,
+                        borderColor: '#FF9800',
+                        backgroundColor: 'rgba(255, 152, 0, 0.05)',
+                        borderWidth: 3,
+                        fill: false,
+                        tension: 0.3,
+                        pointBackgroundColor: '#FF9800',
+                        pointBorderColor: 'rgba(255,255,255,0.8)',
+                        pointHoverRadius: 6
+                    }
+                ]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
                     legend: {
-                        display: false
+                        display: true,
+                        labels: {
+                            color: '#94B5DE',
+                            font: {
+                                family: 'Be Vietnam Pro',
+                                size: 11
+                            }
+                        }
                     },
                     tooltip: {
                         callbacks: {
                             label: function(context) {
-                                return ` ${context.parsed.y.toLocaleString()} KCAL`;
+                                return ` ${context.dataset.label}: ${context.parsed.y.toLocaleString()} KCAL/KM`;
                             }
                         }
                     }
@@ -4383,40 +4478,224 @@
         });
     }
     
-    // Hàm Toggle Tuần/Tháng
+    // Biến toàn cục theo dõi đối tượng thống kê
+    let currentScope = 'all';
+
+    // Hàm Toggle Ngày/Tuần/Tháng
     function toggleKcalTrend(type) {
         if (!statsData || !adminKcalChartInstance) return;
         
+        const btnDay = document.getElementById('btnToggleDay');
         const btnWeek = document.getElementById('btnToggleWeek');
         const btnMonth = document.getElementById('btnToggleMonth');
         
-        if (type === 'week') {
-            btnWeek.classList.add('active');
-            btnWeek.style.background = 'var(--color-primary)';
-            btnWeek.style.color = '#fff';
-            
-            btnMonth.classList.remove('active');
-            btnMonth.style.background = 'transparent';
-            btnMonth.style.color = 'var(--text-muted)';
-            
-            // Cập nhật dữ liệu biểu đồ
-            adminKcalChartInstance.data.labels = statsData.weekly.labels;
-            adminKcalChartInstance.data.datasets[0].data = statsData.weekly.kcal;
-            adminKcalChartInstance.update();
-        } else {
-            btnMonth.classList.add('active');
-            btnMonth.style.background = 'var(--color-primary)';
-            btnMonth.style.color = '#fff';
-            
-            btnWeek.classList.remove('active');
-            btnWeek.style.background = 'transparent';
-            btnWeek.style.color = 'var(--text-muted)';
-            
-            // Cập nhật dữ liệu biểu đồ
-            adminKcalChartInstance.data.labels = statsData.monthly.labels;
-            adminKcalChartInstance.data.datasets[0].data = statsData.monthly.kcal;
-            adminKcalChartInstance.update();
+        // Reset styles for all buttons
+        [btnDay, btnWeek, btnMonth].forEach(btn => {
+            if (btn) {
+                btn.classList.remove('active');
+                btn.style.background = 'transparent';
+                btn.style.color = 'var(--text-muted)';
+            }
+        });
+        
+        // Kích hoạt class active cho nút chọn xu hướng
+        const activeBtn = type === 'day' ? btnDay : type === 'week' ? btnWeek : btnMonth;
+        if (activeBtn) {
+            activeBtn.classList.add('active');
+            activeBtn.style.background = 'var(--color-primary)';
+            activeBtn.style.color = '#fff';
         }
+
+        let dataSSO = [];
+        let dataNonSSO = [];
+        let labels = [];
+        
+        if (type === 'day') {
+            labels = statsData.daily.labels;
+            dataSSO = statsData.daily.sso;
+            dataNonSSO = statsData.daily.non_sso;
+        } else if (type === 'week') {
+            labels = statsData.weekly.labels;
+            dataSSO = statsData.weekly.sso;
+            dataNonSSO = statsData.weekly.non_sso;
+        } else {
+            labels = statsData.monthly.labels;
+            dataSSO = statsData.monthly.sso;
+            dataNonSSO = statsData.monthly.non_sso;
+        }
+        
+        adminKcalChartInstance.data.labels = labels;
+        
+        // Áp dụng bộ lọc đối tượng lên datasets biểu đồ
+        if (currentScope === 'sso') {
+            adminKcalChartInstance.data.datasets[0].data = dataSSO;
+            adminKcalChartInstance.data.datasets[1].data = [];
+        } else if (currentScope === 'non_sso') {
+            adminKcalChartInstance.data.datasets[0].data = [];
+            adminKcalChartInstance.data.datasets[1].data = dataNonSSO;
+        } else { // 'all'
+            adminKcalChartInstance.data.datasets[0].data = dataSSO;
+            adminKcalChartInstance.data.datasets[1].data = dataNonSSO;
+        }
+        adminKcalChartInstance.update();
+    }
+
+    // Hàm lọc động tab đối tượng (Toàn giải đấu, SSO, Ngoài SSO)
+    function switchScope(scope) {
+        if (!statsData) return;
+        currentScope = scope;
+        
+        // 1. Cập nhật trạng thái active cho các tab Scope
+        const tabAll = document.getElementById('tabScopeAll');
+        const tabSSO = document.getElementById('tabScopeSSO');
+        const tabNonSSO = document.getElementById('tabScopeNonSSO');
+        
+        [tabAll, tabSSO, tabNonSSO].forEach(btn => {
+            if (btn) {
+                btn.classList.remove('btn-primary', 'active');
+                btn.classList.add('btn-secondary');
+                btn.style.background = 'transparent';
+                btn.style.color = 'var(--text-muted)';
+            }
+        });
+        
+        const activeTab = scope === 'sso' ? tabSSO : scope === 'non_sso' ? tabNonSSO : tabAll;
+        if (activeTab) {
+            activeTab.classList.remove('btn-secondary');
+            activeTab.classList.add('btn-primary', 'active');
+            activeTab.style.background = 'var(--color-primary)';
+            activeTab.style.color = '#fff';
+        }
+        
+        // 2. Cập nhật các con số KPIs
+        const kpiAthletes = document.getElementById('kpi-athletes-val');
+        const kpiActivities = document.getElementById('kpi-activities-val');
+        const kpiKcal = document.getElementById('kpi-kcal-val');
+        const kpiDist = document.getElementById('kpi-dist-val');
+        const kpiHours = document.getElementById('kpi-hours-val');
+        const kpiReward = document.getElementById('kpi-reward-val');
+        
+        let athletes, activities, kcal, dist, hours, reward;
+        if (scope === 'sso') {
+            athletes = statsData.groups.sso.athletes;
+            activities = statsData.groups.sso.activities;
+            kcal = statsData.groups.sso.kcal;
+            dist = statsData.groups.sso.dist;
+            hours = statsData.groups.sso.hours;
+            reward = statsData.kpis.total_reward;
+        } else if (scope === 'non_sso') {
+            athletes = statsData.groups.non_sso.athletes;
+            activities = statsData.groups.non_sso.activities;
+            kcal = statsData.groups.non_sso.kcal;
+            dist = statsData.groups.non_sso.dist;
+            hours = statsData.groups.non_sso.hours;
+            reward = 0;
+        } else { // 'all'
+            athletes = statsData.kpis.total_athletes;
+            activities = statsData.kpis.total_activities;
+            kcal = statsData.kpis.total_kcal;
+            dist = statsData.kpis.total_dist;
+            hours = statsData.kpis.total_hours;
+            reward = statsData.kpis.total_reward;
+        }
+        
+        if (kpiAthletes) kpiAthletes.innerText = athletes.toLocaleString();
+        if (kpiActivities) kpiActivities.innerText = activities.toLocaleString();
+        if (kpiKcal) kpiKcal.innerHTML = kcal.toLocaleString(undefined, {maximumFractionDigits: 0}) + ' <span style="font-size:0.8rem; font-weight:400; color: var(--text-muted);">KCAL</span>';
+        if (kpiDist) kpiDist.innerHTML = dist.toLocaleString(undefined, {maximumFractionDigits: 1}) + ' <span style="font-size:0.8rem; font-weight:400; color: var(--text-muted);">km</span>';
+        if (kpiHours) kpiHours.innerHTML = hours.toLocaleString(undefined, {maximumFractionDigits: 1}) + ' <span style="font-size:0.8rem; font-weight:400; color: var(--text-muted);">giờ</span>';
+        if (kpiReward) kpiReward.innerHTML = reward.toLocaleString(undefined, {maximumFractionDigits: 0}) + ' <span style="font-size:0.8rem; font-weight:400; color: var(--text-muted);">VNĐ</span>';
+
+        // 3. Ẩn/Hiện thẻ KPI, card so sánh và card tiền thưởng tùy theo scope
+        const kpiRewardCard = document.getElementById('kpi-reward-card');
+        const cardRewardDept = document.getElementById('card-reward-dept');
+        const cardCompareGroups = document.getElementById('card-compare-groups');
+        
+        if (scope === 'non_sso') {
+            if (kpiRewardCard) kpiRewardCard.style.display = 'none';
+            if (cardRewardDept) cardRewardDept.style.display = 'none';
+            if (cardCompareGroups) cardCompareGroups.style.display = 'none';
+        } else if (scope === 'sso') {
+            if (kpiRewardCard) kpiRewardCard.style.display = 'flex';
+            if (cardRewardDept) cardRewardDept.style.display = 'block';
+            if (cardCompareGroups) cardCompareGroups.style.display = 'none';
+        } else { // 'all'
+            if (kpiRewardCard) kpiRewardCard.style.display = 'flex';
+            if (cardRewardDept) cardRewardDept.style.display = 'block';
+            if (cardCompareGroups) cardCompareGroups.style.display = 'block';
+        }
+
+        // 4. Cập nhật Biểu đồ Xu hướng Calo (Line Chart)
+        let trendType = 'week';
+        const btnDay = document.getElementById('btnToggleDay');
+        const btnWeek = document.getElementById('btnToggleWeek');
+        const btnMonth = document.getElementById('btnToggleMonth');
+        if (btnDay && btnDay.classList.contains('active')) trendType = 'day';
+        else if (btnMonth && btnMonth.classList.contains('active')) trendType = 'month';
+        
+        toggleKcalTrend(trendType);
+
+        // 5. Lọc các bảng chi tiết
+        // Lọc VĐV
+        document.querySelectorAll('.row-rank-athlete').forEach(row => {
+            const isSsoAttr = row.getAttribute('data-is-sso');
+            if (scope === 'all') {
+                row.style.display = '';
+            } else if (scope === 'sso') {
+                row.style.display = isSsoAttr === 'true' ? '' : 'none';
+            } else {
+                row.style.display = isSsoAttr === 'false' ? '' : 'none';
+            }
+        });
+        
+        // Lọc Phòng ban
+        document.querySelectorAll('.row-rank-dept').forEach(row => {
+            const isSsoAttr = row.getAttribute('data-is-sso');
+            if (scope === 'all') {
+                row.style.display = '';
+            } else if (scope === 'sso') {
+                row.style.display = isSsoAttr === 'true' ? '' : 'none';
+            } else {
+                row.style.display = isSsoAttr === 'false' ? '' : 'none';
+            }
+        });
+
+        // Lọc Tiền thưởng
+        document.querySelectorAll('.row-rank-reward').forEach(row => {
+            const isSsoAttr = row.getAttribute('data-is-sso');
+            if (scope === 'all') {
+                row.style.display = '';
+            } else if (scope === 'sso') {
+                row.style.display = isSsoAttr === 'true' ? '' : 'none';
+            } else {
+                row.style.display = isSsoAttr === 'false' ? '' : 'none';
+            }
+        });
+
+        // Lọc Tỷ lệ tham gia
+        document.querySelectorAll('.row-rank-participation').forEach(row => {
+            const isSsoAttr = row.getAttribute('data-is-sso');
+            if (scope === 'all') {
+                row.style.display = '';
+            } else if (scope === 'sso') {
+                row.style.display = isSsoAttr === 'true' ? '' : 'none';
+            } else {
+                row.style.display = isSsoAttr === 'false' ? '' : 'none';
+            }
+        });
+
+        // 6. Đánh lại số Hạng (Rank) tự động cho các bảng hiển thị
+        document.querySelectorAll('table').forEach(table => {
+            let rank = 1;
+            table.querySelectorAll('.row-rank-athlete, .row-rank-dept').forEach(row => {
+                if (row.style.display !== 'none') {
+                    if (row.cells[0]) {
+                        row.cells[0].innerHTML = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `<span style="color: var(--text-muted);">${rank}</span>`;
+                    }
+                    rank++;
+                }
+            });
+        });
     }
     
     // Khởi tạo đồ thị

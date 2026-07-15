@@ -6,6 +6,7 @@ class MockURL:
 
 class MockRequest:
     url = MockURL()
+    query_params = {}
 
 try:
     env = Environment(loader=FileSystemLoader('templates'))

@@ -2212,7 +2212,6 @@ def admin_dashboard(
     hidden_depts = set()
     if selected_event_id:
         hidden_depts = {r.department for r in db.query(HiddenRewardConfig).filter(HiddenRewardConfig.event_id == selected_event_id).all()}
-        
     # Lấy danh sách VĐV tương ứng
     if selected_event_id:
         athletes_for_reward = db.query(Athlete).join(
@@ -2222,7 +2221,19 @@ def admin_dashboard(
     else:
         athletes_for_reward = db.query(Athlete).filter(Athlete.is_active == True).all()
 
-    # Tính giải thưởng cho từng VĐV
+    # Thống kê phân tách SSO vs Ngoài SSO
+    sso_athletes_count = 0
+    non_sso_athletes_count = 0
+    sso_activities_count = 0
+    non_sso_activities_count = 0
+    sso_kcal = 0.0
+    non_sso_kcal = 0.0
+    sso_dist = 0.0
+    non_sso_dist = 0.0
+    sso_time = 0.0
+    non_sso_time = 0.0
+
+    # Tính giải thưởng cho từng VĐV và phân loại thống kê
     for ath in athletes_for_reward:
         act_ath_query = db.query(Activity).filter(Activity.athlete_id == ath.id)
         if selected_event_id:
@@ -2235,6 +2246,22 @@ def admin_dashboard(
         # Tính metric_value (Kcal hoặc Km) của VĐV
         ath_kcal = sum(a.kcal_burned for a in ath_activities) or 0.0
         ath_dist = sum(a.distance_km for a in ath_activities) or 0.0
+        ath_time = sum(a.moving_time_min for a in ath_activities) or 0.0
+        ath_act_count = len(ath_activities)
+        
+        is_sso = (ath.department or "").strip().upper().startswith("SSO")
+        if is_sso:
+            sso_athletes_count += 1
+            sso_kcal += ath_kcal
+            sso_dist += ath_dist
+            sso_time += ath_time
+            sso_activities_count += ath_act_count
+        else:
+            non_sso_athletes_count += 1
+            non_sso_kcal += ath_kcal
+            non_sso_dist += ath_dist
+            non_sso_time += ath_time
+            non_sso_activities_count += ath_act_count
         
         is_distance = selected_event and getattr(selected_event, "ranking_metric", "kcal") == "distance"
         metric_value = ath_dist if is_distance else ath_kcal
@@ -2242,7 +2269,6 @@ def admin_dashboard(
         award_info = get_award_info(ath.gender, metric_value, db, event_id=selected_event_id)
         
         # Chỉ VĐV thuộc khối SSO mới được nhận giải thưởng tiền mặt
-        is_sso = (ath.department or "").strip().upper().startswith("SSO")
         is_hidden = (not is_sso) or (ath.department in hidden_depts)
         
         if not is_hidden:
@@ -2264,17 +2290,94 @@ def admin_dashboard(
     if selected_event and getattr(selected_event, "ranking_metric", "kcal") == "distance":
         metric = "distance"
 
+    # C. Tính theo ngày (theo khoảng thời gian của giải chạy hoặc mặc định 30 ngày gần nhất)
+    start_daily_date_str = ""
+    chart_end_date_str = max_date_str
+    daily_data = {}
+    
+    if selected_event and selected_event.start_date and selected_event.end_date:
+        try:
+            event_start = datetime.datetime.strptime(selected_event.start_date, "%Y-%m-%d").date()
+            event_end = datetime.datetime.strptime(selected_event.end_date, "%Y-%m-%d").date()
+            
+            # Kết thúc tại min(event_end, max_date) để tránh vẽ các ngày trống tương lai
+            chart_end = min(event_end, max_date)
+            chart_start = event_start
+            
+            num_days = (chart_end - chart_start).days + 1
+            
+            # Giới hạn tối đa 60 ngày để tránh đơ/rối biểu đồ
+            if num_days > 60:
+                chart_start = chart_end - datetime.timedelta(days=59)
+                num_days = 60
+                
+            for i in range(num_days):
+                d = chart_start + datetime.timedelta(days=i)
+                daily_data[d.strftime("%Y-%m-%d")] = {"sso": 0.0, "non_sso": 0.0}
+                
+            start_daily_date_str = chart_start.strftime("%Y-%m-%d")
+            chart_end_date_str = chart_end.strftime("%Y-%m-%d")
+        except Exception:
+            # Fallback nếu parse ngày giải đấu lỗi
+            daily_data = {}
+            for i in range(30):
+                d = max_date - datetime.timedelta(days=i)
+                daily_data[d.strftime("%Y-%m-%d")] = {"sso": 0.0, "non_sso": 0.0}
+            start_daily_date_str = (max_date - datetime.timedelta(days=29)).strftime("%Y-%m-%d")
+            chart_end_date_str = max_date_str
+    else:
+        # Mặc định 30 ngày gần nhất
+        daily_data = {}
+        for i in range(30):
+            d = max_date - datetime.timedelta(days=i)
+            daily_data[d.strftime("%Y-%m-%d")] = {"sso": 0.0, "non_sso": 0.0}
+        start_daily_date_str = (max_date - datetime.timedelta(days=29)).strftime("%Y-%m-%d")
+        chart_end_date_str = max_date_str
+
+    daily_query = db.query(Activity.activity_date, Activity.kcal_burned, Activity.distance_km, Athlete.department)\
+        .join(Athlete, Activity.athlete_id == Athlete.id)\
+        .filter(Activity.activity_date >= start_daily_date_str)\
+        .filter(Activity.activity_date <= chart_end_date_str)
+    if selected_event_id:
+        daily_query = daily_query.filter(Activity.event_id == selected_event_id)
+        if allowed_sports and "All" not in allowed_sports:
+            daily_query = daily_query.filter(Activity.sport_type.in_(allowed_sports))
+    daily_activities = daily_query.all()
+
+    for act_date_str, kcal, dist, dept in daily_activities:
+        try:
+            val = dist if metric == "distance" else kcal
+            is_sso = (dept or "").strip().upper().startswith("SSO")
+            group_key = "sso" if is_sso else "non_sso"
+            if act_date_str in daily_data:
+                daily_data[act_date_str][group_key] += val
+        except Exception:
+            continue
+
+    sorted_days = sorted(daily_data.keys())
+    daily_labels = []
+    for d_str in sorted_days:
+        try:
+            d = datetime.datetime.strptime(d_str, "%Y-%m-%d").date()
+            daily_labels.append(d.strftime("%d/%m"))
+        except Exception:
+            daily_labels.append(d_str)
+            
+    daily_kcal_sso = [round(daily_data[d_str]["sso"], 1) for d_str in sorted_days]
+    daily_kcal_non_sso = [round(daily_data[d_str]["non_sso"], 1) for d_str in sorted_days]
+
     # A. Tính theo tuần (12 tuần gần nhất)
-    weekly_data = {}  # Monday_date_str -> total_val
+    weekly_data = {}  # Monday_date_str -> {"sso": 0.0, "non_sso": 0.0}
     max_date_monday = max_date - datetime.timedelta(days=max_date.weekday())
     for i in range(12):
         w_monday = max_date_monday - datetime.timedelta(weeks=i)
-        weekly_data[w_monday.strftime("%Y-%m-%d")] = 0.0
+        weekly_data[w_monday.strftime("%Y-%m-%d")] = {"sso": 0.0, "non_sso": 0.0}
 
     start_week_date = max_date_monday - datetime.timedelta(weeks=11)
     start_week_date_str = start_week_date.strftime("%Y-%m-%d")
     
-    week_query = db.query(Activity.activity_date, Activity.kcal_burned, Activity.distance_km)\
+    week_query = db.query(Activity.activity_date, Activity.kcal_burned, Activity.distance_km, Athlete.department)\
+        .join(Athlete, Activity.athlete_id == Athlete.id)\
         .filter(Activity.activity_date >= start_week_date_str)\
         .filter(Activity.activity_date <= max_date_str)
     if selected_event_id:
@@ -2283,14 +2386,16 @@ def admin_dashboard(
             week_query = week_query.filter(Activity.sport_type.in_(allowed_sports))
     week_activities = week_query.all()
 
-    for act_date_str, kcal, dist in week_activities:
+    for act_date_str, kcal, dist, dept in week_activities:
         try:
             val = dist if metric == "distance" else kcal
+            is_sso = (dept or "").strip().upper().startswith("SSO")
+            group_key = "sso" if is_sso else "non_sso"
             act_date = datetime.datetime.strptime(act_date_str, "%Y-%m-%d").date()
             act_monday = act_date - datetime.timedelta(days=act_date.weekday())
             act_monday_str = act_monday.strftime("%Y-%m-%d")
             if act_monday_str in weekly_data:
-                weekly_data[act_monday_str] += val
+                weekly_data[act_monday_str][group_key] += val
         except Exception:
             continue
 
@@ -2299,10 +2404,12 @@ def admin_dashboard(
     for w in sorted_weeks:
         d = datetime.datetime.strptime(w, "%Y-%m-%d").date()
         weekly_labels.append(d.strftime("Tuần %d/%m"))
-    weekly_kcal = [round(weekly_data[w], 1) for w in sorted_weeks]
+        
+    weekly_kcal_sso = [round(weekly_data[w]["sso"], 1) for w in sorted_weeks]
+    weekly_kcal_non_sso = [round(weekly_data[w]["non_sso"], 1) for w in sorted_weeks]
 
     # B. Tính theo tháng (6 tháng gần nhất)
-    monthly_data = {}  # YYYY-MM -> total_val
+    monthly_data = {}  # YYYY-MM -> {"sso": 0.0, "non_sso": 0.0}
     curr_year = max_date.year
     curr_month = max_date.month
     for i in range(6):
@@ -2311,13 +2418,14 @@ def admin_dashboard(
         while m <= 0:
             m += 12
             y -= 1
-        monthly_data[f"{y:04d}-{m:02d}"] = 0.0
+        monthly_data[f"{y:04d}-{m:02d}"] = {"sso": 0.0, "non_sso": 0.0}
 
     sorted_months_keys = sorted(monthly_data.keys())
     start_month_str = sorted_months_keys[0]
     start_month_date_str = f"{start_month_str}-01"
 
-    month_query = db.query(Activity.activity_date, Activity.kcal_burned, Activity.distance_km)\
+    month_query = db.query(Activity.activity_date, Activity.kcal_burned, Activity.distance_km, Athlete.department)\
+        .join(Athlete, Activity.athlete_id == Athlete.id)\
         .filter(Activity.activity_date >= start_month_date_str)\
         .filter(Activity.activity_date <= max_date_str)
     if selected_event_id:
@@ -2326,12 +2434,14 @@ def admin_dashboard(
             month_query = month_query.filter(Activity.sport_type.in_(allowed_sports))
     month_activities = month_query.all()
 
-    for act_date_str, kcal, dist in month_activities:
+    for act_date_str, kcal, dist, dept in month_activities:
         try:
             val = dist if metric == "distance" else kcal
+            is_sso = (dept or "").strip().upper().startswith("SSO")
+            group_key = "sso" if is_sso else "non_sso"
             ym = act_date_str[:7]
             if ym in monthly_data:
-                monthly_data[ym] += val
+                monthly_data[ym][group_key] += val
         except Exception:
             continue
 
@@ -2339,7 +2449,9 @@ def admin_dashboard(
     for ym in sorted_months_keys:
         y, m = ym.split("-")
         monthly_labels.append(f"Tháng {m}/{y}")
-    monthly_kcal = [round(monthly_data[ym], 1) for ym in sorted_months_keys]
+        
+    monthly_kcal_sso = [round(monthly_data[ym]["sso"], 1) for ym in sorted_months_keys]
+    monthly_kcal_non_sso = [round(monthly_data[ym]["non_sso"], 1) for ym in sorted_months_keys]
 
     # 3. Cơ cấu hoạt động theo bộ môn (Sport Type Distribution)
     sport_query = db.query(
@@ -2368,19 +2480,44 @@ def admin_dashboard(
         "metric": metric,
         "kpis": {
             "total_athletes": total_active_athletes,
+            "total_sso_athletes": sso_athletes_count,
+            "total_non_sso_athletes": non_sso_athletes_count,
             "total_activities": total_valid_activities,
             "total_kcal": round(total_kcal_burned, 1),
             "total_dist": round(total_distance, 1),
             "total_hours": round(total_hours, 1),
             "total_reward": total_reward
         },
+        "groups": {
+            "sso": {
+                "athletes": sso_athletes_count,
+                "activities": sso_activities_count,
+                "kcal": round(sso_kcal, 1),
+                "dist": round(sso_dist, 1),
+                "hours": round(sso_time / 60.0, 1),
+            },
+            "non_sso": {
+                "athletes": non_sso_athletes_count,
+                "activities": non_sso_activities_count,
+                "kcal": round(non_sso_kcal, 1),
+                "dist": round(non_sso_dist, 1),
+                "hours": round(non_sso_time / 60.0, 1),
+            }
+        },
+        "daily": {
+            "labels": daily_labels,
+            "sso": daily_kcal_sso,
+            "non_sso": daily_kcal_non_sso
+        },
         "weekly": {
             "labels": weekly_labels,
-            "kcal": weekly_kcal
+            "sso": weekly_kcal_sso,
+            "non_sso": weekly_kcal_non_sso
         },
         "monthly": {
             "labels": monthly_labels,
-            "kcal": monthly_kcal
+            "sso": monthly_kcal_sso,
+            "non_sso": monthly_kcal_non_sso
         },
         "sports": {
             "labels": sport_labels,
@@ -2519,7 +2656,8 @@ def admin_dashboard(
             mv2 = ath_dist2 if is_distance_metric else ath_kcal2
 
             aw2 = get_award_info(ath.gender, mv2, db, event_id=selected_event_id)
-            is_hidden = (ath.department or "") in hidden_depts_set
+            is_sso = (ath.department or "").strip().upper().startswith("SSO")
+            is_hidden = (not is_sso) or ((ath.department or "") in hidden_depts_set)
             rw_amount = 0 if is_hidden else aw2.get("reward_amount", 0.0)
 
             if rw_amount > 0:
