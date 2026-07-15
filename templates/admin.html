@@ -1007,7 +1007,7 @@
                     </button>
                 </h4>
                 
-                <div class="print-grid-2col">
+                <div class="print-grid-vertical">
                     {% for gender in ["Nam", "Nữ"] %}
                     <div>
                         <h5 style="font-family: 'Outfit', sans-serif; font-size: 0.95rem; color: {% if gender == 'Nam' %}#4CAF50{% else %}#E91E63{% endif %}; display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.8rem; font-weight: 600;">
@@ -1064,7 +1064,7 @@
                     </button>
                 </h4>
                 
-                <div class="print-grid-2col">
+                <div class="print-grid-vertical">
                     {% for gender in ["Nam", "Nữ"] %}
                     <div>
                         <h5 style="font-family: 'Outfit', sans-serif; font-size: 0.92rem; color: {% if gender == 'Nam' %}#4CAF50{% else %}#E91E63{% endif %}; display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.8rem; font-weight: 600;">
@@ -1623,6 +1623,13 @@
             gap: 1.5rem;
         }
 
+        /* Grid 2 cột trên web nhưng xếp dọc khi in */
+        .print-grid-vertical {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+            gap: 1.5rem;
+        }
+
         /* Ẩn hiện card trong thống kê phân tích */
         .card-hidden {
             opacity: 0.35 !important;
@@ -1733,6 +1740,16 @@
                 width: 50% !important;
                 min-width: 0 !important;
                 margin-bottom: 0 !important;
+            }
+            /* Đối với BXH Nam/Nữ, xếp dọc khi in để tránh đè chữ do bảng quá nhiều cột */
+            .print-grid-vertical {
+                display: block !important;
+                width: 100% !important;
+            }
+            .print-grid-vertical > div {
+                width: 100% !important;
+                margin-bottom: 2rem !important;
+                page-break-inside: avoid !important;
             }
             /* Ép ngắt trang để chi tiết báo cáo đẩy sang trang 2 */
             .print-page-break {
