@@ -1051,103 +1051,106 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
         seen_ids.add(act_id)
             
         # Chặn trùng lặp nâng cao (Pre-sync Deduplication) trước khi chèn
-        # Tìm trong DB xem có hoạt động nào trùng khớp cự ly và thời gian gần đây không
-        # Hỗ trợ cả VĐV đã liên kết (athlete_id) và chưa liên kết (athlete_name_raw)
-        existing_similar = []
-        limit_date = (gmt7_now - timedelta(days=4)).strftime("%Y-%m-%d")
-        if athlete_id:
-            existing_similar = db.query(Activity).filter(
-                Activity.athlete_id == athlete_id,
-                Activity.event_id == event_id,
-                Activity.sport_type == sport_type,
-                Activity.activity_date >= limit_date
-            ).all()
-        else:
-            from sqlalchemy import func as sa_func
-            existing_similar = db.query(Activity).filter(
-                sa_func.lower(Activity.athlete_name_raw) == athlete_name_raw.lower(),
-                Activity.event_id == event_id,
-                Activity.sport_type == sport_type,
-                Activity.activity_date >= limit_date
-            ).all()
+        # *** TỐI ƯU: Bỏ qua hoàn toàn bước fuzzy dedup cho hoạt động từ Personal API ***
+        # Hoạt động từ API cá nhân đã có Strava Activity ID duy nhất (dạng {strava_id}_{event_id}),
+        # việc check trùng bằng ID chính xác (Layer 1 ở trên) đã đủ đảm bảo không trùng lặp.
+        # Chỉ cần check fuzzy cho hoạt động từ Club API/Scraper (không có ID cố định).
+        if not act.get("is_personal_api"):
+            existing_similar = []
+            limit_date = (gmt7_now - timedelta(days=4)).strftime("%Y-%m-%d")
+            if athlete_id:
+                existing_similar = db.query(Activity).filter(
+                    Activity.athlete_id == athlete_id,
+                    Activity.event_id == event_id,
+                    Activity.sport_type == sport_type,
+                    Activity.activity_date >= limit_date
+                ).all()
+            else:
+                from sqlalchemy import func as sa_func
+                existing_similar = db.query(Activity).filter(
+                    sa_func.lower(Activity.athlete_name_raw) == athlete_name_raw.lower(),
+                    Activity.event_id == event_id,
+                    Activity.sport_type == sport_type,
+                    Activity.activity_date >= limit_date
+                ).all()
 
-        if existing_similar:
-            is_dup_pre = False
-            for ext in existing_similar:
-                dist_ext = ext.distance_km_raw if ext.distance_km_raw is not None else ext.distance_km
-                dist_diff = abs((dist_ext or 0.0) - distance_km)
-                time_diff = abs((ext.moving_time_min or 0.0) - moving_time_min)
-                elev_diff = abs((ext.elevation_gain_m or 0.0) - elevation_gain_m)
-                
-                # Check overlap thời gian (bổ sung cho trường hợp ghi song song nhiều thiết bị)
-                time_overlap_dup = False
-                if ext.activity_date == act_date_str and ext.activity_time and act_time_str:
-                    try:
-                        parts1 = ext.activity_time.split(":")
-                        parts2 = act_time_str.split(":")
-                        h1, m1 = int(parts1[0]), int(parts1[1])
-                        h2, m2 = int(parts2[0]), int(parts2[1])
-                        start1 = h1 * 60 + m1
-                        start2 = h2 * 60 + m2
-                        
-                        dur1 = ext.elapsed_time_min if ext.elapsed_time_min is not None else ext.moving_time_min
-                        dur2 = elapsed_time_min if elapsed_time_min is not None else moving_time_min
-                        
-                        dur1 = dur1 or 0.0
-                        dur2 = dur2 or 0.0
-                        
-                        end1 = start1 + dur1
-                        end2 = start2 + dur2
-                        
-                        overlap_mins = max(0.0, min(end1, end2) - max(start1, start2))
-                        min_dur = min(dur1, dur2)
-                        
-                        if min_dur > 0:
-                            overlap_ratio = overlap_mins / min_dur
-                            if overlap_ratio > 0.5 and abs(start1 - start2) <= 15:
-                                time_overlap_dup = True
-                    except Exception:
-                        pass
+            if existing_similar:
+                is_dup_pre = False
+                for ext in existing_similar:
+                    dist_ext = ext.distance_km_raw if ext.distance_km_raw is not None else ext.distance_km
+                    dist_diff = abs((dist_ext or 0.0) - distance_km)
+                    time_diff = abs((ext.moving_time_min or 0.0) - moving_time_min)
+                    elev_diff = abs((ext.elevation_gain_m or 0.0) - elevation_gain_m)
+                    
+                    # Check overlap thời gian (bổ sung cho trường hợp ghi song song nhiều thiết bị)
+                    time_overlap_dup = False
+                    if ext.activity_date == act_date_str and ext.activity_time and act_time_str:
+                        try:
+                            parts1 = ext.activity_time.split(":")
+                            parts2 = act_time_str.split(":")
+                            h1, m1 = int(parts1[0]), int(parts1[1])
+                            h2, m2 = int(parts2[0]), int(parts2[1])
+                            start1 = h1 * 60 + m1
+                            start2 = h2 * 60 + m2
+                            
+                            dur1 = ext.elapsed_time_min if ext.elapsed_time_min is not None else ext.moving_time_min
+                            dur2 = elapsed_time_min if elapsed_time_min is not None else moving_time_min
+                            
+                            dur1 = dur1 or 0.0
+                            dur2 = dur2 or 0.0
+                            
+                            end1 = start1 + dur1
+                            end2 = start2 + dur2
+                            
+                            overlap_mins = max(0.0, min(end1, end2) - max(start1, start2))
+                            min_dur = min(dur1, dur2)
+                            
+                            if min_dur > 0:
+                                overlap_ratio = overlap_mins / min_dur
+                                if overlap_ratio > 0.5 and abs(start1 - start2) <= 15:
+                                    time_overlap_dup = True
+                        except Exception:
+                            pass
 
-                # So sánh tên hoạt động
-                name1_clean = (ext.name or "").strip().lower()
-                name2_clean = (name or "").strip().lower()
-                
-                generic_keywords = [
-                    "activity", "hoạt động strava", "hoạt động", "workout", "run", "walk", "ride",
-                    "morning run", "afternoon run", "evening run", "night run",
-                    "morning walk", "afternoon walk", "evening walk", "night walk",
-                    "morning ride", "afternoon ride", "evening ride", "night ride",
-                    "lunch run", "lunch walk", "lunch ride"
-                ]
-                is_generic1 = name1_clean in generic_keywords or name1_clean == ""
-                is_generic2 = name2_clean in generic_keywords or name2_clean == ""
-                
-                name_match = True
-                is_similar_tight = dist_diff <= 0.05 and time_diff <= 1.0 and elev_diff <= 10.0
-                if name1_clean != name2_clean and (not is_generic1 or not is_generic2) and not time_overlap_dup and not is_similar_tight:
-                    name_match = False
+                    # So sánh tên hoạt động
+                    name1_clean = (ext.name or "").strip().lower()
+                    name2_clean = (name or "").strip().lower()
                     
-                # Thiết lập dung sai cho cự ly và thời gian
-                max_dist_diff = 0.05
-                max_time_diff = 1.0
-                max_elev_diff = 10.0
-                
-                # Nếu trùng overlap thời gian (do cùng giờ sync), nới lỏng thành tỉ lệ tương đối 8% cự ly và 5% thời gian
-                if time_overlap_dup:
-                    min_dist = min(dist_ext or 0.0, distance_km)
-                    min_time = min(ext.moving_time_min or 0.0, moving_time_min)
-                    max_dist_diff = max(0.05, 0.08 * min_dist)
-                    max_time_diff = max(1.0, 0.05 * min_time)
-                    max_elev_diff = max(10.0, 15.0)
+                    generic_keywords = [
+                        "activity", "hoạt động strava", "hoạt động", "workout", "run", "walk", "ride",
+                        "morning run", "afternoon run", "evening run", "night run",
+                        "morning walk", "afternoon walk", "evening walk", "night walk",
+                        "morning ride", "afternoon ride", "evening ride", "night ride",
+                        "lunch run", "lunch walk", "lunch ride"
+                    ]
+                    is_generic1 = name1_clean in generic_keywords or name1_clean == ""
+                    is_generic2 = name2_clean in generic_keywords or name2_clean == ""
                     
-                if name_match and dist_diff <= max_dist_diff and time_diff <= max_time_diff and elev_diff <= max_elev_diff:
-                    is_dup_pre = True
-                    break
+                    name_match = True
+                    is_similar_tight = dist_diff <= 0.05 and time_diff <= 1.0 and elev_diff <= 10.0
+                    if name1_clean != name2_clean and (not is_generic1 or not is_generic2) and not time_overlap_dup and not is_similar_tight:
+                        name_match = False
+                        
+                    # Thiết lập dung sai cho cự ly và thời gian
+                    max_dist_diff = 0.05
+                    max_time_diff = 1.0
+                    max_elev_diff = 10.0
                     
-            if is_dup_pre:
-                # Hoạt động đã được đồng bộ trước đó (có thể với ngày quét khác), bỏ qua không lưu trùng
-                continue
+                    # Nếu trùng overlap thời gian (do cùng giờ sync), nới lỏng thành tỉ lệ tương đối 8% cự ly và 5% thời gian
+                    if time_overlap_dup:
+                        min_dist = min(dist_ext or 0.0, distance_km)
+                        min_time = min(ext.moving_time_min or 0.0, moving_time_min)
+                        max_dist_diff = max(0.05, 0.08 * min_dist)
+                        max_time_diff = max(1.0, 0.05 * min_time)
+                        max_elev_diff = max(10.0, 15.0)
+                        
+                    if name_match and dist_diff <= max_dist_diff and time_diff <= max_time_diff and elev_diff <= max_elev_diff:
+                        is_dup_pre = True
+                        break
+                        
+                if is_dup_pre:
+                    # Hoạt động đã được đồng bộ trước đó (có thể với ngày quét khác), bỏ qua không lưu trùng
+                    continue
         
         # Tính toán METs & KCAL
         mets_value = 0.0

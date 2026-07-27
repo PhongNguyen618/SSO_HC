@@ -167,6 +167,15 @@ def deduplicate_activities_logic(db: Session, mode: str = "all", dry_run: bool =
         for act in activities:
             ath_key = act.athlete_id if act.athlete_id is not None else act.athlete_name_raw
             by_athlete[ath_key].append(act)
+        
+        # *** TỐI ƯU: Bỏ qua VĐV đã liên kết Strava OAuth trong Post-sync Dedup ***
+        # VĐV đã kết nối tài khoản Strava (có strava_refresh_token) sẽ có hoạt động
+        # với ID Strava chính xác (dạng {strava_id}_{event_id}), không bao giờ trùng lặp.
+        # Việc so sánh chéo n×n là thừa và tốn tài nguyên cho những VĐV này.
+        linked_athlete_ids = set()
+        linked_athletes = db.query(Athlete.id).filter(Athlete.strava_refresh_token.isnot(None)).all()
+        linked_athlete_ids = {a.id for a in linked_athletes}
+        skipped_linked = 0
             
         to_delete = []
         updated_count = 0
@@ -174,6 +183,11 @@ def deduplicate_activities_logic(db: Session, mode: str = "all", dry_run: bool =
         
         for ath_key, act_list in by_athlete.items():
             if len(act_list) < 2:
+                continue
+            
+            # Skip VĐV đã liên kết Strava - hoạt động có ID duy nhất, không cần fuzzy dedup
+            if isinstance(ath_key, int) and ath_key in linked_athlete_ids:
+                skipped_linked += 1
                 continue
                 
             # Sắp xếp các hoạt động để giữ lại bản ghi có thông tin tốt nhất
@@ -461,11 +475,13 @@ def deduplicate_activities_logic(db: Session, mode: str = "all", dry_run: bool =
             mode_vi = "trùng CN"
             
         action_word = "Phát hiện" if dry_run else "Đã dọn dẹp thành công"
+        skip_msg = f" (bỏ qua {skipped_linked} VĐV đã liên kết Strava)" if skipped_linked > 0 else ""
         return {
             "deleted_count": deleted_count,
             "updated_count": updated_count,
             "deleted_details": deleted_details,
-            "message": f"{action_word} {deleted_count} hoạt động trùng lặp ở chế độ {mode_vi}."
+            "skipped_linked_athletes": skipped_linked,
+            "message": f"{action_word} {deleted_count} hoạt động trùng lặp ở chế độ {mode_vi}.{skip_msg}"
         }
     except Exception as e:
         db.rollback()
