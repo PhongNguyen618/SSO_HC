@@ -423,7 +423,7 @@
         }
     }
 
-    // --- BỘ PARSE BÁO CÁO CHUYỂN TỪ TEXT SANG CÁC CARD GIAO DIỆN GLASSMOPHIC ---
+    // --- BỘ PARSE BÁO CÁO CHUYỂN TỪ TEXT SANG CÁC CARD GIAO DIỆN GLASSMOPHIC CAO CẤP ---
     function renderStructuredSummaryText() {
         const rawText = {{ event.summary_text | tojson }};
         const container = document.getElementById('analyticsSectionsContainer');
@@ -432,7 +432,6 @@
 
         if (!rawText || !container) return;
 
-        // Kiểm tra xem văn bản có chứa các mốc tiêu đề chuẩn 1 -> 7 không
         const hasStructuredFormat = rawText.includes("1. TỔNG QUAN GIẢI ĐẤU") || rawText.includes("SƠ KẾT PHONG TRÀO THỂ THAO");
 
         if (!hasStructuredFormat) {
@@ -441,7 +440,6 @@
             return;
         }
 
-        // Tách các phần bằng regex tiêu đề
         const secRegex = /(?:📊\s*1\.|🚴\s*2\.|🏃\s*3\.|🔥\s*4\.|🏢\s*5\.|💰\s*6\.|📈\s*7\.)/g;
         const matches = [...rawText.matchAll(secRegex)];
 
@@ -453,7 +451,6 @@
 
         container.innerHTML = '';
 
-        // Tách văn bản thành các đoạn section
         const sectionsData = {};
         for (let i = 0; i < matches.length; i++) {
             const startIdx = matches[i].index;
@@ -469,90 +466,433 @@
             else if (secText.includes("7. TỶ LỆ VĐV HOẠT ĐỘNG THEO PHÒNG BAN")) sectionsData[7] = secText;
         }
 
-        // Render từng card
-        for (let secId = 1; secId <= 7; secId++) {
-            const secContent = sectionsData[secId];
-            if (!secContent) continue;
+        // 1. Section 1: KPIs Overview Grid
+        if (sectionsData[1]) {
+            const card1 = document.createElement('div');
+            card1.className = 'glass-card section-card';
+            card1.id = 'sec-card-1';
+            card1.style.padding = '1.5rem';
+            card1.innerHTML = renderKPISection(sectionsData[1]);
+            container.appendChild(card1);
+        }
 
-            const card = document.createElement('div');
-            card.className = 'glass-card section-card';
-            card.id = `sec-card-${secId}`;
-            card.style.padding = '1.5rem';
+        // 2. Section 2: Sports Breakdown Table
+        if (sectionsData[2]) {
+            const card2 = document.createElement('div');
+            card2.className = 'glass-card section-card';
+            card2.id = 'sec-card-2';
+            card2.style.padding = '1.5rem';
+            card2.innerHTML = renderSportsSection(sectionsData[2]);
+            container.appendChild(card2);
+        }
 
-            if (secId === 1) {
-                // KPIs Overview Card
-                card.innerHTML = `
-                    <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.25rem; color: var(--color-primary); margin-top: 0; margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
-                        <i class="fa-solid fa-chart-pie"></i> 📊 1. KPIs Tổng Quan Giải Đấu
-                    </h3>
-                    <div style="white-space: pre-line; font-size: 0.92rem; line-height: 1.7; color: var(--text-main);">
-                        ${escapeHtml(secContent.replace(/^.*1\. TỔNG QUAN GIẢI ĐẤU:?\s*/i, ''))}
-                    </div>
+        // 3. Section 3: Run & Walk Leaderboard Table
+        if (sectionsData[3]) {
+            const card3 = document.createElement('div');
+            card3.className = 'glass-card section-card';
+            card3.id = 'sec-card-3';
+            card3.style.padding = '1.5rem';
+            card3.innerHTML = renderRunWalkLeaderboardSection(sectionsData[3]);
+            container.appendChild(card3);
+        }
+
+        // 4. Section 4: SSO kCal Leaderboard Table
+        if (sectionsData[4]) {
+            const card4 = document.createElement('div');
+            card4.className = 'glass-card section-card';
+            card4.id = 'sec-card-4';
+            card4.style.padding = '1.5rem';
+            card4.innerHTML = renderSSOkCalLeaderboardSection(sectionsData[4]);
+            container.appendChild(card4);
+        }
+
+        // 5. Section 5: Department Ranking Table
+        if (sectionsData[5]) {
+            const card5 = document.createElement('div');
+            card5.className = 'glass-card section-card';
+            card5.id = 'sec-card-5';
+            card5.style.padding = '1.5rem';
+            card5.innerHTML = renderDeptRankingSection(sectionsData[5]);
+            container.appendChild(card5);
+        }
+
+        // 6. Section 6: Reward Expenses Breakdown
+        if (sectionsData[6]) {
+            const card6 = document.createElement('div');
+            card6.className = 'glass-card section-card';
+            card6.id = 'sec-card-6';
+            card6.style.padding = '1.5rem';
+            card6.innerHTML = renderRewardSection(sectionsData[6]);
+            container.appendChild(card6);
+        }
+
+        // 7. Section 7: Department Participation Progress Bars
+        if (sectionsData[7]) {
+            const card7 = document.createElement('div');
+            card7.className = 'glass-card section-card';
+            card7.id = 'sec-card-7';
+            card7.style.padding = '1.5rem';
+            card7.innerHTML = renderParticipationSection(sectionsData[7]);
+            container.appendChild(card7);
+        }
+    }
+
+    // --- HTML RENDER HELPERS CHO TỪNG SECTION ---
+    function renderKPISection(text) {
+        let html = `
+            <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.25rem; color: var(--color-primary); margin-top: 0; margin-bottom: 1.2rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                <i class="fa-solid fa-chart-pie"></i> 📊 1. KPIs Tổng Quan Giải Đấu
+            </h3>
+        `;
+
+        const getVal = (pattern) => {
+            const m = text.match(pattern);
+            return m ? m[1].trim() : null;
+        };
+
+        const dateRange = getVal(/Thời gian diễn ra:\s*([^\n]+)/i) || '';
+        const athletes = getVal(/Tổng số VĐV tham gia:\s*([^\n]+)/i) || '';
+        const activities = getVal(/Tổng lượt hoạt động:\s*([^\n]+)/i) || '';
+        const distance = getVal(/Tổng quãng đường:\s*([^\n]+)/i) || '';
+        const kcal = getVal(/Tổng calo tiêu thụ:\s*([^\n]+)/i) || '';
+        const hours = getVal(/Tổng thời gian vận động:\s*([^\n]+)/i) || '';
+        const reward = getVal(/Tổng chi phí giải thưởng:\s*([^\n]+)/i) || '';
+
+        if (dateRange) {
+            html += `<div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;"><i class="fa-regular fa-calendar"></i> Khoảng thời gian: <strong style="color: var(--color-secondary);">${escapeHtml(dateRange)}</strong></div>`;
+        }
+
+        html += `<div class="kpi-grid">`;
+
+        if (athletes) {
+            html += `
+                <div class="kpi-card-item">
+                    <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase;"><i class="fa-solid fa-users" style="color: var(--color-primary);"></i> Tổng Số VĐV</span>
+                    <span style="font-size: 1.4rem; font-weight: 800; color: var(--color-primary); font-family: 'Outfit', sans-serif;">${escapeHtml(athletes.split('(')[0])}</span>
+                    ${athletes.includes('(') ? `<span style="font-size: 0.7rem; color: var(--text-muted); background: rgba(255,255,255,0.05); padding: 0.2rem 0.4rem; border-radius: 4px; border: 1px solid rgba(255,255,255,0.08);">${escapeHtml(athletes.split('(')[1].replace(')', ''))}</span>` : ''}
+                </div>
+            `;
+        }
+        if (activities) {
+            html += `
+                <div class="kpi-card-item">
+                    <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase;"><i class="fa-solid fa-person-running" style="color: var(--color-secondary);"></i> Lượt Hoạt Động</span>
+                    <span style="font-size: 1.4rem; font-weight: 800; color: var(--color-secondary); font-family: 'Outfit', sans-serif;">${escapeHtml(activities.split('(')[0])}</span>
+                    ${activities.includes('(') ? `<span style="font-size: 0.7rem; color: var(--text-muted); background: rgba(255,255,255,0.05); padding: 0.2rem 0.4rem; border-radius: 4px; border: 1px solid rgba(255,255,255,0.08);">${escapeHtml(activities.split('(')[1].replace(')', ''))}</span>` : ''}
+                </div>
+            `;
+        }
+        if (distance) {
+            html += `
+                <div class="kpi-card-item">
+                    <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase;"><i class="fa-solid fa-route" style="color: var(--color-green);"></i> Tổng Cự Ly</span>
+                    <span style="font-size: 1.4rem; font-weight: 800; color: var(--color-green); font-family: 'Outfit', sans-serif;">${escapeHtml(distance.split('(')[0])}</span>
+                    ${distance.includes('(') ? `<span style="font-size: 0.7rem; color: var(--text-muted); background: rgba(255,255,255,0.05); padding: 0.2rem 0.4rem; border-radius: 4px; border: 1px solid rgba(255,255,255,0.08);">${escapeHtml(distance.split('(')[1].replace(')', ''))}</span>` : ''}
+                </div>
+            `;
+        }
+        if (kcal) {
+            html += `
+                <div class="kpi-card-item">
+                    <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase;"><i class="fa-solid fa-fire" style="color: #ff5e62;"></i> Calo Tiêu Thụ</span>
+                    <span style="font-size: 1.4rem; font-weight: 800; color: #ff5e62; font-family: 'Outfit', sans-serif;">${escapeHtml(kcal.split('(')[0])}</span>
+                    ${kcal.includes('(') ? `<span style="font-size: 0.7rem; color: var(--text-muted); background: rgba(255,255,255,0.05); padding: 0.2rem 0.4rem; border-radius: 4px; border: 1px solid rgba(255,255,255,0.08);">${escapeHtml(kcal.split('(')[1].replace(')', ''))}</span>` : ''}
+                </div>
+            `;
+        }
+        if (hours) {
+            html += `
+                <div class="kpi-card-item">
+                    <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase;"><i class="fa-solid fa-clock" style="color: var(--color-purple);"></i> Thời Gian Vận Động</span>
+                    <span style="font-size: 1.4rem; font-weight: 800; color: var(--color-purple); font-family: 'Outfit', sans-serif;">${escapeHtml(hours.split('(')[0])}</span>
+                    ${hours.includes('(') ? `<span style="font-size: 0.7rem; color: var(--text-muted); background: rgba(255,255,255,0.05); padding: 0.2rem 0.4rem; border-radius: 4px; border: 1px solid rgba(255,255,255,0.08);">${escapeHtml(hours.split('(')[1].replace(')', ''))}</span>` : ''}
+                </div>
+            `;
+        }
+        if (reward) {
+            html += `
+                <div class="kpi-card-item" style="border-color: rgba(255, 179, 0, 0.3); background: rgba(255, 179, 0, 0.05);">
+                    <span style="font-size: 0.75rem; color: #ffb300; font-weight: 600; text-transform: uppercase;"><i class="fa-solid fa-sack-dollar"></i> Tổng Tiền Thưởng</span>
+                    <span style="font-size: 1.4rem; font-weight: 800; color: #ffb300; font-family: 'Outfit', sans-serif;">${escapeHtml(reward)}</span>
+                </div>
+            `;
+        }
+
+        html += `</div>`;
+        return html;
+    }
+
+    function renderSportsSection(text) {
+        let html = `
+            <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.25rem; color: var(--color-purple); margin-top: 0; margin-bottom: 1.2rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                <i class="fa-solid fa-person-running"></i> 🚴 2. Thống Kê Theo Môn Thể Thao
+            </h3>
+            <div style="overflow-x: auto;">
+                <table class="stat-table">
+                    <thead>
+                        <tr>
+                            <th>Môn Thể Thao</th>
+                            <th>Tổng Lượt</th>
+                            <th>Tổng Cự Ly</th>
+                            <th>Tổng Calo</th>
+                            <th>Chi Tiết SSO vs Khách Mời</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+
+        const lines = text.split('\n').map(l => l.trim()).filter(l => l.startsWith('• Môn'));
+        if (lines.length === 0) {
+            return html + `<tr><td colspan="5" style="color: var(--text-muted);">Không có thông tin bộ môn.</td></tr></tbody></table></div>`;
+        }
+
+        lines.forEach(line => {
+            const m = line.match(/• Môn\s*([^:]+):\s*([\d,]+)\s*lượt\s*\|\s*([\d,.]+)\s*km\s*\|\s*([\d,.]+)\s*KCAL/i);
+            if (m) {
+                const sportName = m[1].trim();
+                const count = m[2].trim();
+                const dist = m[3].trim();
+                const kcal = m[4].trim();
+
+                let sportIcon = 'fa-person-running';
+                if (sportName.toLowerCase().includes('walk') || sportName.toLowerCase().includes('đi bộ')) sportIcon = 'fa-person-walking';
+                else if (sportName.toLowerCase().includes('ride') || sportName.toLowerCase().includes('đạp xe')) sportIcon = 'fa-person-biking';
+                else if (sportName.toLowerCase().includes('swim') || sportName.toLowerCase().includes('bơi')) sportIcon = 'fa-person-swimming';
+
+                html += `
+                    <tr>
+                        <td style="font-weight: 600; color: var(--text-main); display: flex; align-items: center; gap: 0.5rem;">
+                            <i class="fa-solid ${sportIcon}" style="color: var(--color-primary);"></i> ${escapeHtml(sportName)}
+                        </td>
+                        <td><span class="gender-badge male" style="font-size: 0.75rem;">${escapeHtml(count)} lượt</span></td>
+                        <td style="font-weight: 700; color: var(--color-green);">${escapeHtml(dist)} km</td>
+                        <td style="font-weight: 700; color: #ff5e62;">${escapeHtml(kcal)} KCAL</td>
+                        <td style="font-size: 0.78rem; color: var(--text-muted);">Khối SSO & Khách mời theo danh sách</td>
+                    </tr>
                 `;
-            } else if (secId === 2) {
-                // Sport Breakdown Card
-                card.innerHTML = `
-                    <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.25rem; color: var(--color-purple); margin-top: 0; margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
-                        <i class="fa-solid fa-person-running"></i> 🚴 2. Thống Kê Theo Môn Thể Thao
-                    </h3>
-                    <div style="white-space: pre-line; font-size: 0.92rem; line-height: 1.7; color: var(--text-main);">
-                        ${escapeHtml(secContent.replace(/^.*2\. THỐNG KÊ THEO MÔN THỂ THAO:?\s*/i, ''))}
-                    </div>
+            }
+        });
+
+        html += `</tbody></table></div>`;
+        return html;
+    }
+
+    function renderLeaderboardTable(lines, title, colorClass, iconClass) {
+        let html = `
+            <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.25rem; color: ${colorClass}; margin-top: 0; margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                <i class="fa-solid ${iconClass}"></i> ${title}
+            </h3>
+            <div style="overflow-x: auto; max-height: 480px;">
+                <table class="stat-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 60px; text-align: center;">Hạng</th>
+                            <th>Họ và Tên VĐV</th>
+                            <th>Phòng Ban / Đơn Vị</th>
+                            <th>Cự Ly (km) / Calo (KCAL)</th>
+                            <th>Số Buổi</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+
+        let currentGender = '';
+        lines.forEach(l => {
+            l = l.trim();
+            if (l.startsWith('[') && l.endsWith(']:')) {
+                currentGender = l.replace(/[[\]:]/g, '');
+                html += `
+                    <tr style="background: rgba(143, 205, 240, 0.08);">
+                        <td colspan="5" style="font-weight: 700; color: var(--color-primary); font-size: 0.82rem; text-transform: uppercase;">
+                            <i class="fa-solid fa-venus-mars"></i> BẢNG XẾP HẠNG BẢNG ${escapeHtml(currentGender)}
+                        </td>
+                    </tr>
                 `;
-            } else if (secId === 3) {
-                // Run & Walk Top Leaderboard Card
-                card.innerHTML = `
-                    <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.25rem; color: var(--color-green); margin-top: 0; margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
-                        <i class="fa-solid fa-trophy"></i> 🏃 3. Bảng Xếp Hạng VĐV Chạy & Đi Bộ (FULL)
-                    </h3>
-                    <div style="white-space: pre-line; font-size: 0.9rem; line-height: 1.6; color: var(--text-main); max-height: 500px; overflow-y: auto; padding-right: 0.5rem;">
-                        ${escapeHtml(secContent.replace(/^.*3\. BẢNG XẾP HẠNG VĐV CHẠY & ĐI BỘ.*?\n/i, ''))}
-                    </div>
+                return;
+            }
+
+            const itemMatch = l.match(/^([🥇🥈🥉]|\d+\.)\s*([^(]+)\(([^)]+)\):\s*([^\n]+)/);
+            if (itemMatch) {
+                const rankBadge = itemMatch[1].trim();
+                const name = itemMatch[2].trim();
+                const dept = itemMatch[3].trim();
+                const stats = itemMatch[4].trim();
+
+                let isTop = rankBadge.includes('🥇') || rankBadge.includes('🥈') || rankBadge.includes('🥉');
+                let rankDisplay = rankBadge;
+                if (!isTop && rankBadge.endsWith('.')) rankDisplay = `<span style="background: rgba(255,255,255,0.08); padding: 0.1rem 0.4rem; border-radius: 50%; font-size: 0.75rem;">${rankBadge.replace('.', '')}</span>`;
+
+                html += `
+                    <tr>
+                        <td style="text-align: center; font-size: 1.1rem;">${rankDisplay}</td>
+                        <td style="font-weight: 600; color: var(--text-main);">${escapeHtml(name)}</td>
+                        <td><span style="font-size: 0.75rem; background: rgba(255,255,255,0.05); padding: 0.2rem 0.5rem; border-radius: 4px; border: 1px solid rgba(255,255,255,0.08); color: var(--text-muted);">${escapeHtml(dept)}</span></td>
+                        <td style="font-weight: 700; color: var(--color-primary);">${escapeHtml(stats.split('(')[0])}</td>
+                        <td style="font-size: 0.8rem; color: var(--text-muted);">${stats.includes('(') ? escapeHtml(stats.split('(')[1].replace(')', '')) : ''}</td>
+                    </tr>
                 `;
-            } else if (secId === 4) {
-                // SSO kCal Leaderboard Card
-                card.innerHTML = `
-                    <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.25rem; color: var(--color-red, #ff5e62); margin-top: 0; margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
-                        <i class="fa-solid fa-fire"></i> 🔥 4. Bảng Xếp Hạng VĐV SSO Theo kCal (FULL)
-                    </h3>
-                    <div style="white-space: pre-line; font-size: 0.9rem; line-height: 1.6; color: var(--text-main); max-height: 500px; overflow-y: auto; padding-right: 0.5rem;">
-                        ${escapeHtml(secContent.replace(/^.*4\. BẢNG XẾP HẠNG VĐV SSO THEO KCAL.*?\n/i, ''))}
-                    </div>
+            }
+        });
+
+        html += `</tbody></table></div>`;
+        return html;
+    }
+
+    function renderRunWalkLeaderboardSection(text) {
+        const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0 && !l.includes("3. BẢNG XẾP HẠNG"));
+        return renderLeaderboardTable(lines, "🏃 3. Bảng Xếp Hạng VĐV Chạy & Đi Bộ (FULL)", "var(--color-green)", "fa-trophy");
+    }
+
+    function renderSSOkCalLeaderboardSection(text) {
+        const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0 && !l.includes("4. BẢNG XẾP HẠNG"));
+        return renderLeaderboardTable(lines, "🔥 4. Bảng Xếp Hạng VĐV SSO Theo kCal (FULL)", "#ff5e62", "fa-fire");
+    }
+
+    function renderDeptRankingSection(text) {
+        let html = `
+            <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.25rem; color: #ffb300; margin-top: 0; margin-bottom: 1.2rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                <i class="fa-solid fa-building"></i> 🏢 5. Bảng Xếp Hạng Phòng Ban (FULL)
+            </h3>
+            <div style="overflow-x: auto;">
+                <table class="stat-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 60px; text-align: center;">Hạng</th>
+                            <th>Tên Phòng Ban / Đơn Vị</th>
+                            <th>Chỉ Số Trung Bình</th>
+                            <th>VĐV Hoạt Động / Sĩ Số</th>
+                            <th>Tổng Tích Lũy</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+
+        const lines = text.split('\n').map(l => l.trim()).filter(l => l.match(/^([🥇🥈🥉]|\d+\.)/));
+        lines.forEach(l => {
+            const m = l.match(/^([🥇🥈🥉]|\d+\.)\s*([^:]+):\s*TB\s*([^(]+)\(([^)]+)\)/i);
+            if (m) {
+                const rank = m[1].trim();
+                const deptName = m[2].trim();
+                const avgVal = m[3].trim();
+                const details = m[4].trim();
+
+                html += `
+                    <tr>
+                        <td style="text-align: center; font-size: 1.1rem;">${rank}</td>
+                        <td style="font-weight: 700; color: var(--text-main);">${escapeHtml(deptName)}</td>
+                        <td><span style="background: rgba(255, 179, 0, 0.15); color: #ffb300; font-weight: 700; padding: 0.2rem 0.6rem; border-radius: 12px; font-size: 0.8rem; border: 1px solid rgba(255, 179, 0, 0.3);">${escapeHtml(avgVal)}</span></td>
+                        <td><span class="gender-badge male" style="font-size: 0.78rem;">${escapeHtml(details.split('|')[0] || '')}</span></td>
+                        <td style="font-size: 0.82rem; color: var(--text-muted);">${escapeHtml(details.includes('|') ? details.split('|').slice(1).join(' | ') : '')}</td>
+                    </tr>
                 `;
-            } else if (secId === 5) {
-                // Department Ranking Card
-                card.innerHTML = `
-                    <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.25rem; color: var(--color-gold, #ffb300); margin-top: 0; margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
-                        <i class="fa-solid fa-building"></i> 🏢 5. Bảng Xếp Hạng Phòng Ban (FULL)
-                    </h3>
-                    <div style="white-space: pre-line; font-size: 0.9rem; line-height: 1.7; color: var(--text-main);">
-                        ${escapeHtml(secContent.replace(/^.*5\. BẢNG XẾP HẠNG PHÒNG BAN.*?\n/i, ''))}
-                    </div>
+            }
+        });
+
+        html += `</tbody></table></div>`;
+        return html;
+    }
+
+    function renderRewardSection(text) {
+        let html = `
+            <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.25rem; color: var(--color-green); margin-top: 0; margin-bottom: 1.2rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                <i class="fa-solid fa-sack-dollar"></i> 💰 6. Tổng Hợp Chi Phí Giải Thưởng (FULL)
+            </h3>
+        `;
+
+        const getVal = (pattern) => {
+            const m = text.match(pattern);
+            return m ? m[1].trim() : null;
+        };
+
+        const rewardAthletes = getVal(/Tổng VĐV đạt thưởng:\s*([^\n]+)/i) || '';
+        const totalReward = getVal(/Tổng tiền thưởng:\s*([^\n]+)/i) || '';
+        const genderDist = getVal(/Phân bổ giới tính:\s*([^\n]+)/i) || '';
+
+        html += `<div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.2rem;">`;
+        if (totalReward) {
+            html += `
+                <div style="flex: 1; min-width: 200px; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); padding: 1rem; border-radius: 10px;">
+                    <span style="font-size: 0.75rem; color: var(--color-green); text-transform: uppercase; font-weight: 700;">Tổng Tiền Thưởng</span>
+                    <div style="font-size: 1.5rem; font-weight: 800; color: var(--color-green); font-family: 'Outfit', sans-serif;">${escapeHtml(totalReward)}</div>
+                    ${rewardAthletes ? `<span style="font-size: 0.75rem; color: var(--text-muted);">Đạt thưởng: ${escapeHtml(rewardAthletes)}</span>` : ''}
+                </div>
+            `;
+        }
+        if (genderDist) {
+            html += `
+                <div style="flex: 1.5; min-width: 240px; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); padding: 1rem; border-radius: 10px;">
+                    <span style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Phân Bổ Tiền Thưởng Theo Giới Tính</span>
+                    <div style="font-size: 0.95rem; font-weight: 700; color: var(--text-main); margin-top: 0.4rem;">${escapeHtml(genderDist)}</div>
+                </div>
+            `;
+        }
+        html += `</div>`;
+
+        html += `
+            <div style="overflow-x: auto;">
+                <table class="stat-table">
+                    <thead>
+                        <tr>
+                            <th>Phòng Ban Nhận Thưởng</th>
+                            <th>Số VĐV Đạt Thưởng</th>
+                            <th>Tổng Tiền Thưởng (VNĐ)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+
+        const lines = text.split('\n').map(l => l.trim()).filter(l => l.startsWith('+'));
+        lines.forEach(l => {
+            const m = l.match(/\+\s*([^:]+):\s*([\d,]+)\s*VĐV\s*\(([^)]+)\)/i);
+            if (m) {
+                html += `
+                    <tr>
+                        <td style="font-weight: 600; color: var(--text-main);">${escapeHtml(m[1].trim())}</td>
+                        <td><span class="gender-badge male">${escapeHtml(m[2].trim())} VĐV</span></td>
+                        <td style="font-weight: 800; color: var(--color-green);">${escapeHtml(m[3].trim())}</td>
+                    </tr>
                 `;
-            } else if (secId === 6) {
-                // Reward Summary Card
-                card.innerHTML = `
-                    <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.25rem; color: var(--color-green); margin-top: 0; margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
-                        <i class="fa-solid fa-sack-dollar"></i> 💰 6. Tổng Hợp Chi Phí Giải Thưởng (FULL)
-                    </h3>
-                    <div style="white-space: pre-line; font-size: 0.92rem; line-height: 1.7; color: var(--text-main);">
-                        ${escapeHtml(secContent.replace(/^.*6\. TỔNG HỢP CHI PHÍ GIẢI THƯỞNG.*?\n/i, ''))}
-                    </div>
-                `;
-            } else if (secId === 7) {
-                // Participation Rate Card
-                card.innerHTML = `
-                    <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.25rem; color: var(--color-secondary); margin-top: 0; margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
-                        <i class="fa-solid fa-chart-line"></i> 📈 7. Tỷ Lệ VĐV Hoạt Động Theo Phòng Ban
-                    </h3>
-                    <div style="white-space: pre-line; font-size: 0.9rem; line-height: 1.7; color: var(--text-main);">
-                        ${escapeHtml(secContent.replace(/^.*7\. TỶ LỆ VĐV HOẠT ĐỘNG THEO PHÒNG BAN:?\s*/i, ''))}
+            }
+        });
+
+        html += `</tbody></table></div>`;
+        return html;
+    }
+
+    function renderParticipationSection(text) {
+        let html = `
+            <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.25rem; color: var(--color-secondary); margin-top: 0; margin-bottom: 1.2rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                <i class="fa-solid fa-chart-line"></i> 📈 7. Tỷ Lệ VĐV Hoạt Động Theo Phòng Ban
+            </h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem;">
+        `;
+
+        const lines = text.split('\n').map(l => l.trim()).filter(l => l.startsWith('•'));
+        lines.forEach(l => {
+            const m = l.match(/•\s*([^:]+):\s*([\d\/]+)\s*VĐV\s*\(([\d%]+)\)/i);
+            if (m) {
+                const dept = m[1].trim();
+                const ratio = m[2].trim();
+                const percent = m[3].trim().replace('%', '');
+                const pInt = parseInt(percent) || 0;
+
+                html += `
+                    <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 0.9rem; display: flex; flex-direction: column; gap: 0.4rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem;">
+                            <span style="font-weight: 700; color: var(--text-main);">${escapeHtml(dept)}</span>
+                            <span style="font-weight: 800; color: var(--color-secondary);">${pInt}%</span>
+                        </div>
+                        <div style="width: 100%; height: 6px; background: rgba(255, 255, 255, 0.1); border-radius: 3px; overflow: hidden;">
+                            <div style="width: ${pInt}%; height: 100%; background: var(--secondary-gradient, linear-gradient(90deg, #8fcdf0, #38bdf8)); border-radius: 3px;"></div>
+                        </div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted); text-align: right;">Sĩ số tham gia: ${escapeHtml(ratio)} VĐV</div>
                     </div>
                 `;
             }
+        });
 
-            container.appendChild(card);
-        }
+        html += `</div>`;
+        return html;
     }
 
     function escapeHtml(str) {
