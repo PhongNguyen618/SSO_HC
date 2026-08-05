@@ -6498,33 +6498,10 @@ def admin_delete_competition(comp_id: int, request: Request, db: Session = Depen
 
 
 def generate_event_analytics_summary(db: Session, event: CompetitionEvent) -> str:
-    """Tự động tổng hợp dữ liệu thống kê phân tích của giải đấu thành văn bản vinh danh."""
+    """Tự động tổng hợp đầy đủ dữ liệu thống kê phân tích của giải đấu thành văn bản vinh danh chi tiết."""
     event_id = event.id
     event_title = event.title or "Giải chạy"
     allowed_sports = [s.strip() for s in (event.ranking_sports or "All").split(",") if s.strip()]
-
-    # 1. KPIs tổng quan
-    total_active_athletes = db.query(Athlete).join(
-        CompetitionRegistration,
-        Athlete.id == CompetitionRegistration.athlete_id
-    ).filter(CompetitionRegistration.event_id == event_id, Athlete.is_active == True).count()
-
-    act_query = db.query(Activity).filter(Activity.event_id == event_id)
-    kcal_query = db.query(func.sum(Activity.kcal_burned)).filter(Activity.event_id == event_id)
-    dist_query = db.query(func.sum(Activity.distance_km)).filter(Activity.event_id == event_id)
-    time_query = db.query(func.sum(Activity.moving_time_min)).filter(Activity.event_id == event_id)
-
-    if allowed_sports and "All" not in allowed_sports:
-        act_query = act_query.filter(Activity.sport_type.in_(allowed_sports))
-        kcal_query = kcal_query.filter(Activity.sport_type.in_(allowed_sports))
-        dist_query = dist_query.filter(Activity.sport_type.in_(allowed_sports))
-        time_query = time_query.filter(Activity.sport_type.in_(allowed_sports))
-
-    total_activities = act_query.count()
-    total_kcal = round(kcal_query.scalar() or 0.0, 1)
-    total_dist = round(dist_query.scalar() or 0.0, 1)
-    total_moving_time_min = time_query.scalar() or 0.0
-    total_hours = round(total_moving_time_min / 60.0, 1)
 
     is_distance_metric = getattr(event, "ranking_metric", "kcal") == "distance"
     event_start = getattr(event, "start_date", None) or "2020-01-01"
@@ -6535,13 +6512,133 @@ def generate_event_analytics_summary(db: Session, event: CompetitionEvent) -> st
         Activity.activity_date <= str(event_end),
     ]
 
-    # Top VĐV Nam/Nữ Chạy & Đi bộ
+    # 1. KPIs tổng quan & Phân nhóm SSO / Ngoài SSO
+    total_active_athletes = db.query(Athlete).join(
+        CompetitionRegistration,
+        Athlete.id == CompetitionRegistration.athlete_id
+    ).filter(CompetitionRegistration.event_id == event_id, Athlete.is_active == True).count()
+
+    from backend.calculations import get_award_info
+    hidden_depts_set = {r.department for r in db.query(HiddenRewardConfig).filter(HiddenRewardConfig.event_id == event_id).all()}
+    athletes_for_reward = db.query(Athlete).join(
+        CompetitionRegistration,
+        Athlete.id == CompetitionRegistration.athlete_id
+    ).filter(CompetitionRegistration.event_id == event_id, Athlete.is_active == True).all()
+
+    sso_ath_count = 0
+    non_sso_ath_count = 0
+    sso_act_count = 0
+    non_sso_act_count = 0
+    sso_kcal = 0.0
+    non_sso_kcal = 0.0
+    sso_dist = 0.0
+    non_sso_dist = 0.0
+    sso_time = 0.0
+    non_sso_time = 0.0
+
+    reward_dept_map = {}
+    reward_gender_total = {"Nam": 0.0, "Nữ": 0.0}
+    reward_athletes_with = 0
+    total_reward_amount = 0.0
+
+    for ath in athletes_for_reward:
+        act_ath_q = db.query(Activity).filter(Activity.event_id == event_id, Activity.athlete_id == ath.id)
+        if allowed_sports and "All" not in allowed_sports:
+            act_ath_q = act_ath_q.filter(Activity.sport_type.in_(allowed_sports))
+        ath_acts = act_ath_q.all()
+
+        ath_kcal = sum(a.kcal_burned for a in ath_acts) or 0.0
+        ath_dist = sum(a.distance_km for a in ath_acts) or 0.0
+        ath_time = sum(a.moving_time_min for a in ath_acts) or 0.0
+        ath_cnt = len(ath_acts)
+
+        is_sso = (ath.department or "").strip().upper().startswith("SSO")
+        if is_sso:
+            sso_ath_count += 1
+            sso_kcal += ath_kcal
+            sso_dist += ath_dist
+            sso_time += ath_time
+            sso_act_count += ath_cnt
+        else:
+            non_sso_ath_count += 1
+            non_sso_kcal += ath_kcal
+            non_sso_dist += ath_dist
+            non_sso_time += ath_time
+            non_sso_act_count += ath_cnt
+
+        mv = ath_dist if is_distance_metric else ath_kcal
+        aw = get_award_info(ath.gender, mv, db, event_id=event_id)
+        is_hidden = (not is_sso) or ((ath.department or "") in hidden_depts_set)
+        rw_amount = 0 if is_hidden else aw.get("reward_amount", 0.0)
+
+        if rw_amount > 0:
+            reward_athletes_with += 1
+            total_reward_amount += rw_amount
+            dept_key = ath.department or "Chưa rõ"
+            if dept_key not in reward_dept_map:
+                reward_dept_map[dept_key] = {"count": 0, "total": 0.0}
+            reward_dept_map[dept_key]["count"] += 1
+            reward_dept_map[dept_key]["total"] += rw_amount
+            reward_gender_total[ath.gender] = reward_gender_total.get(ath.gender, 0.0) + rw_amount
+
+    total_valid_activities = sso_act_count + non_sso_act_count
+    total_kcal_burned = round(sso_kcal + non_sso_kcal, 1)
+    total_distance = round(sso_dist + non_sso_dist, 1)
+    total_moving_time_min = sso_time + non_sso_time
+    total_hours = round(total_moving_time_min / 60.0, 1)
+
+    # 2. Thống kê theo Môn Thể Thao
+    sport_table_query = db.query(
+        Activity.sport_type,
+        Athlete.department,
+        func.count(Activity.id).label("cnt"),
+        func.sum(Activity.distance_km).label("total_km"),
+        func.sum(Activity.kcal_burned).label("total_kcal")
+    ).join(Athlete, Activity.athlete_id == Athlete.id)\
+     .filter(*base_act_filters)\
+     .group_by(Activity.sport_type, Athlete.department).all()
+
+    sport_dict = {}
+    for s in sport_table_query:
+        stype = s.sport_type or "Khác"
+        dept = s.department or ""
+        is_sso = dept.strip().upper().startswith("SSO")
+
+        if stype not in sport_dict:
+            sport_dict[stype] = {
+                "sport_type": stype, "count": 0, "total_km": 0.0, "total_kcal": 0.0,
+                "sso_count": 0, "sso_km": 0.0, "sso_kcal": 0.0,
+                "non_sso_count": 0, "non_sso_km": 0.0, "non_sso_kcal": 0.0
+            }
+
+        cnt = s.cnt or 0
+        km = float(s.total_km or 0.0)
+        kcal = float(s.total_kcal or 0.0)
+
+        sport_dict[stype]["count"] += cnt
+        sport_dict[stype]["total_km"] += km
+        sport_dict[stype]["total_kcal"] += kcal
+
+        if is_sso:
+            sport_dict[stype]["sso_count"] += cnt
+            sport_dict[stype]["sso_km"] += km
+            sport_dict[stype]["sso_kcal"] += kcal
+        else:
+            sport_dict[stype]["non_sso_count"] += cnt
+            sport_dict[stype]["non_sso_km"] += km
+            sport_dict[stype]["non_sso_kcal"] += kcal
+
+    sport_table = list(sport_dict.values())
+    sport_table.sort(key=lambda x: x["count"], reverse=True)
+
+    # 3. Top VĐV Chạy & Đi bộ (FULL Nam / Nữ)
     run_walk_top = {}
     for gender in ["Nam", "Nữ"]:
         rw_query = db.query(
             Athlete.id, Athlete.full_name, Athlete.department,
             func.sum(Activity.distance_km).label("total_dist"),
             func.sum(Activity.kcal_burned).label("total_kcal"),
+            func.sum(Activity.moving_time_min).label("total_time"),
             func.count(Activity.id).label("act_count")
         ).join(Activity, Athlete.id == Activity.athlete_id)\
          .join(CompetitionRegistration, (Athlete.id == CompetitionRegistration.athlete_id) & (CompetitionRegistration.event_id == event_id))\
@@ -6552,11 +6649,31 @@ def generate_event_analytics_summary(db: Session, event: CompetitionEvent) -> st
              *base_act_filters
          ).group_by(Athlete.id)\
          .order_by(func.sum(Activity.distance_km).desc())\
-         .limit(5)\
          .all()
         run_walk_top[gender] = rw_query
 
-    # Bảng xếp hạng phòng ban
+    # 3.5 Top VĐV Nội bộ SSO theo kCal (FULL Nam / Nữ)
+    sso_kcal_top = {}
+    for gender in ["Nam", "Nữ"]:
+        sso_kcal_query = db.query(
+            Athlete.id, Athlete.full_name, Athlete.department,
+            func.sum(Activity.distance_km).label("total_dist"),
+            func.sum(Activity.kcal_burned).label("total_kcal"),
+            func.sum(Activity.moving_time_min).label("total_time"),
+            func.count(Activity.id).label("act_count")
+        ).join(Activity, Athlete.id == Activity.athlete_id)\
+         .join(CompetitionRegistration, (Athlete.id == CompetitionRegistration.athlete_id) & (CompetitionRegistration.event_id == event_id))\
+         .filter(
+             Athlete.is_active == True,
+             Athlete.gender == gender,
+             func.upper(func.trim(Athlete.department)).like("SSO%"),
+             *base_act_filters
+         ).group_by(Athlete.id)\
+         .order_by(func.sum(Activity.kcal_burned).desc())\
+         .all()
+        sso_kcal_top[gender] = sso_kcal_query
+
+    # 4. Bảng xếp hạng Phòng ban (FULL)
     dept_member_q = db.query(
         Athlete.department,
         func.count(Athlete.id).label("cnt")
@@ -6569,6 +6686,7 @@ def generate_event_analytics_summary(db: Session, event: CompetitionEvent) -> st
         Athlete.department,
         func.sum(Activity.kcal_burned).label("total_kcal"),
         func.sum(Activity.distance_km).label("total_dist"),
+        func.sum(Activity.moving_time_min).label("total_time"),
         func.count(func.distinct(Athlete.id)).label("active_members")
     ).join(Activity, Athlete.id == Activity.athlete_id)\
      .join(CompetitionRegistration, (Athlete.id == CompetitionRegistration.athlete_id) & (CompetitionRegistration.event_id == event_id))\
@@ -6582,12 +6700,14 @@ def generate_event_analytics_summary(db: Session, event: CompetitionEvent) -> st
             members = 1
         tk = d.total_kcal or 0
         td = d.total_dist or 0
+        tt = d.total_time or 0
         dept_ranking.append({
             "department": d.department or "Chưa rõ",
             "members": members,
             "active": d.active_members or 0,
             "total_km": round(td, 1),
             "total_kcal": int(tk),
+            "total_hours": round(tt / 60.0, 1),
             "avg_kcal": round(tk / members, 0),
             "avg_km": round(td / members, 2)
         })
@@ -6597,83 +6717,102 @@ def generate_event_analytics_summary(db: Session, event: CompetitionEvent) -> st
     else:
         dept_ranking.sort(key=lambda x: x["avg_kcal"], reverse=True)
 
-    # Thống kê giải thưởng
-    from backend.calculations import get_award_info
-    hidden_depts_set = {r.department for r in db.query(HiddenRewardConfig).filter(HiddenRewardConfig.event_id == event_id).all()}
-    athletes_for_reward = db.query(Athlete).join(
-        CompetitionRegistration,
-        Athlete.id == CompetitionRegistration.athlete_id
-    ).filter(CompetitionRegistration.event_id == event_id, Athlete.is_active == True).all()
+    # 5. Tỷ lệ tham gia theo phòng ban (FULL)
+    participation = []
+    for dm in dept_member_q:
+        dept_name = dm.department or "Chưa rõ"
+        registered = dm.cnt
+        active_cnt = db.query(func.count(func.distinct(Activity.athlete_id))).join(
+            Athlete, Athlete.id == Activity.athlete_id
+        ).filter(
+            Athlete.department == dm.department,
+            *base_act_filters
+        ).scalar() or 0
+        rate = round(active_cnt / registered * 100, 0) if registered > 0 else 0
+        participation.append({
+            "department": dept_name,
+            "registered": registered,
+            "active": active_cnt,
+            "rate": int(rate)
+        })
+    participation.sort(key=lambda x: x["active"], reverse=True)
 
-    reward_dept_map = {}
-    reward_gender_total = {"Nam": 0.0, "Nữ": 0.0}
-    reward_athletes_with = 0
-    total_reward_amount = 0.0
-
-    for ath in athletes_for_reward:
-        act_ath_q2 = db.query(Activity).filter(Activity.athlete_id == ath.id, Activity.event_id == event_id)
-        if allowed_sports and "All" not in allowed_sports:
-            act_ath_q2 = act_ath_q2.filter(Activity.sport_type.in_(allowed_sports))
-        ath_acts2 = act_ath_q2.all()
-        ath_kcal2 = sum(a.kcal_burned for a in ath_acts2) or 0.0
-        ath_dist2 = sum(a.distance_km for a in ath_acts2) or 0.0
-        mv2 = ath_dist2 if is_distance_metric else ath_kcal2
-
-        aw2 = get_award_info(ath.gender, mv2, db, event_id=event_id)
-        is_sso = (ath.department or "").strip().upper().startswith("SSO")
-        is_hidden = (not is_sso) or ((ath.department or "") in hidden_depts_set)
-        rw_amount = 0 if is_hidden else aw2.get("reward_amount", 0.0)
-
-        if rw_amount > 0:
-            reward_athletes_with += 1
-            total_reward_amount += rw_amount
-            dept_key = ath.department or "Chưa rõ"
-            if dept_key not in reward_dept_map:
-                reward_dept_map[dept_key] = {"count": 0, "total": 0.0}
-            reward_dept_map[dept_key]["count"] += 1
-            reward_dept_map[dept_key]["total"] += rw_amount
-            reward_gender_total[ath.gender] = reward_gender_total.get(ath.gender, 0) + rw_amount
-
-    # Xây dựng văn bản tổng hợp
+    # --- TẠO VĂN BẢN TỔNG HỢP FULL DỮ LIỆU ---
     text = f"🏆 SƠ KẾT PHONG TRÀO THỂ THAO - {event_title.upper()} 🏆\n"
-    text += "--------------------------------------------------\n"
-    text += f"📊 TỔNG QUAN GIẢI ĐẤU ({event.start_date or ''} đến {event.end_date or ''}):\n"
-    text += f"  - Số VĐV hoạt động: {total_active_athletes} VĐV\n"
-    text += f"  - Tổng số hoạt động: {total_activities:,} lượt\n"
-    text += f"  - Tổng quãng đường: {total_dist:,} km\n"
-    text += f"  - Tổng calo tiêu thụ: {total_kcal:,} KCAL\n"
-    text += f"  - Tổng thời gian: {total_hours:,} giờ\n\n"
+    text += "==================================================\n\n"
 
+    # MỤC 1: KPIs TỔNG QUAN
+    text += "📊 1. TỔNG QUAN GIẢI ĐẤU:\n"
+    text += f"  - Thời gian diễn ra: {event.start_date or ''} đến {event.end_date or ''}\n"
+    text += f"  - Tổng số VĐV tham gia: {total_active_athletes} VĐV (SSO: {sso_ath_count} | Ngoài SSO: {non_sso_ath_count})\n"
+    text += f"  - Tổng lượt hoạt động: {total_valid_activities:,} lượt (SSO: {sso_act_count:,} | Ngoài SSO: {non_sso_act_count:,})\n"
+    text += f"  - Tổng quãng đường: {total_distance:,} km (SSO: {round(sso_dist,1):,} km | Ngoài SSO: {round(non_sso_dist,1):,} km)\n"
+    text += f"  - Tổng calo tiêu thụ: {int(total_kcal_burned):,} KCAL (SSO: {int(sso_kcal):,} KCAL | Ngoài SSO: {int(non_sso_kcal):,} KCAL)\n"
+    text += f"  - Tổng thời gian vận động: {total_hours:,} giờ (SSO: {round(sso_time/60,1):,}h | Ngoài SSO: {round(non_sso_time/60,1):,}h)\n"
+    text += f"  - Tổng chi phí giải thưởng: {int(total_reward_amount):,} VNĐ\n\n"
+
+    # MỤC 2: CƠ CẤU BỘ MÔN
+    if sport_table:
+        text += "🚴 2. THỐNG KÊ THEO MÔN THỂ THAO:\n"
+        for s in sport_table:
+            text += f"  • Môn {s['sport_type']}: {s['count']:,} lượt | {s['total_km']:,} km | {s['total_kcal']:,} KCAL\n"
+            text += f"    + Khối SSO: {s['sso_count']:,} lượt ({s['sso_km']:,} km, {s['sso_kcal']:,} KCAL)\n"
+            text += f"    + Khối Khách mời: {s['non_sso_count']:,} lượt ({s['non_sso_km']:,} km, {s['non_sso_kcal']:,} KCAL)\n"
+        text += "\n"
+
+    # MỤC 3: TOP VĐV CHẠY & ĐI BỘ (FULL)
+    text += "🏃 3. BẢNG XẾP HẠNG VĐV CHẠY & ĐI BỘ (TOÀN BỘ VĐV):\n"
     if run_walk_top.get("Nam"):
-        text += "🏃 TOP VĐV CHẠY & ĐI BỘ (NAM):\n"
+        text += "  [NAM]:\n"
         for i, a in enumerate(run_walk_top["Nam"]):
             medal = "🥇" if i == 0 else ("🥈" if i == 1 else ("🥉" if i == 2 else f"  {i+1}."))
-            text += f"  {medal} {a.full_name} ({a.department or 'Chưa rõ'}): {round(a.total_dist or 0, 1)} km / {a.act_count} buổi\n"
-        text += "\n"
-
+            text += f"    {medal} {a.full_name} ({a.department or 'Chưa rõ'}): {round(a.total_dist or 0, 1)} km / {int(a.total_kcal or 0):,} kcal ({a.act_count} buổi)\n"
     if run_walk_top.get("Nữ"):
-        text += "🏃 TOP VĐV CHẠY & ĐI BỘ (NỮ):\n"
+        text += "  [NỮ]:\n"
         for i, a in enumerate(run_walk_top["Nữ"]):
             medal = "🥇" if i == 0 else ("🥈" if i == 1 else ("🥉" if i == 2 else f"  {i+1}."))
-            text += f"  {medal} {a.full_name} ({a.department or 'Chưa rõ'}): {round(a.total_dist or 0, 1)} km / {a.act_count} buổi\n"
-        text += "\n"
+            text += f"    {medal} {a.full_name} ({a.department or 'Chưa rõ'}): {round(a.total_dist or 0, 1)} km / {int(a.total_kcal or 0):,} kcal ({a.act_count} buổi)\n"
+    text += "\n"
 
+    # MỤC 4: TOP VĐV NỘI BỘ SSO THEO KCAL (FULL)
+    text += "🔥 4. BẢNG XẾP HẠNG VĐV SSO THEO KCAL TÍCH LŨY:\n"
+    if sso_kcal_top.get("Nam"):
+        text += "  [NAM - SSO]:\n"
+        for i, a in enumerate(sso_kcal_top["Nam"]):
+            medal = "🥇" if i == 0 else ("🥈" if i == 1 else ("🥉" if i == 2 else f"  {i+1}."))
+            text += f"    {medal} {a.full_name} ({a.department or 'Chưa rõ'}): {int(a.total_kcal or 0):,} KCAL ({round(a.total_dist or 0, 1)} km)\n"
+    if sso_kcal_top.get("Nữ"):
+        text += "  [NỮ - SSO]:\n"
+        for i, a in enumerate(sso_kcal_top["Nữ"]):
+            medal = "🥇" if i == 0 else ("🥈" if i == 1 else ("🥉" if i == 2 else f"  {i+1}."))
+            text += f"    {medal} {a.full_name} ({a.department or 'Chưa rõ'}): {int(a.total_kcal or 0):,} KCAL ({round(a.total_dist or 0, 1)} km)\n"
+    text += "\n"
+
+    # MỤC 5: BẢNG XẾP HẠNG PHÒNG BAN (FULL)
     if dept_ranking:
-        text += "🏢 BẢNG XẾP HẠNG PHÒNG BAN:\n"
-        for i, d in enumerate(dept_ranking[:5]):
+        text += "🏢 5. BẢNG XẾP HẠNG PHÒNG BAN (TOÀN BỘ PHÒNG BAN):\n"
+        for i, d in enumerate(dept_ranking):
             medal = "🥇" if i == 0 else ("🥈" if i == 1 else ("🥉" if i == 2 else f"  {i+1}."))
             val_str = f"{d['avg_km']} km/người" if is_distance_metric else f"{int(d['avg_kcal']):,} kcal/người"
-            text += f"  {medal} {d['department']}: TB {val_str} ({d['active']}/{d['members']} VĐV tham gia)\n"
+            text += f"  {medal} {d['department']}: TB {val_str} ({d['active']}/{d['members']} VĐV tham gia | Tổng {d['total_km']} km | {d['total_kcal']:,} kcal)\n"
         text += "\n"
 
+    # MỤC 6: TỔNG HỢP CHI PHÍ GIẢI THƯỞNG (FULL)
     if reward_dept_map:
-        text += "💰 TỔNG HỢP CHI PHÍ GIẢI THƯỞNG:\n"
+        text += "💰 6. TỔNG HỢP CHI PHÍ GIẢI THƯỞNG (TOÀN BỘ PHÒNG BAN):\n"
         text += f"  - Tổng VĐV đạt thưởng: {reward_athletes_with} VĐV\n"
         text += f"  - Tổng tiền thưởng: {int(total_reward_amount):,} VNĐ\n"
-        text += f"  - Theo giới tính: Nam {int(reward_gender_total['Nam']):,} VNĐ | Nữ {int(reward_gender_total['Nữ']):,} VNĐ\n"
-        text += "  - Theo phòng ban:\n"
-        for dept_name, info in sorted(reward_dept_map.items(), key=lambda x: x[1]["total"], reverse=True)[:5]:
+        text += f"  - Phân bổ giới tính: Nam {int(reward_gender_total['Nam']):,} VNĐ | Nữ {int(reward_gender_total['Nữ']):,} VNĐ\n"
+        text += "  - Chi tiết theo phòng ban:\n"
+        for dept_name, info in sorted(reward_dept_map.items(), key=lambda x: x[1]["total"], reverse=True):
             text += f"    + {dept_name}: {info['count']} VĐV ({int(info['total']):,} VNĐ)\n"
+        text += "\n"
+
+    # MỤC 7: TỶ LỆ THAM GIA THEO PHÒNG BAN (FULL)
+    if participation:
+        text += "📈 7. TỶ LỆ VĐV HOẠT ĐỘNG THEO PHÒNG BAN:\n"
+        for p in participation:
+            text += f"  • {p['department']}: {p['active']}/{p['registered']} VĐV ({p['rate']}%)\n"
 
     return text
 
