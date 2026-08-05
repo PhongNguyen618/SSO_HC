@@ -21,7 +21,7 @@ load_dotenv()
 # Ví dụ: https://yourdomain.com hoặc http://localhost:8000 khi dev local
 APP_URL = os.getenv("APP_URL", "").rstrip("/")
 
-from backend.database import SessionLocal, init_db, get_db, Config, Athlete, Activity, MetsRule, RewardRule, hash_password, CompetitionEvent, CompetitionRegistration, EventMultiplier, SupportTicket, HiddenRewardConfig
+from backend.database import SessionLocal, init_db, get_db, Config, Athlete, Activity, MetsRule, RewardRule, hash_password, CompetitionEvent, CompetitionRegistration, EventMultiplier, SupportTicket, HiddenRewardConfig, ArchivedEvent
 from backend.calculations import get_award_info, get_multiplier_for_date
 from backend.sync_engine import sync_club_activities, get_config_dict, update_config, link_unlinked_activities, import_excel_files
 from backend.auth import get_admin_session, COOKIE_NAME, verify_password
@@ -6495,6 +6495,234 @@ def admin_delete_competition(comp_id: int, request: Request, db: Session = Depen
     except Exception as e:
         db.rollback()
         return RedirectResponse(f"/admin?error=Lỗi khi xóa giải đấu: {str(e)}#tab-competitions", status_code=303)
+
+
+def generate_event_analytics_summary(db: Session, event: CompetitionEvent) -> str:
+    """Tự động tổng hợp dữ liệu thống kê phân tích của giải đấu thành văn bản vinh danh."""
+    event_id = event.id
+    event_title = event.title or "Giải chạy"
+    allowed_sports = [s.strip() for s in (event.ranking_sports or "All").split(",") if s.strip()]
+
+    # 1. KPIs tổng quan
+    total_active_athletes = db.query(Athlete).join(
+        CompetitionRegistration,
+        Athlete.id == CompetitionRegistration.athlete_id
+    ).filter(CompetitionRegistration.event_id == event_id, Athlete.is_active == True).count()
+
+    act_query = db.query(Activity).filter(Activity.event_id == event_id)
+    kcal_query = db.query(func.sum(Activity.kcal_burned)).filter(Activity.event_id == event_id)
+    dist_query = db.query(func.sum(Activity.distance_km)).filter(Activity.event_id == event_id)
+    time_query = db.query(func.sum(Activity.moving_time_min)).filter(Activity.event_id == event_id)
+
+    if allowed_sports and "All" not in allowed_sports:
+        act_query = act_query.filter(Activity.sport_type.in_(allowed_sports))
+        kcal_query = kcal_query.filter(Activity.sport_type.in_(allowed_sports))
+        dist_query = dist_query.filter(Activity.sport_type.in_(allowed_sports))
+        time_query = time_query.filter(Activity.sport_type.in_(allowed_sports))
+
+    total_activities = act_query.count()
+    total_kcal = round(kcal_query.scalar() or 0.0, 1)
+    total_dist = round(dist_query.scalar() or 0.0, 1)
+    total_moving_time_min = time_query.scalar() or 0.0
+    total_hours = round(total_moving_time_min / 60.0, 1)
+
+    is_distance_metric = getattr(event, "ranking_metric", "kcal") == "distance"
+    event_start = getattr(event, "start_date", None) or "2020-01-01"
+    event_end = getattr(event, "end_date", None) or "2030-12-31"
+    base_act_filters = [
+        Activity.event_id == event_id,
+        Activity.activity_date >= str(event_start),
+        Activity.activity_date <= str(event_end),
+    ]
+
+    # Top VĐV Nam/Nữ Chạy & Đi bộ
+    run_walk_top = {}
+    for gender in ["Nam", "Nữ"]:
+        rw_query = db.query(
+            Athlete.id, Athlete.full_name, Athlete.department,
+            func.sum(Activity.distance_km).label("total_dist"),
+            func.sum(Activity.kcal_burned).label("total_kcal"),
+            func.count(Activity.id).label("act_count")
+        ).join(Activity, Athlete.id == Activity.athlete_id)\
+         .join(CompetitionRegistration, (Athlete.id == CompetitionRegistration.athlete_id) & (CompetitionRegistration.event_id == event_id))\
+         .filter(
+             Athlete.is_active == True,
+             Athlete.gender == gender,
+             Activity.sport_type.in_(["Run", "Walk"]),
+             *base_act_filters
+         ).group_by(Athlete.id)\
+         .order_by(func.sum(Activity.distance_km).desc())\
+         .limit(5)\
+         .all()
+        run_walk_top[gender] = rw_query
+
+    # Bảng xếp hạng phòng ban
+    dept_member_q = db.query(
+        Athlete.department,
+        func.count(Athlete.id).label("cnt")
+    ).join(CompetitionRegistration, (Athlete.id == CompetitionRegistration.athlete_id) & (CompetitionRegistration.event_id == event_id))\
+     .filter(Athlete.is_active == True)\
+     .group_by(Athlete.department).all()
+    dept_member_map = {dm.department: dm.cnt for dm in dept_member_q}
+
+    dept_stats_q = db.query(
+        Athlete.department,
+        func.sum(Activity.kcal_burned).label("total_kcal"),
+        func.sum(Activity.distance_km).label("total_dist"),
+        func.count(func.distinct(Athlete.id)).label("active_members")
+    ).join(Activity, Athlete.id == Activity.athlete_id)\
+     .join(CompetitionRegistration, (Athlete.id == CompetitionRegistration.athlete_id) & (CompetitionRegistration.event_id == event_id))\
+     .filter(Athlete.is_active == True, *base_act_filters)\
+     .group_by(Athlete.department).all()
+
+    dept_ranking = []
+    for d in dept_stats_q:
+        members = dept_member_map.get(d.department, d.active_members or 1)
+        if members == 0:
+            members = 1
+        tk = d.total_kcal or 0
+        td = d.total_dist or 0
+        dept_ranking.append({
+            "department": d.department or "Chưa rõ",
+            "members": members,
+            "active": d.active_members or 0,
+            "total_km": round(td, 1),
+            "total_kcal": int(tk),
+            "avg_kcal": round(tk / members, 0),
+            "avg_km": round(td / members, 2)
+        })
+
+    if is_distance_metric:
+        dept_ranking.sort(key=lambda x: x["avg_km"], reverse=True)
+    else:
+        dept_ranking.sort(key=lambda x: x["avg_kcal"], reverse=True)
+
+    # Thống kê giải thưởng
+    from backend.calculations import get_award_info
+    hidden_depts_set = {r.department for r in db.query(HiddenRewardConfig).filter(HiddenRewardConfig.event_id == event_id).all()}
+    athletes_for_reward = db.query(Athlete).join(
+        CompetitionRegistration,
+        Athlete.id == CompetitionRegistration.athlete_id
+    ).filter(CompetitionRegistration.event_id == event_id, Athlete.is_active == True).all()
+
+    reward_dept_map = {}
+    reward_gender_total = {"Nam": 0.0, "Nữ": 0.0}
+    reward_athletes_with = 0
+    total_reward_amount = 0.0
+
+    for ath in athletes_for_reward:
+        act_ath_q2 = db.query(Activity).filter(Activity.athlete_id == ath.id, Activity.event_id == event_id)
+        if allowed_sports and "All" not in allowed_sports:
+            act_ath_q2 = act_ath_q2.filter(Activity.sport_type.in_(allowed_sports))
+        ath_acts2 = act_ath_q2.all()
+        ath_kcal2 = sum(a.kcal_burned for a in ath_acts2) or 0.0
+        ath_dist2 = sum(a.distance_km for a in ath_acts2) or 0.0
+        mv2 = ath_dist2 if is_distance_metric else ath_kcal2
+
+        aw2 = get_award_info(ath.gender, mv2, db, event_id=event_id)
+        is_sso = (ath.department or "").strip().upper().startswith("SSO")
+        is_hidden = (not is_sso) or ((ath.department or "") in hidden_depts_set)
+        rw_amount = 0 if is_hidden else aw2.get("reward_amount", 0.0)
+
+        if rw_amount > 0:
+            reward_athletes_with += 1
+            total_reward_amount += rw_amount
+            dept_key = ath.department or "Chưa rõ"
+            if dept_key not in reward_dept_map:
+                reward_dept_map[dept_key] = {"count": 0, "total": 0.0}
+            reward_dept_map[dept_key]["count"] += 1
+            reward_dept_map[dept_key]["total"] += rw_amount
+            reward_gender_total[ath.gender] = reward_gender_total.get(ath.gender, 0) + rw_amount
+
+    # Xây dựng văn bản tổng hợp
+    text = f"🏆 SƠ KẾT PHONG TRÀO THỂ THAO - {event_title.upper()} 🏆\n"
+    text += "--------------------------------------------------\n"
+    text += f"📊 TỔNG QUAN GIẢI ĐẤU ({event.start_date or ''} đến {event.end_date or ''}):\n"
+    text += f"  - Số VĐV hoạt động: {total_active_athletes} VĐV\n"
+    text += f"  - Tổng số hoạt động: {total_activities:,} lượt\n"
+    text += f"  - Tổng quãng đường: {total_dist:,} km\n"
+    text += f"  - Tổng calo tiêu thụ: {total_kcal:,} KCAL\n"
+    text += f"  - Tổng thời gian: {total_hours:,} giờ\n\n"
+
+    if run_walk_top.get("Nam"):
+        text += "🏃 TOP VĐV CHẠY & ĐI BỘ (NAM):\n"
+        for i, a in enumerate(run_walk_top["Nam"]):
+            medal = "🥇" if i == 0 else ("🥈" if i == 1 else ("🥉" if i == 2 else f"  {i+1}."))
+            text += f"  {medal} {a.full_name} ({a.department or 'Chưa rõ'}): {round(a.total_dist or 0, 1)} km / {a.act_count} buổi\n"
+        text += "\n"
+
+    if run_walk_top.get("Nữ"):
+        text += "🏃 TOP VĐV CHẠY & ĐI BỘ (NỮ):\n"
+        for i, a in enumerate(run_walk_top["Nữ"]):
+            medal = "🥇" if i == 0 else ("🥈" if i == 1 else ("🥉" if i == 2 else f"  {i+1}."))
+            text += f"  {medal} {a.full_name} ({a.department or 'Chưa rõ'}): {round(a.total_dist or 0, 1)} km / {a.act_count} buổi\n"
+        text += "\n"
+
+    if dept_ranking:
+        text += "🏢 BẢNG XẾP HẠNG PHÒNG BAN:\n"
+        for i, d in enumerate(dept_ranking[:5]):
+            medal = "🥇" if i == 0 else ("🥈" if i == 1 else ("🥉" if i == 2 else f"  {i+1}."))
+            val_str = f"{d['avg_km']} km/người" if is_distance_metric else f"{int(d['avg_kcal']):,} kcal/người"
+            text += f"  {medal} {d['department']}: TB {val_str} ({d['active']}/{d['members']} VĐV tham gia)\n"
+        text += "\n"
+
+    if reward_dept_map:
+        text += "💰 TỔNG HỢP CHI PHÍ GIẢI THƯỞNG:\n"
+        text += f"  - Tổng VĐV đạt thưởng: {reward_athletes_with} VĐV\n"
+        text += f"  - Tổng tiền thưởng: {int(total_reward_amount):,} VNĐ\n"
+        text += f"  - Theo giới tính: Nam {int(reward_gender_total['Nam']):,} VNĐ | Nữ {int(reward_gender_total['Nữ']):,} VNĐ\n"
+        text += "  - Theo phòng ban:\n"
+        for dept_name, info in sorted(reward_dept_map.items(), key=lambda x: x[1]["total"], reverse=True)[:5]:
+            text += f"    + {dept_name}: {info['count']} VĐV ({int(info['total']):,} VNĐ)\n"
+
+    return text
+
+
+def archive_competition_event(db: Session, event: CompetitionEvent) -> ArchivedEvent:
+    """Chuyển giải đấu thành Sự kiện Lịch sử và lưu kết quả thống kê phân tích."""
+    from backend.database import ArchivedEvent
+    summary_text = generate_event_analytics_summary(db, event)
+
+    # Kiểm tra xem giải này đã có trong ArchivedEvent chưa
+    archived = db.query(ArchivedEvent).filter(ArchivedEvent.title == event.title.strip()).first()
+    if archived:
+        archived.summary_text = summary_text
+        if event.banner_image and not archived.banner_image:
+            archived.banner_image = event.banner_image
+    else:
+        archived = ArchivedEvent(
+            title=event.title.strip(),
+            banner_image=event.banner_image or "/branding/LOGO_A2.png",
+            summary_text=summary_text,
+            video_url=None,
+            gallery_images=""
+        )
+        db.add(archived)
+
+    event.is_active = False
+    db.commit()
+    db.refresh(archived)
+    return archived
+
+
+@app.post("/admin/competitions/archive/{comp_id}")
+def admin_archive_competition(comp_id: int, request: Request, db: Session = Depends(get_db)):
+    """API lưu thủ công một giải đấu vào Sự kiện Lịch sử."""
+    admin = get_admin_session(request, db)
+    if not admin:
+        return RedirectResponse("/admin?error=Chua dang nhap", status_code=303)
+
+    comp = db.query(CompetitionEvent).filter(CompetitionEvent.id == comp_id).first()
+    if not comp:
+        return RedirectResponse("/admin?error=Không tìm thấy giải đấu#tab-competitions", status_code=303)
+
+    try:
+        archived = archive_competition_event(db, comp)
+        return RedirectResponse("/admin?success=Đã chuyển giải đấu thành Sự kiện Lịch sử thành công#tab-competitions", status_code=303)
+    except Exception as e:
+        db.rollback()
+        return RedirectResponse(f"/admin?error=Lỗi khi chuyển giải đấu: {str(e)}#tab-competitions", status_code=303)
+
 
 
 def run_sync_single_in_background(comp_id: int):

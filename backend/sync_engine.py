@@ -1250,9 +1250,14 @@ def sync_club_activities(event_id: int = None) -> dict:
                 CompetitionEvent.end_date < today_str
             ).all()
             if expired_events:
+                from backend.main import archive_competition_event
                 for ex_ev in expired_events:
-                    ex_ev.is_active = False
-                    print(f"Sync Engine: Event '{ex_ev.title}' (ID {ex_ev.id}) has ended on {ex_ev.end_date}. Auto marked as INACTIVE.")
+                    try:
+                        archive_competition_event(db, ex_ev)
+                        print(f"Sync Engine: Event '{ex_ev.title}' (ID {ex_ev.id}) has ended on {ex_ev.end_date}. Auto archived to Historical Events.")
+                    except Exception as arch_err:
+                        ex_ev.is_active = False
+                        print(f"Sync Engine: Event '{ex_ev.title}' ended, error auto archiving ({arch_err}). Marked as INACTIVE.")
                 db.commit()
 
         # 2. Xác định danh sách giải đấu cần đồng bộ

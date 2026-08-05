@@ -2439,6 +2439,11 @@
                                     <button onclick="toggleEditComp({{ comp.id }})" class="btn btn-secondary btn-sm" style="font-size: 0.75rem; padding: 0.3rem 0.6rem;">
                                         <i class="fa-solid fa-pen-to-square"></i> Sửa
                                     </button>
+                                    <form action="/admin/competitions/archive/{{ comp.id }}" method="POST" onsubmit="return confirm('Chuyển giải đấu \'{{ comp.title }}\' thành Sự kiện Lịch sử và tổng hợp toàn bộ kết quả phân tích?');" style="margin: 0;">
+                                        <button type="submit" class="btn btn-sm" style="font-size: 0.75rem; padding: 0.3rem 0.6rem; background: rgba(143, 205, 240, 0.15); border: 1px solid rgba(143, 205, 240, 0.3); color: #8FCDF0;">
+                                            <i class="fa-solid fa-box-archive"></i> Lưu Lịch sử
+                                        </button>
+                                    </form>
                                     <form action="/admin/competitions/delete/{{ comp.id }}" method="POST" onsubmit="return confirm('Xóa giải đấu \'{{ comp.title }}\' và TẤT CẢ hoạt động liên quan? Thao tác này KHÔNG THỂ hoàn tác!');" style="margin: 0;">
                                         <button type="submit" class="btn btn-danger btn-sm" style="font-size: 0.75rem; padding: 0.3rem 0.6rem;">
                                             <i class="fa-solid fa-trash"></i> Xóa
