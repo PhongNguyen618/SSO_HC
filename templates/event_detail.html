@@ -43,8 +43,34 @@
                 </div>
             </div>
 
-            <!-- Event Article Body -->
-            <div class="glass-card" style="padding: 2rem;">
+            <!-- Section Filter Toolbar (Nút bật/tắt hiển thị động) -->
+            <div class="glass-card" id="filterToolbarCard" style="padding: 1rem 1.2rem; margin-bottom: 0;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
+                    <span style="font-size: 0.85rem; font-weight: 700; color: var(--color-primary); display: flex; align-items: center; gap: 0.4rem; text-transform: uppercase; letter-spacing: 0.5px;">
+                        <i class="fa-solid fa-sliders"></i> Tùy chọn hiển thị mục báo cáo:
+                    </span>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="toggleAllSections(true)" style="font-size: 0.72rem; padding: 0.2rem 0.6rem; border-color: rgba(255,255,255,0.2);">
+                        <i class="fa-solid fa-eye"></i> Hiện Tất Cả
+                    </button>
+                </div>
+                <div id="sectionFilterButtons" style="display: flex; flex-wrap: wrap; gap: 0.4rem;">
+                    <button class="filter-pill active" data-sec="1" onclick="toggleSectionVisibility(1)"><i class="fa-solid fa-chart-pie"></i> KPIs Tổng Quan</button>
+                    <button class="filter-pill active" data-sec="2" onclick="toggleSectionVisibility(2)"><i class="fa-solid fa-person-running"></i> Môn Thể Thao</button>
+                    <button class="filter-pill active" data-sec="3" onclick="toggleSectionVisibility(3)"><i class="fa-solid fa-trophy"></i> BXH Chạy & Đi Bộ</button>
+                    <button class="filter-pill active" data-sec="4" onclick="toggleSectionVisibility(4)"><i class="fa-solid fa-fire"></i> BXH SSO kCal</button>
+                    <button class="filter-pill active" data-sec="5" onclick="toggleSectionVisibility(5)"><i class="fa-solid fa-building"></i> BXH Phòng Ban</button>
+                    <button class="filter-pill active" data-sec="6" onclick="toggleSectionVisibility(6)"><i class="fa-solid fa-sack-dollar"></i> Chi Phí Giải Thưởng</button>
+                    <button class="filter-pill active" data-sec="7" onclick="toggleSectionVisibility(7)"><i class="fa-solid fa-chart-line"></i> Tỷ Lệ Tham Gia</button>
+                </div>
+            </div>
+
+            <!-- Dynamic Rendered Sections Container -->
+            <div id="analyticsSectionsContainer" style="display: flex; flex-direction: column; gap: 1.5rem;">
+                <!-- JS Parser renders structured cards here -->
+            </div>
+
+            <!-- Fallback Raw Article Card -->
+            <div id="fallbackRawArticle" class="glass-card" style="padding: 2rem; display: none;">
                 <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.3rem; color: var(--color-secondary); margin-top: 0; margin-bottom: 1.2rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.6rem; display: flex; align-items: center; gap: 0.5rem;">
                     <i class="fa-solid fa-ranking-star"></i> Kết Quả Vinh Danh & Tóm Tắt
                 </h3>
@@ -152,6 +178,86 @@
         background: var(--color-primary) !important;
         transform: scale(1.2);
         box-shadow: 0 0 8px var(--color-primary);
+    }
+
+    /* CSS cho Filter Pills & Analytics Cards */
+    .filter-pill {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        color: var(--text-muted);
+        padding: 0.35rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+    }
+    .filter-pill:hover {
+        background: rgba(143, 205, 240, 0.15);
+        border-color: rgba(143, 205, 240, 0.3);
+        color: var(--color-primary);
+    }
+    .filter-pill.active {
+        background: rgba(143, 205, 240, 0.2);
+        border-color: var(--color-primary);
+        color: var(--color-primary);
+        box-shadow: 0 0 10px rgba(143, 205, 240, 0.25);
+    }
+    .filter-pill.inactive {
+        opacity: 0.45;
+        background: rgba(0, 0, 0, 0.2);
+        border-color: rgba(255, 255, 255, 0.05);
+        color: var(--text-muted);
+        text-decoration: line-through;
+    }
+
+    .section-card {
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .section-card.hidden-section {
+        display: none !important;
+    }
+
+    .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 1rem;
+    }
+    .kpi-card-item {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 10px;
+        padding: 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.3rem;
+        transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+    .kpi-card-item:hover {
+        transform: translateY(-2px);
+        border-color: rgba(143, 205, 240, 0.3);
+    }
+
+    .stat-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.85rem;
+    }
+    .stat-table th, .stat-table td {
+        padding: 0.65rem 0.8rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        text-align: left;
+    }
+    .stat-table th {
+        color: var(--color-secondary);
+        font-weight: 600;
+        background: rgba(255, 255, 255, 0.03);
+    }
+    .stat-table tr:hover td {
+        background: rgba(255, 255, 255, 0.02);
     }
 </style>
 {% endblock %}
@@ -264,7 +370,7 @@
                 if (!isMouseOverSlider) {
                     showSlide(currentSlideIndex + 1);
                 }
-            }, 3500); // Tự trôi sau mỗi 3.5 giây
+            }, 3500);
         }
     }
     
@@ -279,6 +385,181 @@
         startSliderAutoPlay();
     }
     
+    // --- BỘ ẨN/HIỆN ĐỘNG CÁC MỤC THỐNG KÊ (SECTION TOGGLE & AUTO-REFLOW) ---
+    const sectionVisibilityState = { 1: true, 2: true, 3: true, 4: true, 5: true, 6: true, 7: true };
+
+    function toggleSectionVisibility(secId) {
+        sectionVisibilityState[secId] = !sectionVisibilityState[secId];
+        updateSectionUI(secId);
+    }
+
+    function toggleAllSections(showAll) {
+        for (let i = 1; i <= 7; i++) {
+            sectionVisibilityState[i] = showAll;
+            updateSectionUI(i);
+        }
+    }
+
+    function updateSectionUI(secId) {
+        const secCard = document.getElementById(`sec-card-${secId}`);
+        const pillBtn = document.querySelector(`.filter-pill[data-sec="${secId}"]`);
+        const isVisible = sectionVisibilityState[secId];
+
+        if (secCard) {
+            if (isVisible) {
+                secCard.classList.remove('hidden-section');
+            } else {
+                secCard.classList.add('hidden-section');
+            }
+        }
+        if (pillBtn) {
+            if (isVisible) {
+                pillBtn.classList.add('active');
+                pillBtn.classList.remove('inactive');
+            } else {
+                pillBtn.classList.remove('active');
+                pillBtn.classList.add('inactive');
+            }
+        }
+    }
+
+    // --- BỘ PARSE BÁO CÁO CHUYỂN TỪ TEXT SANG CÁC CARD GIAO DIỆN GLASSMOPHIC ---
+    function renderStructuredSummaryText() {
+        const rawText = {{ event.summary_text | tojson }};
+        const container = document.getElementById('analyticsSectionsContainer');
+        const filterToolbarCard = document.getElementById('filterToolbarCard');
+        const fallbackArticle = document.getElementById('fallbackRawArticle');
+
+        if (!rawText || !container) return;
+
+        // Kiểm tra xem văn bản có chứa các mốc tiêu đề chuẩn 1 -> 7 không
+        const hasStructuredFormat = rawText.includes("1. TỔNG QUAN GIẢI ĐẤU") || rawText.includes("SƠ KẾT PHONG TRÀO THỂ THAO");
+
+        if (!hasStructuredFormat) {
+            if (filterToolbarCard) filterToolbarCard.style.display = 'none';
+            if (fallbackArticle) fallbackArticle.style.display = 'block';
+            return;
+        }
+
+        // Tách các phần bằng regex tiêu đề
+        const secRegex = /(?:📊\s*1\.|🚴\s*2\.|🏃\s*3\.|🔥\s*4\.|🏢\s*5\.|💰\s*6\.|📈\s*7\.)/g;
+        const matches = [...rawText.matchAll(secRegex)];
+
+        if (matches.length === 0) {
+            if (filterToolbarCard) filterToolbarCard.style.display = 'none';
+            if (fallbackArticle) fallbackArticle.style.display = 'block';
+            return;
+        }
+
+        container.innerHTML = '';
+
+        // Tách văn bản thành các đoạn section
+        const sectionsData = {};
+        for (let i = 0; i < matches.length; i++) {
+            const startIdx = matches[i].index;
+            const endIdx = (i < matches.length - 1) ? matches[i + 1].index : rawText.length;
+            const secText = rawText.substring(startIdx, endIdx).trim();
+
+            if (secText.includes("1. TỔNG QUAN GIẢI ĐẤU")) sectionsData[1] = secText;
+            else if (secText.includes("2. THỐNG KÊ THEO MÔN THỂ THAO")) sectionsData[2] = secText;
+            else if (secText.includes("3. BẢNG XẾP HẠNG VĐV CHẠY & ĐI BỘ")) sectionsData[3] = secText;
+            else if (secText.includes("4. BẢNG XẾP HẠNG VĐV SSO THEO KCAL")) sectionsData[4] = secText;
+            else if (secText.includes("5. BẢNG XẾP HẠNG PHÒNG BAN")) sectionsData[5] = secText;
+            else if (secText.includes("6. TỔNG HỢP CHI PHÍ GIẢI THƯỞNG")) sectionsData[6] = secText;
+            else if (secText.includes("7. TỶ LỆ VĐV HOẠT ĐỘNG THEO PHÒNG BAN")) sectionsData[7] = secText;
+        }
+
+        // Render từng card
+        for (let secId = 1; secId <= 7; secId++) {
+            const secContent = sectionsData[secId];
+            if (!secContent) continue;
+
+            const card = document.createElement('div');
+            card.className = 'glass-card section-card';
+            card.id = `sec-card-${secId}`;
+            card.style.padding = '1.5rem';
+
+            if (secId === 1) {
+                // KPIs Overview Card
+                card.innerHTML = `
+                    <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.25rem; color: var(--color-primary); margin-top: 0; margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                        <i class="fa-solid fa-chart-pie"></i> 📊 1. KPIs Tổng Quan Giải Đấu
+                    </h3>
+                    <div style="white-space: pre-line; font-size: 0.92rem; line-height: 1.7; color: var(--text-main);">
+                        ${escapeHtml(secContent.replace(/^.*1\. TỔNG QUAN GIẢI ĐẤU:?\s*/i, ''))}
+                    </div>
+                `;
+            } else if (secId === 2) {
+                // Sport Breakdown Card
+                card.innerHTML = `
+                    <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.25rem; color: var(--color-purple); margin-top: 0; margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                        <i class="fa-solid fa-person-running"></i> 🚴 2. Thống Kê Theo Môn Thể Thao
+                    </h3>
+                    <div style="white-space: pre-line; font-size: 0.92rem; line-height: 1.7; color: var(--text-main);">
+                        ${escapeHtml(secContent.replace(/^.*2\. THỐNG KÊ THEO MÔN THỂ THAO:?\s*/i, ''))}
+                    </div>
+                `;
+            } else if (secId === 3) {
+                // Run & Walk Top Leaderboard Card
+                card.innerHTML = `
+                    <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.25rem; color: var(--color-green); margin-top: 0; margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                        <i class="fa-solid fa-trophy"></i> 🏃 3. Bảng Xếp Hạng VĐV Chạy & Đi Bộ (FULL)
+                    </h3>
+                    <div style="white-space: pre-line; font-size: 0.9rem; line-height: 1.6; color: var(--text-main); max-height: 500px; overflow-y: auto; padding-right: 0.5rem;">
+                        ${escapeHtml(secContent.replace(/^.*3\. BẢNG XẾP HẠNG VĐV CHẠY & ĐI BỘ.*?\n/i, ''))}
+                    </div>
+                `;
+            } else if (secId === 4) {
+                // SSO kCal Leaderboard Card
+                card.innerHTML = `
+                    <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.25rem; color: var(--color-red, #ff5e62); margin-top: 0; margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                        <i class="fa-solid fa-fire"></i> 🔥 4. Bảng Xếp Hạng VĐV SSO Theo kCal (FULL)
+                    </h3>
+                    <div style="white-space: pre-line; font-size: 0.9rem; line-height: 1.6; color: var(--text-main); max-height: 500px; overflow-y: auto; padding-right: 0.5rem;">
+                        ${escapeHtml(secContent.replace(/^.*4\. BẢNG XẾP HẠNG VĐV SSO THEO KCAL.*?\n/i, ''))}
+                    </div>
+                `;
+            } else if (secId === 5) {
+                // Department Ranking Card
+                card.innerHTML = `
+                    <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.25rem; color: var(--color-gold, #ffb300); margin-top: 0; margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                        <i class="fa-solid fa-building"></i> 🏢 5. Bảng Xếp Hạng Phòng Ban (FULL)
+                    </h3>
+                    <div style="white-space: pre-line; font-size: 0.9rem; line-height: 1.7; color: var(--text-main);">
+                        ${escapeHtml(secContent.replace(/^.*5\. BẢNG XẾP HẠNG PHÒNG BAN.*?\n/i, ''))}
+                    </div>
+                `;
+            } else if (secId === 6) {
+                // Reward Summary Card
+                card.innerHTML = `
+                    <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.25rem; color: var(--color-green); margin-top: 0; margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                        <i class="fa-solid fa-sack-dollar"></i> 💰 6. Tổng Hợp Chi Phí Giải Thưởng (FULL)
+                    </h3>
+                    <div style="white-space: pre-line; font-size: 0.92rem; line-height: 1.7; color: var(--text-main);">
+                        ${escapeHtml(secContent.replace(/^.*6\. TỔNG HỢP CHI PHÍ GIẢI THƯỞNG.*?\n/i, ''))}
+                    </div>
+                `;
+            } else if (secId === 7) {
+                // Participation Rate Card
+                card.innerHTML = `
+                    <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.25rem; color: var(--color-secondary); margin-top: 0; margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                        <i class="fa-solid fa-chart-line"></i> 📈 7. Tỷ Lệ VĐV Hoạt Động Theo Phòng Ban
+                    </h3>
+                    <div style="white-space: pre-line; font-size: 0.9rem; line-height: 1.7; color: var(--text-main);">
+                        ${escapeHtml(secContent.replace(/^.*7\. TỶ LỆ VĐV HOẠT ĐỘNG THEO PHÒNG BAN:?\s*/i, ''))}
+                    </div>
+                `;
+            }
+
+            container.appendChild(card);
+        }
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
     window.addEventListener('DOMContentLoaded', () => {
         const sliderWrapper = document.querySelector('.gallery-slider-wrapper');
         if (sliderWrapper) {
@@ -288,9 +569,10 @@
             sliderWrapper.addEventListener('mouseleave', () => {
                 isMouseOverSlider = false;
             });
-            
             startSliderAutoPlay();
         }
+
+        renderStructuredSummaryText();
     });
 </script>
 {% endblock %}
