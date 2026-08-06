@@ -2712,7 +2712,6 @@ def admin_dashboard(
                  *base_act_filters
              ).group_by(Athlete.id)\
              .order_by(func.sum(Activity.kcal_burned).desc())\
-             .limit(10)\
              .all()
 
             sso_kcal_list = []
@@ -5954,6 +5953,130 @@ def export_rewards_excel(
     return StreamingResponse(
         output,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers=headers
+    )
+
+@app.get("/admin/export-analytics-word")
+def export_analytics_word(
+    request: Request,
+    event_id: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """
+    API Xuất Báo Cáo Sơ Kết Phong Trào Thể Thao ra file Microsoft Word (.docx) chuẩn văn bản hành chính.
+    """
+    admin_session = get_admin_session(request, db)
+    if not admin_session:
+        return RedirectResponse("/admin?error=Chua dang nhap", status_code=303)
+
+    import io
+    import docx
+    from docx.shared import Inches, Pt, RGBColor
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.enum.table import WD_TABLE_ALIGNMENT
+    from docx.oxml import OxmlElement, parse_xml
+    from docx.oxml.ns import qn, nsdecls
+    from fastapi.responses import StreamingResponse
+
+    parsed_event_id = None
+    if event_id is not None and str(event_id).strip():
+        try:
+            parsed_event_id = int(str(event_id).strip())
+        except ValueError:
+            pass
+    event_id = parsed_event_id
+
+    selected_event = None
+    if event_id:
+        selected_event = db.query(CompetitionEvent).filter(CompetitionEvent.id == event_id).first()
+    if not selected_event:
+        selected_event = db.query(CompetitionEvent).order_by(CompetitionEvent.id.desc()).first()
+
+    if not selected_event:
+        raise HTTPException(status_code=404, detail="Không tìm thấy giải đấu để xuất báo cáo Word.")
+
+    doc = docx.Document()
+    
+    sections = doc.sections
+    for s in sections:
+        s.top_margin = Inches(0.8)
+        s.bottom_margin = Inches(0.8)
+        s.left_margin = Inches(0.9)
+        s.right_margin = Inches(0.9)
+
+    # Document Header
+    p_header = doc.add_paragraph()
+    p_header.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r1 = p_header.add_run("CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM\nĐộc lập - Tự do - Hạnh phúc\n")
+    r1.font.bold = True
+    r1.font.size = Pt(11)
+    r1.font.name = "Arial"
+    
+    p_title = doc.add_paragraph()
+    p_title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r_title = p_title.add_run(f"\nBÁO CÁO SƠ KẾT PHONG TRÀO THỂ THAO\nGIẢI ĐẤU: {selected_event.title.upper()}\n")
+    r_title.font.bold = True
+    r_title.font.size = Pt(15)
+    r_title.font.color.rgb = RGBColor(31, 78, 120)
+    r_title.font.name = "Arial"
+
+    p_sub = doc.add_paragraph()
+    p_sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_sub.paragraph_format.space_after = Pt(14)
+    r_sub = p_sub.add_run(f"Thời gian sơ kết: {datetime.now().strftime('%d/%m/%Y %H:%M')} | Khung thời gian: {selected_event.start_date or ''} đến {selected_event.end_date or ''}")
+    r_sub.font.italic = True
+    r_sub.font.size = Pt(10)
+    r_sub.font.color.rgb = RGBColor(100, 100, 100)
+
+    summary_text = generate_event_analytics_summary(db, selected_event)
+    lines = summary_text.split('\n')
+
+    for line in lines:
+        l = line.strip()
+        if not l or l.startswith("====") or l.startswith("----"):
+            continue
+        
+        if any(l.startswith(prefix) for prefix in ["🏆", "📊", "🚴", "🏃", "🔥", "🏢", "💰", "📈"]):
+            h = doc.add_paragraph()
+            h.paragraph_format.space_before = Pt(14)
+            h.paragraph_format.space_after = Pt(6)
+            r_h = h.add_run(l)
+            r_h.font.bold = True
+            r_h.font.size = Pt(12.5)
+            r_h.font.color.rgb = RGBColor(31, 78, 120)
+            r_h.font.name = "Arial"
+        elif l.startswith("[NAM]") or l.startswith("[NỮ]") or l.startswith("[NAM - SSO]") or l.startswith("[NỮ - SSO]"):
+            p_g = doc.add_paragraph()
+            p_g.paragraph_format.space_before = Pt(8)
+            p_g.paragraph_format.space_after = Pt(4)
+            r_g = p_g.add_run(l)
+            r_g.font.bold = True
+            r_g.font.size = Pt(11)
+            r_g.font.color.rgb = RGBColor(46, 117, 182)
+            r_g.font.name = "Arial"
+        else:
+            p_text = doc.add_paragraph()
+            p_text.paragraph_format.space_before = Pt(2)
+            p_text.paragraph_format.space_after = Pt(2)
+            r_t = p_text.add_run(l)
+            r_t.font.size = Pt(10)
+            r_t.font.name = "Arial"
+
+    output = io.BytesIO()
+    doc.save(output)
+    output.seek(0)
+
+    safe_title = "".join(c for c in selected_event.title if c.isalnum() or c in (' ', '_', '-')).strip().replace(' ', '_')
+    filename = f"Bao_Cao_Soket_{safe_title}_{selected_event.id}.docx"
+    import urllib.parse
+    encoded_filename = urllib.parse.quote(filename)
+    headers = {
+        'Content-Disposition': f"attachment; filename*=UTF-8''{encoded_filename}"
+    }
+
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         headers=headers
     )
 
