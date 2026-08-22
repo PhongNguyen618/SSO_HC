@@ -5,12 +5,12 @@ echo ===================================================
 echo.
 echo Dang khoi dong Web Server...
 echo Sau khi server khoi dong thanh cong, hay truy cap:
-echo http://127.0.0.1:8000
+echo http://127.0.0.1:8008
 echo.
 echo ===================================================
 echo.
 
-.venv\Scripts\python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
+.venv\Scripts\python -m uvicorn backend.main:app --host 0.0.0.0 --port 8008 --reload
 
 if %errorlevel% neq 0 (
     echo.
