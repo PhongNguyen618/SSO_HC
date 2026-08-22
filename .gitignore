@@ -39,7 +39,6 @@ docx_content.txt
 
 # --- Backup & Data cũ ---
 old_and_backup/
-scratch/
 
 # --- Dữ liệu lịch sử (GDPR / Bảo mật thông tin cá nhân) ---
 Tong ket nam 2025/
@@ -52,3 +51,6 @@ test_output.xlsx
 *.swp
 *.swo
 .DS_Store
+backups/
+audit/
+*.jsonl

@@ -1,11 +1,17 @@
 import sys
 import os
+import tempfile
+
+_tmpdir = tempfile.TemporaryDirectory(prefix="sso_hc_linear_test_")
+os.environ["DATABASE_URL"] = "sqlite:///" + os.path.join(_tmpdir.name, "test.db")
+os.environ["DEFAULT_ADMIN_PASSWORD"] = "test-only-admin-password"
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from backend.database import SessionLocal, CompetitionEvent
+from backend.database import SessionLocal, CompetitionEvent, init_db
 from backend.calculations import get_award_info
 
+init_db(excel_filepath=os.path.join(_tmpdir.name, "missing.xlsx"))
 db = SessionLocal()
 try:
     # 1. Tạo giải đấu mock với reward_type là 'linear'
@@ -58,3 +64,4 @@ except Exception as e:
     print("Linear reward test: FAILED!")
 finally:
     db.close()
+    _tmpdir.cleanup()

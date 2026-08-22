@@ -1,8 +1,10 @@
 import os
 import hashlib
+import base64
+import secrets
 import pandas as pd
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, ForeignKey, DateTime
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 from dotenv import load_dotenv
@@ -124,7 +126,7 @@ class CompetitionRegistration(Base):
     __tablename__ = "competition_registrations"
     athlete_id = Column(Integer, ForeignKey("athletes.id", ondelete="CASCADE"), primary_key=True)
     event_id = Column(Integer, ForeignKey("competition_events.id", ondelete="CASCADE"), primary_key=True)
-    registered_at = Column(DateTime, default=datetime.utcnow)
+    registered_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     athlete = relationship("Athlete")
     event = relationship("CompetitionEvent")
@@ -155,7 +157,7 @@ class SupportTicket(Base):
     athlete_name = Column(String, nullable=True)
     contact_info = Column(String, nullable=True)
     content = Column(String, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
     status = Column(String, default="pending") # pending, resolved, ignored
     admin_notes = Column(String, nullable=True)
     resolved_at = Column(DateTime, nullable=True)
@@ -177,7 +179,7 @@ class Activity(Base):
     elevation_gain_m = Column(Float)
     activity_date = Column(String, index=True) # Format: YYYY-MM-DD
     activity_time = Column(String, nullable=True) # Format: HH:MM (giờ phút local)
-    sync_date = Column(DateTime, default=datetime.utcnow)
+    sync_date = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
     kcal_burned = Column(Float)
     mets_value = Column(Float)
     is_suspicious = Column(Boolean, default=False)
@@ -200,8 +202,81 @@ def get_db():
     finally:
         db.close()
 
+def get_sqlite_db_path():
+    """Return the actual SQLite file path used by SQLAlchemy, including Docker absolute paths."""
+    if engine.url.get_backend_name() != "sqlite":
+        return None
+    db_name = engine.url.database
+    if not db_name or db_name == ":memory:":
+        return None
+    return db_name if os.path.isabs(db_name) else os.path.abspath(db_name)
+
+def get_private_storage_dir(subdir: str = "") -> str:
+    """Return a non-public persistent directory next to the SQLite database.
+
+    Files stored here are outside FastAPI's /static mount. In Docker this resolves
+    under /app/data, so backups/audit logs remain on the mounted data volume.
+    """
+    db_path = get_sqlite_db_path()
+    if db_path:
+        base_dir = os.path.dirname(os.path.abspath(db_path))
+    else:
+        base_dir = os.path.abspath(os.path.join(os.getcwd(), "data"))
+    target = os.path.join(base_dir, subdir) if subdir else base_dir
+    os.makedirs(target, exist_ok=True)
+    try:
+        os.chmod(target, 0o700)
+    except OSError:
+        pass
+    return target
+
+
+def get_private_backup_dir() -> str:
+    return get_private_storage_dir("backups")
+
+
+def get_private_audit_log_path() -> str:
+    audit_dir = get_private_storage_dir("audit")
+    path = os.path.join(audit_dir, "deleted_activities_backup.jsonl")
+    if not os.path.exists(path):
+        with open(path, "a", encoding="utf-8"):
+            pass
+    try:
+        os.chmod(path, 0o600)
+    except OSError:
+        pass
+    return path
+
+
+def backup_sqlite_database(destination: str) -> str:
+    """Create a transactionally consistent SQLite backup using sqlite3 backup API."""
+    import sqlite3
+    source_path = get_sqlite_db_path()
+    if not source_path or not os.path.exists(source_path):
+        raise FileNotFoundError(f"SQLite database not found: {source_path}")
+    os.makedirs(os.path.dirname(os.path.abspath(destination)), exist_ok=True)
+    src = sqlite3.connect(source_path, timeout=30)
+    dst = sqlite3.connect(destination, timeout=30)
+    try:
+        src.execute("PRAGMA busy_timeout=30000")
+        src.backup(dst)
+        dst.commit()
+    finally:
+        dst.close()
+        src.close()
+    try:
+        os.chmod(destination, 0o600)
+    except OSError:
+        pass
+    return destination
+
 def hash_password(password: str) -> str:
-    return hashlib.sha256(password.encode("utf-8")).hexdigest()
+    """Salted PBKDF2-HMAC-SHA256 password hash (versioned for future upgrades)."""
+    iterations = 390000
+    salt = secrets.token_bytes(16)
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, iterations)
+    enc = lambda b: base64.urlsafe_b64encode(b).decode("ascii").rstrip("=")
+    return f"pbkdf2_sha256${iterations}${enc(salt)}${enc(digest)}"
 
 def init_db(excel_filepath: str = "TDTT_SSO.xlsx"):
     Base.metadata.create_all(bind=engine)
@@ -403,7 +478,16 @@ def init_db(excel_filepath: str = "TDTT_SSO.xlsx"):
     db = SessionLocal()
 
     default_admin_user = os.getenv("DEFAULT_ADMIN_USER", "admin")
-    default_admin_pass = os.getenv("DEFAULT_ADMIN_PASSWORD", "admin")
+    default_admin_pass = os.getenv("DEFAULT_ADMIN_PASSWORD")
+    existing_admin_password = db.query(Config).filter(Config.key == "admin_password_hash").first()
+    if not default_admin_pass:
+        # Chỉ sinh/in mật khẩu một lần khi CSDL thực sự chưa có tài khoản Admin.
+        # Những lần khởi động sau không in một mật khẩu ngẫu nhiên giả gây nhầm lẫn.
+        default_admin_pass = secrets.token_urlsafe(18)
+        if not existing_admin_password:
+            print("SECURITY: DEFAULT_ADMIN_PASSWORD is not set. Generated a one-time random admin password:")
+            print(f"SECURITY: username={default_admin_user} password={default_admin_pass}")
+            print("SECURITY: Save this password securely, then change it after first login.")
     default_department_members = {
         "BAN GIÁM ĐỐC": 2,
         "PHÒNG HÀNH CHÍNH NHÂN SỰ": 21,

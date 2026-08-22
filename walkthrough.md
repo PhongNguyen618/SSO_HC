@@ -10,7 +10,7 @@ Chúng tôi đã triển khai giải pháp sao lưu tự động và khôi phụ
 
 ### Chi tiết thay đổi:
 * **Tự động sao lưu định kỳ (`backend/main.py`):**
-  * Xây dựng hàm `run_auto_db_backup()`: Tự động sao chép tệp cơ sở dữ liệu `SSO_HC.db` sang thư mục `static/uploads/backups/` kèm timestamp.
+  * Xây dựng hàm `run_auto_db_backup()`: Tự động sao chép tệp cơ sở dữ liệu `SSO_HC.db` sang thư mục `<thư mục DB>/backups/` (không public qua `/static`) kèm timestamp.
   * **Cơ chế xoay vòng (Rotation):** Hệ thống chỉ giữ tối đa **5 bản sao lưu gần nhất** để tiết kiệm dung lượng ổ cứng VPS. Các bản cũ hơn sẽ tự động bị xóa.
   * **Scheduler:** Đăng ký tác vụ sao lưu định kỳ mỗi **24 giờ** vào `BackgroundScheduler`, đồng thời kích hoạt một bản sao lưu ngay khi khởi động ứng dụng (`startup_event`).
 * **Tải bản sao lưu dành cho Admin:**
@@ -183,7 +183,7 @@ Chúng tôi đã bổ sung đầy đủ luồng uỷ quyền cá nhân (User Aut
   * Thêm cấu hình mặc định cho banner thông báo: `user_auth_banner_show = "false"`, `user_auth_banner_text = "..."`.
 * **Luồng Đăng ký & Ủy Quyền mới (`backend/main.py` & `templates/register.html`):**
   * Khi VĐV mới đăng ký (hoặc cập nhật thông tin giải đấu mà chưa có refresh token), trang đăng ký thành công sẽ hiển thị **Hộp thoại liên kết Strava** nổi bật kèm nút kết nối.
-  * Tích hợp script đếm ngược 3 giây tự động chuyển hướng VĐV sang trang ủy quyền OAuth của Strava với `state={athlete_id}` để định danh đúng người chạy.
+  * Tích hợp script đếm ngược 3 giây tự động chuyển hướng VĐV sang trang ủy quyền OAuth của Strava với `state` được ký HMAC + nonce trình duyệt; `athlete_id` không còn được gửi thô làm bằng chứng sở hữu.
 * **Giao diện & Route Liên kết cho VĐV cũ (`templates/connect_existing.html`):**
   * Xây dựng trang `/connect-existing` cho phép các VĐV đã đăng ký nhưng chưa kết nối Strava tự tìm kiếm tên của mình thông qua **ô tìm kiếm gợi ý Autocomplete thông minh** (gõ và hiển thị gợi ý đẹp mắt bên dưới) và bấm "Liên kết ngay" để chuyển hướng sang Strava OAuth.
   * Thêm callback route `@app.get("/exchange_user_token")` nhận Authorization Code từ Strava, trao đổi lấy token cá nhân, tự động lưu thông tin token, ID tài khoản, avatar url của VĐV vào DB, sau đó redirect về trang cá nhân `/profile/{id}` kèm thông báo thành công.

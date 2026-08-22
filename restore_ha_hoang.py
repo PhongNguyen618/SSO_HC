@@ -2,10 +2,11 @@
 import sqlite3
 import os
 import sys
+from backend.database import get_private_backup_dir, get_sqlite_db_path
 
 def restore_activities():
     # 1. Tìm file backup tự động mới nhất
-    backups_dir = os.path.join("static", "uploads", "backups")
+    backups_dir = get_private_backup_dir()
     backup_db = None
     
     if os.path.exists(backups_dir):
@@ -14,7 +15,7 @@ def restore_activities():
             backup_db = os.path.join(backups_dir, files[-1])
             
     if not backup_db or not os.path.exists(backup_db):
-        print("[Loi] Khong tim thay file CSDL backup tu dong trong thu muc: static/uploads/backups/")
+        print(f"[Loi] Khong tim thay file CSDL backup tu dong trong thu muc: {backups_dir}")
         return
 
     print(f"[*] Dang doc du lieu tu file backup: {backup_db}")
@@ -23,7 +24,16 @@ def restore_activities():
     conn_b = sqlite3.connect(backup_db)
     cur_b = conn_b.cursor()
     try:
-        cur_b.execute("SELECT * FROM activities WHERE athlete_id = 51 AND activity_date < '2026-06-16'")
+        cur_b.execute("SELECT start_date, end_date FROM competition_events WHERE id = 1")
+        event_row = cur_b.fetchone()
+        if not event_row:
+            raise RuntimeError("Khong tim thay giai ID=1 trong backup")
+        start_date = event_row[0] or "0001-01-01"
+        end_date = event_row[1] or "9999-12-31"
+        cur_b.execute(
+            "SELECT * FROM activities WHERE athlete_id = 51 AND event_id = 1 AND activity_date >= ? AND activity_date <= ?",
+            (start_date, end_date),
+        )
         col_names = [description[0] for description in cur_b.description]
         rows = cur_b.fetchall()
     except Exception as e:
@@ -38,7 +48,7 @@ def restore_activities():
         return
 
     # 3. Khoi phuc vao CSDL hien tai (SSO_HC.db)
-    live_db = "SSO_HC.db"
+    live_db = get_sqlite_db_path() or "SSO_HC.db"
     if not os.path.exists(live_db):
         print(f"[!] Khong tim thay file CSDL hien tai '{live_db}' trong thu muc goc.")
         live_db = input("Vui long nhap duong dan toi file CSDL live (vi du: SSO_HC.db): ").strip()

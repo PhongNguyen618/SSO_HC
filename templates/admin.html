@@ -3483,6 +3483,7 @@
                 <td style="text-align: center;">
                     <div style="display: flex; gap: 0.3rem; justify-content: center;">
                         <button onclick="openEditActivityModal(${index})" class="btn btn-primary btn-sm" style="padding:0.3rem 0.5rem; font-size:0.75rem;" title="Sửa hoạt động"><i class="fa-solid fa-pen-to-square"></i></button>
+                        ${act.is_suspicious ? `<button onclick="approveActivity('${act.id}')" class="btn btn-success btn-sm" style="padding:0.3rem 0.5rem; font-size:0.75rem;" title="Xác nhận hợp lệ"><i class="fa-solid fa-check"></i></button>` : ''}
                         <button onclick="deleteActivity('${act.id}')" class="btn btn-danger btn-sm" style="padding:0.3rem 0.5rem; font-size:0.75rem;" title="Xóa"><i class="fa-solid fa-trash-can"></i></button>
                     </div>
                 </td>
@@ -3575,6 +3576,23 @@
         .catch(err => {
             alert('Lỗi kết nối: ' + err);
         });
+    }
+
+    function approveActivity(actId) {
+        if (!confirm('Xác nhận hoạt động này hợp lệ? Hoạt động sẽ được tính lại vào BXH, KPI và giải thưởng.')) {
+            return;
+        }
+
+        fetch(`/admin/activity/approve/${actId}`, { method: 'POST' })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                loadActivities(currentActivitiesPage);
+            } else {
+                alert('Lỗi: ' + (data.error || 'Không thể xác nhận hoạt động'));
+            }
+        })
+        .catch(err => alert('Lỗi kết nối: ' + err));
     }
 
     function deleteActivity(actId) {
@@ -4068,7 +4086,7 @@
     const btnRestore = document.getElementById('btnRestoreBackup');
     if (btnRestore) {
         btnRestore.addEventListener('click', function() {
-            if (!confirm('Bạn có chắc chắn muốn khôi phục dữ liệu lịch sử trước ngày 16/06/2026 cho toàn bộ vận động viên từ file backup gần nhất? Dữ liệu từ ngày 16/06/2026 đến nay sẽ được giữ nguyên để đồng bộ tự động từ Strava.')) {
+            if (!confirm('Bạn có chắc chắn muốn khôi phục dữ liệu của giải lịch sử ID=1 từ file backup phù hợp nhất? Hệ thống sẽ dùng chính ngày bắt đầu/kết thúc đã cấu hình của giải và không đụng tới dữ liệu ngoài phạm vi đó.')) {
                 return;
             }
             

@@ -18,7 +18,7 @@ Su dung:
 import sys
 import os
 import argparse
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 # Them duong dan project vao sys.path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -38,7 +38,7 @@ def find_duplicates(db, event_id=None, lookback_days=60):
     distance_km chenh <= 0.05, moving_time chenh <= 1.0 phut, elevation chenh <= 10m,
     nhung KHAC ngay (activity_date).
     """
-    cutoff = (datetime.utcnow() + timedelta(hours=7) - timedelta(days=lookback_days)).strftime("%Y-%m-%d")
+    cutoff = (datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=7) - timedelta(days=lookback_days)).strftime("%Y-%m-%d")
 
     query = db.query(Activity).filter(Activity.activity_date >= cutoff)
     if event_id is not None:

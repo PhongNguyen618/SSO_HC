@@ -4,7 +4,7 @@ import time
 import json
 import requests
 from typing import Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from fastapi import FastAPI, Depends, Request, Form, HTTPException, status, File, UploadFile, BackgroundTasks
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -21,12 +21,117 @@ load_dotenv()
 # Ví dụ: https://yourdomain.com hoặc http://localhost:8000 khi dev local
 APP_URL = os.getenv("APP_URL", "").rstrip("/")
 
-from backend.database import SessionLocal, init_db, get_db, Config, Athlete, Activity, MetsRule, RewardRule, hash_password, CompetitionEvent, CompetitionRegistration, EventMultiplier, SupportTicket, HiddenRewardConfig, ArchivedEvent
-from backend.calculations import get_award_info, get_multiplier_for_date
-from backend.sync_engine import sync_club_activities, get_config_dict, update_config, link_unlinked_activities, import_excel_files
-from backend.auth import get_admin_session, COOKIE_NAME, verify_password
+from backend.database import SessionLocal, init_db, get_db, Config, Athlete, Activity, MetsRule, RewardRule, hash_password, CompetitionEvent, CompetitionRegistration, EventMultiplier, SupportTicket, HiddenRewardConfig, ArchivedEvent, get_sqlite_db_path, backup_sqlite_database, get_private_storage_dir, get_private_backup_dir, get_private_audit_log_path
+from backend.calculations import get_award_info, get_multiplier_for_date, check_suspicious_activity
+from backend.sync_engine import sync_club_activities, get_config_dict, update_config, link_unlinked_activities, import_excel_files, run_serialized_maintenance
+from backend.auth import (
+    get_admin_session, COOKIE_NAME, verify_password, needs_password_rehash,
+    ATHLETE_COOKIE_NAME, OAUTH_NONCE_COOKIE, create_athlete_session,
+    get_athlete_session, athlete_action_allowed, create_oauth_state, verify_oauth_state
+)
 
 app = FastAPI(title="Strava SSO HC Web App")
+
+# --- SECURITY HELPERS -------------------------------------------------------
+def _request_is_https(request: Request) -> bool:
+    forwarded = (request.headers.get("x-forwarded-proto") or "").split(",")[0].strip().lower()
+    return request.url.scheme == "https" or forwarded == "https"
+
+
+def _set_athlete_session_cookie(response, request: Request, db: Session, athlete_id: int):
+    response.set_cookie(
+        key=ATHLETE_COOKIE_NAME,
+        value=create_athlete_session(db, athlete_id),
+        max_age=30 * 24 * 3600,
+        httponly=True,
+        secure=_request_is_https(request),
+        samesite="lax",
+    )
+    return response
+
+
+def _set_oauth_nonce_cookie(response, request: Request, nonce: str):
+    response.set_cookie(
+        key=OAUTH_NONCE_COOKIE,
+        value=nonce,
+        max_age=15 * 60,
+        httponly=True,
+        secure=_request_is_https(request),
+        samesite="lax",
+    )
+    return response
+
+
+def _client_ip(request: Request) -> str:
+    return request.client.host if request.client else "unknown"
+
+
+_rate_limit_store = {}
+_rate_limit_lock = __import__("threading").Lock()
+
+
+def _rate_limit(request: Request, bucket: str, limit: int, window_seconds: int) -> bool:
+    """Small in-process limiter for CPU-heavy/public endpoints."""
+    now = time.time()
+    key = (bucket, _client_ip(request))
+    with _rate_limit_lock:
+        hits = [ts for ts in _rate_limit_store.get(key, []) if now - ts < window_seconds]
+        if len(hits) >= limit:
+            _rate_limit_store[key] = hits
+            return False
+        hits.append(now)
+        _rate_limit_store[key] = hits
+    return True
+
+
+def _identity_words(value: str):
+    import re
+    import unicodedata
+    if not value:
+        return []
+    normalized = unicodedata.normalize("NFKD", value.strip().lower())
+    normalized = "".join(c for c in normalized if not unicodedata.combining(c)).replace("đ", "d")
+    return [w for w in re.findall(r"[a-z0-9]+", normalized) if len(w) >= 2]
+
+
+def _strava_identity_matches(athlete: Athlete, strava_data: dict) -> bool:
+    """Verify that the OAuth identity plausibly belongs to the selected athlete."""
+    incoming_id = str(strava_data.get("id") or "").strip()
+    if athlete.strava_athlete_id:
+        return bool(incoming_id) and incoming_id == str(athlete.strava_athlete_id)
+
+    firstname = strava_data.get("firstname") or ""
+    lastname = strava_data.get("lastname") or ""
+    incoming_name = f"{firstname} {lastname}".strip()
+    if not incoming_name:
+        return False
+
+    candidates = [athlete.full_name or ""]
+    if athlete.strava_name:
+        candidates.extend([x.strip() for x in athlete.strava_name.split(",") if x.strip()])
+
+    incoming_clean = clean_name(incoming_name)
+    incoming_words = set(_identity_words(incoming_name))
+    for candidate in candidates:
+        candidate_clean = clean_name(candidate)
+        if incoming_clean and candidate_clean and incoming_clean == candidate_clean:
+            return True
+        if min(len(incoming_clean), len(candidate_clean)) >= 5 and (
+            incoming_clean in candidate_clean or candidate_clean in incoming_clean
+        ):
+            return True
+        candidate_words = set(_identity_words(candidate))
+        overlap = incoming_words & candidate_words
+        if len(overlap) >= 2:
+            return True
+        if len(overlap) == 1 and any(len(w) >= 4 for w in overlap) and min(len(incoming_words), len(candidate_words)) == 1:
+            return True
+    return False
+
+def _valid_activity_clause():
+    """Suspicious activities stay visible for audit but never contribute to ranking/rewards/KPIs."""
+    return func.coalesce(Activity.is_suspicious, False) == False
+
 
 def extract_strava_club_id(input_str: str) -> str:
     """Tự động trích xuất ID nhóm Strava từ đường link URL hoặc chuỗi nhập vào."""
@@ -425,8 +530,8 @@ def deduplicate_activities_logic(db: Session, mode: str = "all", dry_run: bool =
                     import json
                     import os
                     backup_activities = db.query(Activity).filter(Activity.id.in_(to_delete)).all()
-                    backup_file = "static/uploads/deleted_activities_backup.jsonl"
-                    os.makedirs("static/uploads", exist_ok=True)
+                    backup_file = get_private_audit_log_path()
+                    os.makedirs(os.path.dirname(backup_file), exist_ok=True)
                     
                     with open(backup_file, "a", encoding="utf-8") as f:
                         for act in backup_activities:
@@ -452,7 +557,7 @@ def deduplicate_activities_logic(db: Session, mode: str = "all", dry_run: bool =
                                 "distance_km_raw": act.distance_km_raw,
                                 "kcal_burned_raw": act.kcal_burned_raw,
                                 "multiplier": act.multiplier,
-                                "backup_time": datetime.utcnow().isoformat()
+                                "backup_time": datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
                             }
                             f.write(json.dumps(act_dict, ensure_ascii=False) + "\n")
                 except Exception as backup_err:
@@ -487,53 +592,59 @@ def deduplicate_activities_logic(db: Session, mode: str = "all", dry_run: bool =
         db.rollback()
         raise e
 
+def _deduplicate_if_sync_idle():
+    """Deduplicate under the same lock used by sync to avoid concurrent SQLite writes."""
+    def _work():
+        db = SessionLocal()
+        try:
+            print("Background Sync: Auto deduplicating activities...")
+            return deduplicate_activities_logic(db)
+        finally:
+            db.close()
+
+    acquired, result = run_serialized_maintenance(_work)
+    if not acquired:
+        print("Background Sync: Skip deduplication because another sync has already started.")
+        return None
+    return result
+
+
 def run_background_sync():
     print("Background Sync: Starting periodic sync...")
     res = sync_club_activities()
     print(f"Background Sync: Completed. Status: {res.get('status')}, New activities: {res.get('new_activities')}")
-    
-    # Tự động dọn dẹp hoạt động trùng lặp sau mỗi lần đồng bộ
-    db = SessionLocal()
-    try:
-        print("Background Sync: Auto deduplicating activities...")
-        dedup_res = deduplicate_activities_logic(db)
-        print(f"Background Sync: Auto deduplicated. Deleted: {dedup_res['deleted_count']}, Updated: {dedup_res['updated_count']}")
-    except Exception as e:
-        print(f"Background Sync: Error during auto deduplication: {e}")
-    finally:
-        db.close()
+
+    # Chỉ hậu xử lý sau một lượt sync thực sự thành công/partial.
+    if res.get("status") in ("success", "partial"):
+        try:
+            dedup_res = _deduplicate_if_sync_idle()
+            if dedup_res:
+                print(f"Background Sync: Auto deduplicated. Deleted: {dedup_res['deleted_count']}, Updated: {dedup_res['updated_count']}")
+        except Exception as e:
+            print(f"Background Sync: Error during auto deduplication: {e}")
 
 def run_auto_db_backup():
-    """Tự động sao lưu file SQLite DB định kỳ hàng ngày, giữ tối đa 5 bản gần nhất."""
+    """Tự động sao lưu SQLite nhất quán định kỳ hàng ngày, giữ tối đa 5 bản gần nhất."""
     print("Auto Backup: Starting database backup...")
-    db_url = os.getenv("DATABASE_URL", "sqlite:///SSO_HC.db")
-    db_path = db_url.replace("sqlite:///", "") if db_url.startswith("sqlite:///") else "SSO_HC.db"
-    if not os.path.exists(db_path):
+    db_path = get_sqlite_db_path()
+    if not db_path or not os.path.exists(db_path):
         print(f"Auto Backup: Main DB file not found at {db_path}. Skip.")
         return
-        
-    _root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    backup_dir = os.path.join(_root_dir, "static", "uploads", "backups")
-    os.makedirs(backup_dir, exist_ok=True)
-    
-    import shutil
+
+    backup_dir = get_private_backup_dir()
     time_str = datetime.now().strftime("%Y%m%d_%H%M%S")
     backup_filename = f"SSO_HC_auto_{APP_VERSION}_{time_str}.db"
     backup_path = os.path.join(backup_dir, backup_filename)
-    
+
     try:
-        shutil.copyfile(db_path, backup_path)
-        print(f"Auto Backup: Successfully created backup at {backup_path}")
-        
-        # Xoay vòng (rotate): Chỉ giữ lại 5 bản backup tự động gần nhất
+        backup_sqlite_database(backup_path)
+        print(f"Auto Backup: Successfully created consistent backup at {backup_path}")
         backups = [os.path.join(backup_dir, f) for f in os.listdir(backup_dir) if f.startswith("SSO_HC_auto_") and f.endswith(".db")]
-        backups.sort(key=os.path.getmtime) # xếp từ cũ đến mới
-        
+        backups.sort(key=os.path.getmtime)
         while len(backups) > 5:
             oldest = backups.pop(0)
             try:
                 os.remove(oldest)
-                print(f"Auto Backup: Removed old backup file to free disk space: {oldest}")
             except Exception as rm_ex:
                 print(f"Auto Backup: Failed to remove oldest backup: {rm_ex}")
     except Exception as e:
@@ -576,11 +687,57 @@ def start_scheduler():
         scheduler.start()
     print(f"Scheduler: Started periodic background sync every {interval} hours.")
 
+def _migrate_legacy_public_backups():
+    """Move legacy DB/audit backups out of /static so they cannot be downloaded anonymously."""
+    import shutil
+
+    private_backup_dir = get_private_backup_dir()
+    legacy_backup_dir = os.path.join("static", "uploads", "backups")
+    if os.path.isdir(legacy_backup_dir):
+        for name in os.listdir(legacy_backup_dir):
+            src = os.path.join(legacy_backup_dir, name)
+            if not os.path.isfile(src) or not name.lower().endswith(".db"):
+                continue
+            dest = os.path.join(private_backup_dir, name)
+            if os.path.exists(dest):
+                stem, ext = os.path.splitext(name)
+                dest = os.path.join(private_backup_dir, f"{stem}_legacy_{int(time.time())}{ext}")
+            try:
+                shutil.move(src, dest)
+                try:
+                    os.chmod(dest, 0o600)
+                except OSError:
+                    pass
+                print(f"Security Migration: moved public DB backup to {dest}")
+            except Exception as exc:
+                print(f"Security Migration: could not move {src}: {exc}")
+        try:
+            if not os.listdir(legacy_backup_dir):
+                os.rmdir(legacy_backup_dir)
+        except Exception:
+            pass
+
+    legacy_audit = os.path.join("static", "uploads", "deleted_activities_backup.jsonl")
+    if os.path.isfile(legacy_audit):
+        private_audit = get_private_audit_log_path()
+        try:
+            os.makedirs(os.path.dirname(private_audit), exist_ok=True)
+            with open(private_audit, "ab") as out_f, open(legacy_audit, "rb") as in_f:
+                shutil.copyfileobj(in_f, out_f)
+            os.remove(legacy_audit)
+            print(f"Security Migration: moved public activity audit log to {private_audit}")
+        except Exception as exc:
+            print(f"Security Migration: could not move legacy audit log: {exc}")
+
+
 @app.on_event("startup")
 def startup_event():
-    # Đảm bảo thư mục upload và avatar tồn tại
+    # Đảm bảo thư mục public cần thiết và vùng lưu trữ riêng tư tồn tại.
     os.makedirs("static/uploads", exist_ok=True)
     os.makedirs("static/uploads/avatars", exist_ok=True)
+    get_private_backup_dir()
+    os.makedirs(os.path.dirname(get_private_audit_log_path()), exist_ok=True)
+    _migrate_legacy_public_backups()
     # Khởi tạo frame mặc định nếu thiếu
     tao_frame_mau_neu_thieu("static/uploads/frame.png")
     # Khởi tạo database và di chuyển dữ liệu cũ từ Excel nếu có
@@ -787,7 +944,7 @@ def index(
                 end_date = selected_event.end_date
         else:
             # Fallback: 7 ngày từ ngày có hoạt động mới nhất
-            base_query = db.query(func.max(Activity.activity_date))
+            base_query = db.query(func.max(Activity.activity_date)).filter(_valid_activity_clause())
             if event_id:
                 base_query = base_query.filter(Activity.event_id == event_id)
             max_date_str = base_query.scalar()
@@ -807,7 +964,7 @@ def index(
                 end_date = end_dt.strftime("%Y-%m-%d")
 
     # Xây dựng bộ lọc cơ bản cho giải đấu + khoảng thời gian
-    base_filters = [Activity.activity_date >= start_date, Activity.activity_date <= end_date]
+    base_filters = [Activity.activity_date >= start_date, Activity.activity_date <= end_date, _valid_activity_clause()]
     if event_id:
         base_filters.append(Activity.event_id == event_id)
         if selected_event:
@@ -1221,6 +1378,8 @@ async def sync_profile_avatar(
         athlete = db.query(Athlete).filter(Athlete.id == athlete_id).first()
         if not athlete:
             return JSONResponse(status_code=404, content={"status": "error", "message": "Khong tim thay van dong vien"})
+        if not athlete_action_allowed(request, db, athlete.id):
+            return JSONResponse(status_code=403, content={"status": "error", "message": "Bạn không có quyền cập nhật ảnh của VĐV này. Vui lòng xác minh Strava."})
         
         # Xu ly chuoi Base64 gui tu Canvas
         if "," in image_data:
@@ -1229,7 +1388,9 @@ async def sync_profile_avatar(
             base64_str = image_data
             
         import base64
-        image_bytes = base64.b64decode(base64_str)
+        image_bytes = base64.b64decode(base64_str, validate=True)
+        if len(image_bytes) > 10 * 1024 * 1024:
+            return JSONResponse(status_code=413, content={"status": "error", "message": "Ảnh vượt quá giới hạn 10 MB."})
         
         import time
         # Luu file anh thuc te kem timestamp de tranh cache trinh duyet
@@ -1264,6 +1425,7 @@ async def sync_profile_avatar(
 
 @app.post("/api/avatar/upload-direct")
 async def upload_direct_avatar(
+    request: Request,
     athlete_id: int = Form(...),
     file: UploadFile = File(...),
     db: Session = Depends(get_db)
@@ -1273,12 +1435,16 @@ async def upload_direct_avatar(
         athlete = db.query(Athlete).filter(Athlete.id == athlete_id).first()
         if not athlete:
             return JSONResponse(status_code=404, content={"status": "error", "message": "Khong tim thay van dong vien"})
+        if not athlete_action_allowed(request, db, athlete.id):
+            return JSONResponse(status_code=403, content={"status": "error", "message": "Bạn không có quyền cập nhật ảnh của VĐV này. Vui lòng xác minh Strava."})
             
         ext = os.path.splitext(file.filename)[1].lower()
         if ext not in [".png", ".jpg", ".jpeg", ".webp"]:
             return JSONResponse(status_code=400, content={"status": "error", "message": "Dinh dang anh khong hop le (ho tro PNG, JPG, WEBP)"})
             
         content = await file.read()
+        if len(content) > 10 * 1024 * 1024:
+            return JSONResponse(status_code=413, content={"status": "error", "message": "Ảnh vượt quá giới hạn 10 MB."})
         
         os.makedirs("static/uploads/avatars", exist_ok=True)
         
@@ -1310,16 +1476,34 @@ async def upload_direct_avatar(
 
 @app.post("/api/avatar/remove-bg")
 async def api_remove_background(
+    request: Request,
     file: UploadFile = File(...),
     db: Session = Depends(get_db)
 ):
     """API nhan file anh chan dung, tu dong xoa nen bang rembg va tra ve file PNG trong suot."""
+    if not get_admin_session(request, db) and get_athlete_session(request, db) is None:
+        return JSONResponse(status_code=401, content={"status": "error", "message": "Vui lòng xác minh VĐV trước khi dùng chức năng xóa nền."})
+    if not _rate_limit(request, "remove_bg", limit=10, window_seconds=600):
+        return JSONResponse(status_code=429, content={"status": "error", "message": "Bạn thao tác quá nhanh. Vui lòng thử lại sau."})
     try:
         content = await file.read()
+        if len(content) > 15 * 1024 * 1024:
+            return JSONResponse(status_code=413, content={"status": "error", "message": "Ảnh vượt quá giới hạn 15 MB."})
+
+        # Kiểm tra đúng là ảnh và chặn ảnh có số pixel quá lớn trước khi chạy model CPU.
+        import io
+        from PIL import Image
+        try:
+            with Image.open(io.BytesIO(content)) as probe:
+                width, height = probe.size
+                if width <= 0 or height <= 0 or width * height > 30_000_000:
+                    return JSONResponse(status_code=413, content={"status": "error", "message": "Kích thước ảnh quá lớn."})
+                probe.verify()
+        except Exception:
+            return JSONResponse(status_code=400, content={"status": "error", "message": "File tải lên không phải ảnh hợp lệ."})
         
         # Su dung rembg de xoa nen
         from rembg import remove
-        import io
         from fastapi.responses import StreamingResponse
         
         # Thuc hien xoa nen
@@ -1436,6 +1620,8 @@ def register_athlete(
     is_update: str = Form("false"),
     db: Session = Depends(get_db)
 ):
+    if not _rate_limit(request, "athlete_register", limit=10, window_seconds=600):
+        raise HTTPException(status_code=429, detail="Quá nhiều yêu cầu đăng ký. Vui lòng thử lại sau.")
     db_depts = db.query(Athlete.department).filter(Athlete.department != None, Athlete.department != '').distinct().order_by(Athlete.department).all()
     departments = [r[0] for r in db_depts] if db_depts else [
         "BAN GIÁM ĐỐC", "PHÒNG HÀNH CHÍNH NHÂN SỰ", "PHÒNG KỸ THUẬT", 
@@ -1448,6 +1634,18 @@ def register_athlete(
     
     # Kiểm tra ràng buộc giải đấu nội bộ (SSO's HC) chỉ dành cho người thuộc khối SSO
     chosen_event = db.query(CompetitionEvent).filter(CompetitionEvent.id == event_id).first()
+    if not chosen_event or not chosen_event.is_active:
+        return templates.TemplateResponse(
+            request=request,
+            name="register.html",
+            context={
+                "configs": configs, "departments": departments,
+                "active_competitions": active_competitions, "selected_event_id": event_id,
+                "unlinked_athletes": [], "success": None,
+                "error": "Giải đấu không khả dụng hoặc đã kết thúc.", "already_exists": False
+            },
+            status_code=400,
+        )
     is_sso_hc = chosen_event and ("SSO'S HC" in chosen_event.title.upper() or "SSO’S HC" in chosen_event.title.upper())
     if is_sso_hc:
         if not department.strip().upper().startswith("SSO"):
@@ -1525,12 +1723,18 @@ def register_athlete(
                     
     if exists:
         if is_update == "true":
+            if not athlete_action_allowed(request, db, exists.id):
+                import urllib.parse
+                msg = urllib.parse.quote("Hồ sơ này đã tồn tại. Vui lòng xác minh bằng Strava trước khi cập nhật thông tin.")
+                return RedirectResponse(f"/connect-existing?error={msg}", status_code=303)
             try:
-                # Cho phép cập nhật cả Họ và tên mới và Strava Name mới nếu họ chỉnh sửa lỗi viết nhầm
+                # Chỉ chủ sở hữu đã xác minh hoặc Admin mới được cập nhật hồ sơ hiện có.
                 exists.full_name = full_name.strip()
                 exists.department = department.strip()
                 exists.weight = weight
-                if strava_name and strava_name.strip():
+                if strava_name and strava_name.strip() and not exists.strava_athlete_id:
+                    # Chỉ cho phép tên khai báo trước lần xác minh đầu tiên. Sau khi đã có
+                    # Strava Athlete ID, display name phải lấy từ OAuth/API, không từ form.
                     exists.strava_name = strava_name.strip()
                 db.commit()
                 
@@ -1566,22 +1770,13 @@ def register_athlete(
                     db.commit()
                     print(f"Main.py: Registered existing Athlete {exists.full_name} for event {event_id} during update.")
                 
-                # Liên kết các hoạt động cũ (chưa được liên kết trước đó) cho VĐV này
-                link_unlinked_activities(db, exists)
-                
+                # Không tự gán activity chỉ theo tên nhập tay. Activity cũ chỉ được gán
+                # sau OAuth xác minh danh tính, hoặc qua công cụ Admin.
                 configs = get_config_dict(db)
                 needs_auth = not exists.strava_refresh_token
                 auth_url = ""
                 if needs_auth:
-                    client_id = configs.get("strava_client_id")
-                    app_url = APP_URL
-                    if not app_url:
-                        host = request.headers.get("host", "localhost:8080")
-                        scheme = "https" if request.headers.get("x-forwarded-proto") == "https" else "http"
-                        app_url = f"{scheme}://{host}"
-                    redirect_uri = f"{app_url}/exchange_user_token"
-                    auth_url = f"https://www.strava.com/oauth/authorize?client_id={client_id}&response_type=code&redirect_uri={redirect_uri}&scope=activity:read_all,profile:read_all&state={exists.id}"
-                    return RedirectResponse(auth_url, status_code=303)
+                    return RedirectResponse(f"/connect-existing/start/{exists.id}", status_code=303)
 
                 return templates.TemplateResponse(
                     request=request,
@@ -1662,21 +1857,12 @@ def register_athlete(
         db.commit()
         print(f"Main.py: Registered new Athlete {new_athlete.full_name} for event {event_id}.")
         
-        # Liên kết các hoạt động cũ (chưa được liên kết trước đó) sang VĐV mới này
-        link_unlinked_activities(db, new_athlete)
+        # Không tự nhận activity chỉ dựa trên tên trước khi xác minh Strava.
+        # Việc gán activity cũ được thực hiện sau khi OAuth xác minh đúng danh tính.
         
-        configs = get_config_dict(db)
-        client_id = configs.get("strava_client_id")
-        app_url = APP_URL
-        if not app_url:
-            host = request.headers.get("host", "localhost:8080")
-            scheme = "https" if request.headers.get("x-forwarded-proto") == "https" else "http"
-            app_url = f"{scheme}://{host}"
-        redirect_uri = f"{app_url}/exchange_user_token"
-        auth_url = f"https://www.strava.com/oauth/authorize?client_id={client_id}&response_type=code&redirect_uri={redirect_uri}&scope=activity:read_all,profile:read_all&state={new_athlete.id}"
-
-        # Tự động chuyển hướng thẳng sang Strava OAuth để liên kết tài khoản
-        return RedirectResponse(auth_url, status_code=303)
+        # Chưa cấp phiên sở hữu ở bước này: hồ sơ chỉ được coi là đã xác minh
+        # sau callback OAuth Strava thành công.
+        return RedirectResponse(f"/connect-existing/start/{new_athlete.id}", status_code=303)
     except Exception as e:
         db.rollback()
         return templates.TemplateResponse(
@@ -1781,7 +1967,7 @@ def profile_page(
                 activities_query = activities_query.filter(Activity.sport_type.in_(allowed_sports))
         
     all_activities = activities_query.order_by(Activity.activity_date.desc()).all()
-    valid_activities = all_activities
+    valid_activities = [a for a in all_activities if not bool(a.is_suspicious)]
     
     # Phân trang nhật ký hoạt động hiển thị (15 hoạt động trên trang)
     per_page = 15
@@ -1954,6 +2140,8 @@ def register_event_for_athlete(
     athlete = db.query(Athlete).filter(Athlete.id == athlete_id, Athlete.is_active == True).first()
     if not athlete:
         raise HTTPException(status_code=404, detail="Không tìm thấy Vận động viên.")
+    if not athlete_action_allowed(request, db, athlete.id):
+        raise HTTPException(status_code=403, detail="Bạn không có quyền đăng ký giải đấu cho VĐV này. Vui lòng xác minh Strava.")
         
     event = db.query(CompetitionEvent).filter(CompetitionEvent.id == event_id, CompetitionEvent.is_active == True).first()
     if not event:
@@ -1987,20 +2175,18 @@ def athlete_self_unlink(
     athlete = db.query(Athlete).filter(Athlete.id == athlete_id, Athlete.is_active == True).first()
     if not athlete:
         raise HTTPException(status_code=404, detail="Không tìm thấy Vận động viên.")
+    if not athlete_action_allowed(request, db, athlete.id):
+        raise HTTPException(status_code=403, detail="Bạn không có quyền hủy liên kết của VĐV này. Vui lòng xác minh Strava.")
         
     try:
-        # Hủy liên kết, xóa toàn bộ token
-        athlete.strava_id = None
+        # Hủy liên kết, xóa đúng toàn bộ trường OAuth/Strava của Athlete.
+        athlete.strava_athlete_id = None
         athlete.strava_access_token = None
         athlete.strava_refresh_token = None
-        athlete.strava_token_expires_at = None
+        athlete.strava_expires_at = None
         
-        # Cũng xóa hoạt động cũ không khớp để dọn dẹp sạch sẽ
-        db.query(Activity).filter(
-            Activity.athlete_id == athlete.id,
-            func.length(Activity.id) != 64 # Chỉ xóa các hoạt động API, giữ lại các hoạt động cào web cũ
-        ).delete()
-        
+        # Giữ nguyên lịch sử hoạt động khi hủy liên kết. Hủy OAuth không được phép
+        # làm mất dữ liệu thành tích; Admin có công cụ riêng để xử lý activity sai.
         db.commit()
         print(f"Profile: Athlete {athlete.full_name} (ID {athlete.id}) has unlinked their Strava account due to name mismatch.")
     except Exception as e:
@@ -2161,19 +2347,9 @@ def admin_dashboard(
                     registered_names.add(cleaned)
     unlinked_athletes = [name[0] for name in unlinked_names if name[0] and name[0].strip().lower() not in registered_names]
 
-    # Tạo đường link authorize với Strava
+    # OAuth Admin bắt đầu qua endpoint nội bộ để tạo signed state + nonce chống CSRF.
     client_id = configs.get("strava_client_id")
-    # Ưu tiên APP_URL từ .env (domain công khai, cần khớp với Strava App settings)
-    # Fallback về request.base_url khi dev local (không có APP_URL)
-    if APP_URL:
-        redirect_uri = f"{APP_URL}/exchange_token"
-    else:
-        redirect_uri = str(request.base_url).rstrip("/") + "/exchange_token"
-    auth_url = (
-        f"https://www.strava.com/oauth/authorize?client_id={client_id}"
-        f"&response_type=code&redirect_uri={redirect_uri}"
-        f"&approval_prompt=force&scope=read,activity:read_all"
-    )
+    auth_url = "/admin/strava/connect" if client_id else "#"
 
     from backend.database import ArchivedEvent
     archived_events = db.query(ArchivedEvent).order_by(ArchivedEvent.id.desc()).all()
@@ -2197,10 +2373,10 @@ def admin_dashboard(
             Athlete.id == CompetitionRegistration.athlete_id
         ).filter(CompetitionRegistration.event_id == selected_event_id, Athlete.is_active == True).count()
         
-        act_query = db.query(Activity).filter(Activity.event_id == selected_event_id)
-        kcal_query = db.query(func.sum(Activity.kcal_burned)).filter(Activity.event_id == selected_event_id)
-        dist_query = db.query(func.sum(Activity.distance_km)).filter(Activity.event_id == selected_event_id)
-        time_query = db.query(func.sum(Activity.moving_time_min)).filter(Activity.event_id == selected_event_id)
+        act_query = db.query(Activity).filter(Activity.event_id == selected_event_id, _valid_activity_clause())
+        kcal_query = db.query(func.sum(Activity.kcal_burned)).filter(Activity.event_id == selected_event_id, _valid_activity_clause())
+        dist_query = db.query(func.sum(Activity.distance_km)).filter(Activity.event_id == selected_event_id, _valid_activity_clause())
+        time_query = db.query(func.sum(Activity.moving_time_min)).filter(Activity.event_id == selected_event_id, _valid_activity_clause())
         
         if allowed_sports and "All" not in allowed_sports:
             act_query = act_query.filter(Activity.sport_type.in_(allowed_sports))
@@ -2214,10 +2390,10 @@ def admin_dashboard(
         total_moving_time_min = time_query.scalar() or 0.0
     else:
         total_active_athletes = db.query(Athlete).filter(Athlete.is_active == True).count()
-        total_valid_activities = db.query(Activity).count()
-        total_kcal_burned = db.query(func.sum(Activity.kcal_burned)).scalar() or 0.0
-        total_distance = db.query(func.sum(Activity.distance_km)).scalar() or 0.0
-        total_moving_time_min = db.query(func.sum(Activity.moving_time_min)).scalar() or 0.0
+        total_valid_activities = db.query(Activity).filter(_valid_activity_clause()).count()
+        total_kcal_burned = db.query(func.sum(Activity.kcal_burned)).filter(_valid_activity_clause()).scalar() or 0.0
+        total_distance = db.query(func.sum(Activity.distance_km)).filter(_valid_activity_clause()).scalar() or 0.0
+        total_moving_time_min = db.query(func.sum(Activity.moving_time_min)).filter(_valid_activity_clause()).scalar() or 0.0
         
     total_hours = total_moving_time_min / 60.0
 
@@ -2251,7 +2427,7 @@ def admin_dashboard(
 
     # Tính giải thưởng cho từng VĐV và phân loại thống kê
     for ath in athletes_for_reward:
-        act_ath_query = db.query(Activity).filter(Activity.athlete_id == ath.id)
+        act_ath_query = db.query(Activity).filter(Activity.athlete_id == ath.id, _valid_activity_clause())
         if selected_event_id:
             act_ath_query = act_ath_query.filter(Activity.event_id == selected_event_id)
             if allowed_sports and "All" not in allowed_sports:
@@ -2292,7 +2468,12 @@ def admin_dashboard(
 
     # 2. Thống kê Calo/Km theo tuần (12 tuần gần nhất) và tháng (6 tháng gần nhất)
     import datetime
-    max_date_str_db = db.query(func.max(Activity.activity_date)).scalar()
+    max_date_query = db.query(func.max(Activity.activity_date)).filter(_valid_activity_clause())
+    if selected_event_id:
+        max_date_query = max_date_query.filter(Activity.event_id == selected_event_id)
+        if allowed_sports and "All" not in allowed_sports:
+            max_date_query = max_date_query.filter(Activity.sport_type.in_(allowed_sports))
+    max_date_str_db = max_date_query.scalar()
     if max_date_str_db:
         try:
             max_date = datetime.datetime.strptime(max_date_str_db, "%Y-%m-%d").date()
@@ -2352,7 +2533,7 @@ def admin_dashboard(
 
     daily_query = db.query(Activity.activity_date, Activity.kcal_burned, Activity.distance_km, Athlete.department)\
         .join(Athlete, Activity.athlete_id == Athlete.id)\
-        .filter(Activity.activity_date >= start_daily_date_str)\
+        .filter(_valid_activity_clause(), Activity.activity_date >= start_daily_date_str)\
         .filter(Activity.activity_date <= chart_end_date_str)
     if selected_event_id:
         daily_query = daily_query.filter(Activity.event_id == selected_event_id)
@@ -2394,7 +2575,7 @@ def admin_dashboard(
     
     week_query = db.query(Activity.activity_date, Activity.kcal_burned, Activity.distance_km, Athlete.department)\
         .join(Athlete, Activity.athlete_id == Athlete.id)\
-        .filter(Activity.activity_date >= start_week_date_str)\
+        .filter(_valid_activity_clause(), Activity.activity_date >= start_week_date_str)\
         .filter(Activity.activity_date <= max_date_str)
     if selected_event_id:
         week_query = week_query.filter(Activity.event_id == selected_event_id)
@@ -2442,7 +2623,7 @@ def admin_dashboard(
 
     month_query = db.query(Activity.activity_date, Activity.kcal_burned, Activity.distance_km, Athlete.department)\
         .join(Athlete, Activity.athlete_id == Athlete.id)\
-        .filter(Activity.activity_date >= start_month_date_str)\
+        .filter(_valid_activity_clause(), Activity.activity_date >= start_month_date_str)\
         .filter(Activity.activity_date <= max_date_str)
     if selected_event_id:
         month_query = month_query.filter(Activity.event_id == selected_event_id)
@@ -2476,7 +2657,8 @@ def admin_dashboard(
         func.count(Activity.id).label("count"),
         func.sum(Activity.kcal_burned).label("kcal"),
         func.sum(Activity.distance_km).label("dist")
-    ).join(Athlete, Activity.athlete_id == Athlete.id)
+    ).join(Athlete, Activity.athlete_id == Athlete.id)\
+     .filter(_valid_activity_clause())
     if selected_event_id:
         sport_query = sport_query.filter(Activity.event_id == selected_event_id)
         if allowed_sports and "All" not in allowed_sports:
@@ -2597,6 +2779,7 @@ def admin_dashboard(
             Activity.event_id == selected_event_id,
             Activity.activity_date >= str(event_start),
             Activity.activity_date <= str(event_end),
+            _valid_activity_clause(),
         ]
 
         # --- 1. Bảng thống kê theo Môn thể thao ---
@@ -2786,7 +2969,7 @@ def admin_dashboard(
         reward_athletes_with = 0
 
         for ath in athletes_for_reward:
-            act_ath_q2 = db.query(Activity).filter(Activity.athlete_id == ath.id, Activity.event_id == selected_event_id)
+            act_ath_q2 = db.query(Activity).filter(Activity.athlete_id == ath.id, Activity.event_id == selected_event_id, _valid_activity_clause())
             if allowed_sports and "All" not in allowed_sports:
                 act_ath_q2 = act_ath_q2.filter(Activity.sport_type.in_(allowed_sports))
             ath_acts2 = act_ath_q2.all()
@@ -2915,8 +3098,10 @@ def admin_dashboard(
     )
 
 @app.post("/admin/login")
-def admin_login(username: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
+def admin_login(request: Request, username: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
     """Xử lý đăng nhập Admin."""
+    if not _rate_limit(request, "admin_login", limit=10, window_seconds=600):
+        return RedirectResponse("/admin?error=Qua nhieu lan dang nhap. Vui long thu lai sau", status_code=303)
     admin_user = db.query(Config).filter(Config.key == "admin_username").first()
     admin_pass = db.query(Config).filter(Config.key == "admin_password_hash").first()
 
@@ -2924,26 +3109,36 @@ def admin_login(username: str = Form(...), password: str = Form(...), db: Sessio
         return RedirectResponse("/admin?error=He thong chua duoc khoi tao", status_code=303)
 
     if username == admin_user.value and verify_password(password, admin_pass.value):
+        # Tự động nâng cấp hash SHA-256 cũ sang PBKDF2 sau lần đăng nhập hợp lệ đầu tiên.
+        if needs_password_rehash(admin_pass.value):
+            admin_pass.value = hash_password(password)
+            db.commit()
+
         # Thiết lập session token động
-        import uuid
-        import time
-        session_token = uuid.uuid4().hex
+        import secrets
+        session_token = secrets.token_urlsafe(32)
         expiry_time = int(time.time()) + (86400 * 7) # Hết hạn sau 7 ngày
 
         update_config(db, "admin_session_id", session_token)
         update_config(db, "admin_session_expiry", str(expiry_time))
 
+        with _rate_limit_lock:
+            _rate_limit_store.pop(("admin_login", _client_ip(request)), None)
         response = RedirectResponse("/admin", status_code=303)
-        response.set_cookie(key=COOKIE_NAME, value=session_token, max_age=86400 * 7, httponly=True)
+        response.set_cookie(
+            key=COOKIE_NAME, value=session_token, max_age=86400 * 7,
+            httponly=True, secure=_request_is_https(request), samesite="lax"
+        )
         return response
     else:
         return RedirectResponse("/admin?error=Sai ten dang nhap hoac mat khau", status_code=303)
 
 @app.post("/admin/logout")
-def admin_logout(db: Session = Depends(get_db)):
-    """Xử lý đăng xuất Admin."""
-    update_config(db, "admin_session_id", "")
-    update_config(db, "admin_session_expiry", "0")
+def admin_logout(request: Request, db: Session = Depends(get_db)):
+    """Đăng xuất Admin; chỉ phiên Admin hiện hành mới được phép revoke session phía server."""
+    if get_admin_session(request, db):
+        update_config(db, "admin_session_id", "")
+        update_config(db, "admin_session_expiry", "0")
     response = RedirectResponse("/admin", status_code=303)
     response.delete_cookie(key=COOKIE_NAME)
     return response
@@ -3374,8 +3569,10 @@ def update_admin_security(
     try:
         update_config(db, "admin_username", new_username)
         update_config(db, "admin_password_hash", hash_password(new_password))
+        update_config(db, "admin_session_id", "")
+        update_config(db, "admin_session_expiry", "0")
         
-        # Buộc đăng xuất để đăng nhập lại bằng thông tin mới
+        # Buộc đăng xuất và vô hiệu hóa cả session phía server.
         response = RedirectResponse("/admin?success=Cập nhật tài khoản Admin thành công. Vui lòng đăng nhập lại.", status_code=303)
         response.delete_cookie(key=COOKIE_NAME)
         return response
@@ -3384,49 +3581,66 @@ def update_admin_security(
 
 @app.get("/connect-existing", response_class=HTMLResponse)
 def connect_existing_page(request: Request, error: Optional[str] = None, db: Session = Depends(get_db)):
-    """Trang liên kết Strava cho VĐV đã đăng ký từ trước."""
+    """Trang xác minh/liên kết Strava cho VĐV đã đăng ký từ trước."""
     configs = get_config_dict(db)
-    # Lấy danh sách VĐV chưa liên kết (chưa có refresh_token)
-    athletes = db.query(Athlete).filter(
-        (Athlete.strava_refresh_token == None) | (Athlete.strava_refresh_token == '')
-    ).order_by(Athlete.full_name).all()
-    
+    # Hiển thị toàn bộ VĐV hoạt động để người dùng cũ có thể xác minh lại và nhận phiên sở hữu.
+    athletes = db.query(Athlete).filter(Athlete.is_active == True).order_by(Athlete.full_name).all()
     return templates.TemplateResponse(
         request=request,
         name="connect_existing.html",
-        context={
-            "configs": configs,
-            "athletes": athletes,
-            "error": error
-        }
+        context={"configs": configs, "athletes": athletes, "error": error},
     )
+
 
 @app.post("/connect-existing")
 def connect_existing_athlete(
     request: Request,
     athlete_id: int = Form(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
-    """Xử lý yêu cầu liên kết Strava, chuyển hướng VĐV sang trang OAuth."""
-    athlete = db.query(Athlete).filter(Athlete.id == athlete_id).first()
+    """Bắt đầu quy trình OAuth an toàn cho VĐV đã có trong hệ thống."""
+    athlete = db.query(Athlete).filter(Athlete.id == athlete_id, Athlete.is_active == True).first()
     if not athlete:
         return RedirectResponse("/connect-existing?error=Không tìm thấy VĐV", status_code=303)
-        
+    return RedirectResponse(f"/connect-existing/start/{athlete_id}", status_code=303)
+
+
+@app.get("/connect-existing/start/{athlete_id}")
+def start_existing_athlete_oauth(
+    athlete_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Sinh signed state + browser nonce rồi chuyển sang Strava OAuth."""
+    athlete = db.query(Athlete).filter(Athlete.id == athlete_id, Athlete.is_active == True).first()
+    if not athlete:
+        return RedirectResponse("/connect-existing?error=Không tìm thấy VĐV", status_code=303)
+
     configs = get_config_dict(db)
     client_id = configs.get("strava_client_id")
     if not client_id:
         return RedirectResponse("/connect-existing?error=Hệ thống chưa cấu hình Strava Client ID", status_code=303)
-        
+
     app_url = APP_URL
     if not app_url:
         host = request.headers.get("host", "localhost:8080")
-        scheme = "https" if request.headers.get("x-forwarded-proto") == "https" else "http"
+        scheme = "https" if _request_is_https(request) else "http"
         app_url = f"{scheme}://{host}"
-        
+
+    import urllib.parse
     redirect_uri = f"{app_url}/exchange_user_token"
-    auth_url = f"https://www.strava.com/oauth/authorize?client_id={client_id}&response_type=code&redirect_uri={redirect_uri}&scope=activity:read_all,profile:read_all&state={athlete_id}"
-    
-    return RedirectResponse(auth_url, status_code=303)
+    state, nonce = create_oauth_state(db, "athlete_strava", str(athlete.id))
+    auth_url = "https://www.strava.com/oauth/authorize?" + urllib.parse.urlencode({
+        "client_id": client_id,
+        "response_type": "code",
+        "redirect_uri": redirect_uri,
+        "scope": "activity:read_all,profile:read_all",
+        "approval_prompt": "force",
+        "state": state,
+    })
+    response = RedirectResponse(auth_url, status_code=303)
+    return _set_oauth_nonce_cookie(response, request, nonce)
+
 
 @app.get("/exchange_user_token")
 def exchange_user_token(
@@ -3435,157 +3649,188 @@ def exchange_user_token(
     state: str = None,
     scope: Optional[str] = None,
     error: str = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
-    """Endpoint nhận callback từ Strava OAuth và lưu token cho VĐV."""
+    """Callback OAuth VĐV: xác minh state, browser nonce và Strava identity trước khi ghi token."""
+    import urllib.parse
+
     if error:
-        return RedirectResponse(f"/connect-existing?error=Lỗi ủy quyền từ Strava: {error}", status_code=303)
+        encoded = urllib.parse.quote(f"Lỗi ủy quyền từ Strava: {error}")
+        return RedirectResponse(f"/connect-existing?error={encoded}", status_code=303)
     if not code or not state:
         return RedirectResponse("/connect-existing?error=Thông tin xác thực không hợp lệ", status_code=303)
-        
-    # Kiểm tra xem VĐV có tích chọn cấp quyền hoạt động hay không
-    has_activity_scope = False
-    if scope:
-        granted_scopes = [s.strip().lower() for s in scope.split(",")]
-        # Chấp nhận một trong hai quyền đọc hoạt động
-        if "activity:read_all" in granted_scopes or "activity:read" in granted_scopes:
-            has_activity_scope = True
-            
-    if not has_activity_scope:
-        error_msg = "Lỗi liên kết: Bạn chưa tích chọn cấp quyền truy cập các hoạt động chạy bộ (activity:read hoặc activity:read_all). Vui lòng thực hiện liên kết lại và tích chọn ĐỒNG Ý cho các quyền được yêu cầu."
-        import urllib.parse
-        encoded_error = urllib.parse.quote(error_msg)
-        return RedirectResponse(f"/connect-existing?error={encoded_error}", status_code=303)
-        
+
+    subject = verify_oauth_state(request, db, state, "athlete_strava")
+    if not subject:
+        return RedirectResponse("/connect-existing?error=Phiên xác thực OAuth không hợp lệ hoặc đã hết hạn. Vui lòng thử lại.", status_code=303)
     try:
-        athlete_id = int(state)
-    except ValueError:
+        athlete_id = int(subject)
+    except (TypeError, ValueError):
         return RedirectResponse("/connect-existing?error=ID vận động viên không hợp lệ", status_code=303)
-        
-    athlete = db.query(Athlete).filter(Athlete.id == athlete_id).first()
+
+    granted_scopes = [x.strip().lower() for x in (scope or "").split(",") if x.strip()]
+    if "activity:read_all" not in granted_scopes and "activity:read" not in granted_scopes:
+        msg = "Bạn chưa cấp quyền đọc hoạt động Strava. Vui lòng liên kết lại và chấp nhận quyền activity:read_all."
+        return RedirectResponse(f"/connect-existing?error={urllib.parse.quote(msg)}", status_code=303)
+
+    athlete = db.query(Athlete).filter(Athlete.id == athlete_id, Athlete.is_active == True).first()
     if not athlete:
         return RedirectResponse("/connect-existing?error=Vận động viên không tồn tại", status_code=303)
-        
+
     configs = get_config_dict(db)
     client_id = configs.get("strava_client_id")
     client_secret = configs.get("strava_client_secret")
-    
     try:
-        response = requests.post("https://www.strava.com/oauth/token", data={
+        token_response = requests.post("https://www.strava.com/oauth/token", data={
             "client_id": client_id,
             "client_secret": client_secret,
             "code": code,
-            "grant_type": "authorization_code"
+            "grant_type": "authorization_code",
         }, timeout=10)
-        response.raise_for_status()
-        token_data = response.json()
-        
-        # Lưu token cá nhân vào database
-        athlete.strava_access_token = token_data["access_token"]
-        athlete.strava_refresh_token = token_data["refresh_token"]
-        athlete.strava_expires_at = str(token_data["expires_at"])
-        
-        # Cập nhật thêm thông tin ID tài khoản Strava và ảnh đại diện
-        strava_athlete_data = token_data.get("athlete") or {}
-        strava_id = strava_athlete_data.get("id")
-        
-        # Cập nhật tên Strava của VĐV từ API thực tế
-        firstname = strava_athlete_data.get("firstname") or ""
-        lastname = strava_athlete_data.get("lastname") or ""
+        token_response.raise_for_status()
+        token_data = token_response.json()
+        strava_data = token_data.get("athlete") or {}
+        incoming_id = str(strava_data.get("id") or "").strip()
+
+        if not incoming_id:
+            raise ValueError("Strava không trả về Athlete ID để xác minh tài khoản.")
+
+        conflict = db.query(Athlete).filter(
+            Athlete.strava_athlete_id == incoming_id,
+            Athlete.id != athlete.id,
+        ).first()
+        if conflict:
+            msg = "Tài khoản Strava này đã được liên kết với một VĐV khác. Vui lòng liên hệ Admin để xử lý."
+            response = RedirectResponse(f"/connect-existing?error={urllib.parse.quote(msg)}", status_code=303)
+            response.delete_cookie(OAUTH_NONCE_COOKIE)
+            return response
+
+        if not _strava_identity_matches(athlete, strava_data):
+            msg = "Tài khoản Strava vừa xác thực không khớp với hồ sơ VĐV đã chọn. Hệ thống không thay đổi dữ liệu."
+            response = RedirectResponse(f"/connect-existing?error={urllib.parse.quote(msg)}", status_code=303)
+            response.delete_cookie(OAUTH_NONCE_COOKIE)
+            return response
+
+        # Chỉ ghi token sau khi toàn bộ bước xác minh thành công.
+        athlete.strava_access_token = token_data.get("access_token")
+        athlete.strava_refresh_token = token_data.get("refresh_token")
+        athlete.strava_expires_at = str(token_data.get("expires_at") or "")
+        athlete.strava_athlete_id = incoming_id
+
+        firstname = strava_data.get("firstname") or ""
+        lastname = strava_data.get("lastname") or ""
         full_strava_name = f"{firstname} {lastname}".strip()
         if full_strava_name:
             athlete.strava_name = full_strava_name
-            
-        warning_msg = None
-        if strava_id:
-            strava_id_str = str(strava_id)
-            
-            # Kiểm tra xem tài khoản Strava này đã được liên kết bởi ai khác chưa
-            conflict_ath = db.query(Athlete).filter(
-                Athlete.strava_athlete_id == strava_id_str,
-                Athlete.id != athlete.id
-            ).first()
-            
-            if conflict_ath:
-                print(f"OAuth: Strava account ID {strava_id_str} is already linked to {conflict_ath.full_name} (ID {conflict_ath.id}). Unlinking the old one to avoid conflict.")
-                warning_msg = f"Lưu ý: Tài khoản Strava này trước đó đã được liên kết bởi VĐV '{conflict_ath.full_name}'. Hệ thống đã tự động gỡ liên kết của VĐV đó để tránh trùng lặp dữ liệu."
-                
-                # Gỡ thông tin liên kết của VĐV cũ
-                conflict_ath.strava_access_token = None
-                conflict_ath.strava_refresh_token = None
-                conflict_ath.strava_expires_at = None
-                conflict_ath.strava_athlete_id = None
-                db.add(conflict_ath)
-                
-            athlete.strava_athlete_id = strava_id_str
-            
-        profile_url = strava_athlete_data.get("profile")
+
+        profile_url = strava_data.get("profile")
         if profile_url and "avatar/athlete" not in profile_url:
             athlete.avatar_url = profile_url
-            
         db.commit()
-        
-        # Đồng bộ và thay thế tức thì dữ liệu cào Club bằng API cá nhân cho VĐV vừa liên kết
+
+        # Sau khi xác minh Strava thành công mới được phép nhận các activity cũ
+        # chưa gán theo tên/ID, tránh việc chiếm activity chỉ bằng cách nhập tên.
+        try:
+            link_unlinked_activities(db, athlete)
+        except Exception as link_err:
+            db.rollback()
+            print(f"Warning: could not link historical activities for athlete {athlete.id}: {link_err}")
+
         try:
             from backend.sync_engine import sync_single_athlete_all_events
             sync_single_athlete_all_events(db, athlete)
         except Exception as sync_err:
             print(f"Error triggering instant sync for athlete {athlete.id}: {sync_err}")
-        
-        # Chuyển hướng VĐV về trang cá nhân của họ kèm thông báo thành công hoặc cảnh báo trùng
-        import urllib.parse
-        if warning_msg:
-            encoded_warning = urllib.parse.quote(warning_msg)
-            return RedirectResponse(f"/profile/{athlete.id}?success=Đã liên kết tài khoản Strava thành công!&warning={encoded_warning}", status_code=303)
-            
-        return RedirectResponse(f"/profile/{athlete.id}?success=Đã liên kết tài khoản Strava thành công!", status_code=303)
+
+        response = RedirectResponse(
+            f"/profile/{athlete.id}?success={urllib.parse.quote('Đã xác minh và liên kết tài khoản Strava thành công!')}",
+            status_code=303,
+        )
+        response.delete_cookie(OAUTH_NONCE_COOKIE)
+        return _set_athlete_session_cookie(response, request, db, athlete.id)
     except Exception as e:
         db.rollback()
-        return RedirectResponse(f"/connect-existing?error=Lỗi khi kết nối tài khoản: {str(e)}", status_code=303)
+        msg = urllib.parse.quote(f"Lỗi khi kết nối tài khoản: {str(e)}")
+        response = RedirectResponse(f"/connect-existing?error={msg}", status_code=303)
+        response.delete_cookie(OAUTH_NONCE_COOKIE)
+        return response
+
+
+@app.get("/admin/strava/connect")
+def start_admin_strava_oauth(request: Request, db: Session = Depends(get_db)):
+    """Bắt đầu OAuth global Strava chỉ khi Admin đang đăng nhập."""
+    if not get_admin_session(request, db):
+        return RedirectResponse("/admin?error=Chua dang nhap", status_code=303)
+    configs = get_config_dict(db)
+    client_id = configs.get("strava_client_id")
+    if not client_id:
+        return RedirectResponse("/admin?error=Chua cau hinh Strava Client ID", status_code=303)
+
+    app_url = APP_URL or str(request.base_url).rstrip("/")
+    redirect_uri = f"{app_url}/exchange_token"
+    state, nonce = create_oauth_state(db, "admin_strava", "admin")
+    import urllib.parse
+    auth_url = "https://www.strava.com/oauth/authorize?" + urllib.parse.urlencode({
+        "client_id": client_id,
+        "response_type": "code",
+        "redirect_uri": redirect_uri,
+        "approval_prompt": "force",
+        "scope": "read,activity:read_all",
+        "state": state,
+    })
+    response = RedirectResponse(auth_url, status_code=303)
+    return _set_oauth_nonce_cookie(response, request, nonce)
+
 
 @app.get("/exchange_token")
-def exchange_token(request: Request, code: str = None, error: str = None, db: Session = Depends(get_db)):
-    """
-    Endpoint tiếp nhận mã chuyển hướng OAuth từ Strava.
-    """
+def exchange_token(
+    request: Request,
+    code: str = None,
+    state: str = None,
+    error: str = None,
+    db: Session = Depends(get_db),
+):
+    """Callback OAuth global: yêu cầu phiên Admin + signed state hợp lệ."""
+    if not get_admin_session(request, db):
+        return RedirectResponse("/admin?error=Phien Admin khong hop le", status_code=303)
     if error:
         return RedirectResponse(f"/admin?error=Loi xac thuc Strava: {error}", status_code=303)
-    if not code:
-        return RedirectResponse("/admin?error=Khong co Authorization Code tu Strava", status_code=303)
+    if not code or not state:
+        return RedirectResponse("/admin?error=Khong co Authorization Code/State tu Strava", status_code=303)
+    if verify_oauth_state(request, db, state, "admin_strava") != "admin":
+        return RedirectResponse("/admin?error=OAuth state khong hop le hoac da het han", status_code=303)
 
     configs = get_config_dict(db)
     client_id = configs.get("strava_client_id")
     client_secret = configs.get("strava_client_secret")
-
     try:
-        response = requests.post("https://www.strava.com/oauth/token", data={
+        token_response = requests.post("https://www.strava.com/oauth/token", data={
             "client_id": client_id,
             "client_secret": client_secret,
             "code": code,
-            "grant_type": "authorization_code"
+            "grant_type": "authorization_code",
         }, timeout=10)
-        response.raise_for_status()
-        token_data = response.json()
-
-        # Lưu token trả về vào DB
+        token_response.raise_for_status()
+        token_data = token_response.json()
         update_config(db, "strava_access_token", token_data["access_token"])
         update_config(db, "strava_refresh_token", token_data["refresh_token"])
         update_config(db, "strava_expires_at", str(token_data["expires_at"]))
-
-        return RedirectResponse("/admin?success=Ket noi Strava thanh cong. San sang dong bo du lieu!", status_code=303)
+        response = RedirectResponse("/admin?success=Ket noi Strava thanh cong. San sang dong bo du lieu!", status_code=303)
+        response.delete_cookie(OAUTH_NONCE_COOKIE)
+        return response
     except Exception as e:
-        return RedirectResponse(f"/admin?error=Loi khi trao doi code lay Token: {str(e)}", status_code=303)
+        response = RedirectResponse(f"/admin?error=Loi khi trao doi code lay Token: {str(e)}", status_code=303)
+        response.delete_cookie(OAUTH_NONCE_COOKIE)
+        return response
+
 
 def run_sync_in_background():
-    db = SessionLocal()
     try:
         res = sync_club_activities()
         if res.get("status") in ("success", "partial"):
-            deduplicate_activities_logic(db)
+            _deduplicate_if_sync_idle()
     except Exception as e:
         print(f"Background Sync: Error during manual sync background processing: {e}")
-    finally:
-        db.close()
 
 @app.post("/admin/sync")
 def trigger_sync(request: Request, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
@@ -3603,10 +3848,16 @@ def trigger_sync(request: Request, background_tasks: BackgroundTasks, db: Sessio
 
 @app.post("/admin/restore-backup-data")
 def restore_backup_data_endpoint(request: Request, db: Session = Depends(get_db)):
-    """API khôi phục hoạt động lịch sử trước 16/06/2026 từ file backup tự động gần nhất."""
+    """Khôi phục dữ liệu của giải lịch sử (ID=1) theo chính start/end date của giải."""
     admin_session = get_admin_session(request, db)
     if not admin_session:
         return JSONResponse(status_code=401, content={"error": "Chưa đăng nhập admin"})
+
+    historical_event = db.query(CompetitionEvent).filter(CompetitionEvent.id == 1).first()
+    if not historical_event:
+        return JSONResponse(status_code=400, content={"error": "Không tìm thấy giải lịch sử ID=1 để xác định phạm vi khôi phục."})
+    historical_start = historical_event.start_date or "0001-01-01"
+    historical_end = historical_event.end_date or "9999-12-31"
         
     import sqlite3
     
@@ -3620,8 +3871,8 @@ def restore_backup_data_endpoint(request: Request, db: Session = Depends(get_db)
         if f.endswith(".db") and f != "SSO_HC.db" and f != "test_sync_grace.db":
             db_files.append(os.path.join(root_dir, f))
             
-    # Quét thư mục backup tự động
-    backups_dir = os.path.join(root_dir, "static", "uploads", "backups")
+    # Quét thư mục backup riêng tư (không nằm dưới /static)
+    backups_dir = get_private_backup_dir()
     if os.path.exists(backups_dir):
         for f in os.listdir(backups_dir):
             if f.endswith(".db"):
@@ -3635,7 +3886,10 @@ def restore_backup_data_endpoint(request: Request, db: Session = Depends(get_db)
         try:
             conn_test = sqlite3.connect(db_path)
             cur_test = conn_test.cursor()
-            cur_test.execute("SELECT COUNT(*) FROM activities WHERE activity_date < '2026-06-16'")
+            cur_test.execute(
+                "SELECT COUNT(*) FROM activities WHERE event_id = ? AND activity_date >= ? AND activity_date <= ?",
+                (historical_event.id, historical_start, historical_end),
+            )
             count = cur_test.fetchone()[0]
             conn_test.close()
             
@@ -3659,7 +3913,7 @@ def restore_backup_data_endpoint(request: Request, db: Session = Depends(get_db)
         "all_backups_scanned": [{"file": os.path.basename(p), "historical_activities": c} for p, c in backup_candidates]
     }
     print(f"Restore: Selected backup '{os.path.basename(backup_db)}' with {max_historical_activities} historical activities.")
-    # 2. Đọc các hoạt động từ backup (khôi phục TẤT CẢ hoạt động bị mất, không giới hạn trước 16/06)
+    # 2. Đọc dữ liệu backup; phạm vi khôi phục được quyết định theo ngày của giải lịch sử.
     conn_b = sqlite3.connect(backup_db)
     cur_b = conn_b.cursor()
     try:
@@ -3708,8 +3962,7 @@ def restore_backup_data_endpoint(request: Request, db: Session = Depends(get_db)
         live_name_map = {normalize_name(ath.full_name): ath.id for ath in live_athletes}
         
         total_restored = 0
-        restored_before_16 = 0
-        restored_after_16 = 0
+        restored_historical = 0
         
         for old_id, info in backup_data.items():
             name = info["name"]
@@ -3725,12 +3978,11 @@ def restore_backup_data_endpoint(request: Request, db: Session = Depends(get_db)
             
             added_regs = set()
             for act in acts:
-                # Chỉ khôi phục hoạt động lịch sử trước 16/06 để tránh double data với đồng bộ live hiện tại
-                if act.get("activity_date") and act["activity_date"] >= "2026-06-16":
+                # Chỉ khôi phục đúng giải lịch sử và đúng khoảng start/end date cấu hình của giải.
+                if act.get("event_id") != historical_event.id:
                     continue
-                    
-                # Chỉ khôi phục hoạt động của giải 1 (SSO's HC từ 2025). Giải 2 (SSO50 từ 16/06) tự đồng bộ live.
-                if act.get("event_id") != 1:
+                act_date = act.get("activity_date")
+                if act_date and not (historical_start <= act_date <= historical_end):
                     continue
                     
                 # Đảm bảo VĐV có đăng ký giải đấu tương ứng ở CSDL hiện tại (tạo lại nếu bị thiếu)
@@ -3778,27 +4030,15 @@ def restore_backup_data_endpoint(request: Request, db: Session = Depends(get_db)
                 )
                 db.add(new_act)
                 total_restored += 1
-                # Thống kê chi tiết
-                if act["activity_date"] and act["activity_date"] < "2026-06-16":
-                    restored_before_16 += 1
-                else:
-                    restored_after_16 += 1
+                restored_historical += 1
                 
         db.commit()
         
-        detail_parts = []
-        if restored_before_16 > 0:
-            detail_parts.append(f"{restored_before_16} hoạt động lịch sử (trước 16/06)")
-        if restored_after_16 > 0:
-            detail_parts.append(f"{restored_after_16} hoạt động bị mất (từ 16/06 trở đi)")
-        detail_str = " và ".join(detail_parts) if detail_parts else "0 hoạt động"
-        
         return JSONResponse(content={
             "status": "success",
-            "message": f"Khôi phục thành công! Đã khôi phục {total_restored} hoạt động ({detail_str}) từ bản backup '{os.path.basename(backup_db)}'.",
+            "message": f"Khôi phục thành công {total_restored} hoạt động của giải '{historical_event.title}' trong giai đoạn {historical_start} đến {historical_end} từ backup '{os.path.basename(backup_db)}'.",
             "total_restored": total_restored,
-            "restored_before_16": restored_before_16,
-            "restored_after_16": restored_after_16,
+            "restored_historical": restored_historical,
             "backup_info": backup_info
         })
     except Exception as e:
@@ -3818,22 +4058,47 @@ def upload_restore_backup_endpoint(
     admin_session = get_admin_session(request, db)
     if not admin_session:
         return JSONResponse(status_code=401, content={"error": "Chưa đăng nhập admin"})
+
+    historical_event = db.query(CompetitionEvent).filter(CompetitionEvent.id == 1).first()
+    if not historical_event:
+        return JSONResponse(status_code=400, content={"error": "Không tìm thấy giải lịch sử ID=1 để xác định phạm vi khôi phục."})
+    historical_start = historical_event.start_date or "0001-01-01"
+    historical_end = historical_event.end_date or "9999-12-31"
         
     if not file.filename.endswith(".db"):
         return JSONResponse(status_code=400, content={"error": "Định dạng file phải là .db"})
         
-    # Tạo file tạm trên VPS để đọc
-    temp_dir = "static/uploads/temp"
-    os.makedirs(temp_dir, exist_ok=True)
-    temp_path = os.path.join(temp_dir, f"temp_upload_{int(time.time())}.db")
+    # File restore là dữ liệu nhạy cảm: luôn lưu tạm ngoài /static, giới hạn dung lượng
+    # và kiểm tra SQLite header trước khi mở.
+    import secrets
+    temp_dir = get_private_storage_dir("restore_temp")
+    temp_path = os.path.join(temp_dir, f"restore_{secrets.token_hex(12)}.db")
+    max_upload_bytes = 512 * 1024 * 1024  # 512 MiB
     
     try:
-        # Lưu file tải lên
+        total_bytes = 0
+        header = b""
         with open(temp_path, "wb") as f:
-            f.write(file.file.read())
+            while True:
+                chunk = file.file.read(1024 * 1024)
+                if not chunk:
+                    break
+                if not header:
+                    header = chunk[:16]
+                total_bytes += len(chunk)
+                if total_bytes > max_upload_bytes:
+                    raise ValueError("File backup vượt quá giới hạn 512 MiB.")
+                f.write(chunk)
+        try:
+            os.chmod(temp_path, 0o600)
+        except OSError:
+            pass
+        if header != b"SQLite format 3\x00":
+            raise ValueError("File tải lên không có định dạng SQLite hợp lệ.")
             
         import sqlite3
-        conn_b = sqlite3.connect(temp_path)
+        conn_b = sqlite3.connect(f"file:{temp_path}?mode=ro", uri=True, timeout=10)
+        conn_b.execute("PRAGMA query_only=ON")
         cur_b = conn_b.cursor()
         
         # Đọc dữ liệu từ file tạm
@@ -3878,8 +4143,7 @@ def upload_restore_backup_endpoint(
         live_name_map = {normalize_name(ath.full_name): ath.id for ath in live_athletes}
         
         total_restored = 0
-        restored_before_16 = 0
-        restored_after_16 = 0
+        restored_historical = 0
         
         for old_id, info in backup_data.items():
             name = info["name"]
@@ -3895,12 +4159,10 @@ def upload_restore_backup_endpoint(
             
             added_regs = set()
             for act in acts:
-                # Chỉ khôi phục hoạt động lịch sử trước 16/06 để tránh double data với đồng bộ live hiện tại
-                if act.get("activity_date") and act["activity_date"] >= "2026-06-16":
+                if act.get("event_id") != historical_event.id:
                     continue
-                    
-                # Chỉ khôi phục hoạt động của giải 1 (SSO's HC từ 2025). Giải 2 (SSO50 từ 16/06) tự đồng bộ live.
-                if act.get("event_id") != 1:
+                act_date = act.get("activity_date")
+                if act_date and not (historical_start <= act_date <= historical_end):
                     continue
                     
                 reg_key = (new_id, act["event_id"])
@@ -3947,26 +4209,15 @@ def upload_restore_backup_endpoint(
                 )
                 db.add(new_act)
                 total_restored += 1
-                if act["activity_date"] and act["activity_date"] < "2026-06-16":
-                    restored_before_16 += 1
-                else:
-                    restored_after_16 += 1
+                restored_historical += 1
                     
         db.commit()
         
-        detail_parts = []
-        if restored_before_16 > 0:
-            detail_parts.append(f"{restored_before_16} hoạt động lịch sử (trước 16/06)")
-        if restored_after_16 > 0:
-            detail_parts.append(f"{restored_after_16} hoạt động bị mất (từ 16/06 trở đi)")
-        detail_str = " và ".join(detail_parts) if detail_parts else "0 hoạt động"
-        
         return JSONResponse(content={
             "status": "success",
-            "message": f"Khôi phục thành công! Đã khôi phục {total_restored} hoạt động ({detail_str}) từ tệp tải lên '{file.filename}'.",
+            "message": f"Khôi phục thành công {total_restored} hoạt động của giải '{historical_event.title}' trong giai đoạn {historical_start} đến {historical_end} từ tệp '{file.filename}'.",
             "total_restored": total_restored,
-            "restored_before_16": restored_before_16,
-            "restored_after_16": restored_after_16
+            "restored_historical": restored_historical
         })
     except Exception as e:
         db.rollback()
@@ -4195,7 +4446,7 @@ def cleanup_old_numeric_ids_endpoint(request: Request, db: Session = Depends(get
         if to_delete:
             import json
             import os
-            backup_file = "static/uploads/deleted_activities_backup.jsonl"
+            backup_file = get_private_audit_log_path()
             os.makedirs(os.path.dirname(backup_file), exist_ok=True)
             
             # Ghi log backup trước khi xóa
@@ -4225,7 +4476,7 @@ def cleanup_old_numeric_ids_endpoint(request: Request, db: Session = Depends(get
                             "distance_km_raw": act_item.distance_km_raw,
                             "kcal_burned_raw": act_item.kcal_burned_raw,
                             "multiplier": act_item.multiplier,
-                            "backup_time": datetime.utcnow().isoformat(),
+                            "backup_time": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
                             "reason": "Dọn dẹp ID số cũ hoặc ngoài khoảng thời gian giải đấu"
                         }
                         f.write(json.dumps(act_dict, ensure_ascii=False) + "\n")
@@ -4248,22 +4499,18 @@ def download_db_backup(request: Request, db: Session = Depends(get_db)):
     if not admin_session:
         return RedirectResponse("/admin?error=Chua dang nhap", status_code=303)
         
-    db_url = os.getenv("DATABASE_URL", "sqlite:///SSO_HC.db")
-    db_path = db_url.replace("sqlite:///", "") if db_url.startswith("sqlite:///") else "SSO_HC.db"
-    if not os.path.exists(db_path):
+    db_path = get_sqlite_db_path()
+    if not db_path or not os.path.exists(db_path):
         raise HTTPException(status_code=404, detail=f"File co so du lieu khong ton tai tai {db_path}")
         
-    import shutil
-    _root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    backup_dir = os.path.join(_root_dir, "static", "uploads", "backups")
-    os.makedirs(backup_dir, exist_ok=True)
+    backup_dir = get_private_backup_dir()
     
     # Lưu bản backup cố định trên VPS để restore có thể quét được sau này
     backup_filename = f"SSO_HC_download_{APP_VERSION}_{int(time.time())}.db"
     persistent_path = os.path.join(backup_dir, backup_filename)
     try:
-        shutil.copyfile(db_path, persistent_path)
-        print(f"Download Backup: Saved persistent copy at {persistent_path}")
+        backup_sqlite_database(persistent_path)
+        print(f"Download Backup: Saved consistent persistent copy at {persistent_path}")
         
         # Xoay vòng: Chỉ giữ tối đa 3 bản download backup gần nhất
         download_backups = [
@@ -4988,7 +5235,7 @@ def admin_migrate_registrations(
         if not target_event:
             return JSONResponse(status_code=404, content={"error": f"Không tìm thấy giải chạy đích ID {target_event_id}"})
             
-        time_limit = datetime.utcnow() - timedelta(hours=hours_threshold)
+        time_limit = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=hours_threshold)
         
         # Query registrations in event 1 created recently
         regs_to_migrate = db.query(CompetitionRegistration).filter(
@@ -5147,6 +5394,29 @@ def admin_merge_duplicate_athletes(
         return JSONResponse(status_code=500, content={"error": f"Lỗi xử lý: {str(e)}"})
 
 
+@app.post("/admin/activity/approve/{activity_id}")
+def approve_suspicious_activity(activity_id: str, request: Request, db: Session = Depends(get_db)):
+    """Admin xác nhận một activity bị anti-cheat gắn cờ là hợp lệ."""
+    admin_session = get_admin_session(request, db)
+    if not admin_session:
+        return JSONResponse(status_code=401, content={"error": "Chưa đăng nhập admin"})
+
+    activity = db.query(Activity).filter(Activity.id == activity_id).first()
+    if not activity:
+        return JSONResponse(status_code=404, content={"error": "Không tìm thấy hoạt động"})
+
+    try:
+        old_reason = (activity.suspicion_reason or "").strip()
+        activity.is_suspicious = False
+        if old_reason and not old_reason.startswith("[ADMIN APPROVED]"):
+            activity.suspicion_reason = f"[ADMIN APPROVED] {old_reason}"
+        db.commit()
+        return JSONResponse(content={"status": "success", "message": "Đã xác nhận hoạt động hợp lệ và đưa lại vào thống kê."})
+    except Exception as exc:
+        db.rollback()
+        return JSONResponse(status_code=500, content={"error": f"Lỗi cập nhật hoạt động: {str(exc)}"})
+
+
 @app.post("/admin/activity/delete/{activity_id}")
 def delete_activity(activity_id: str, request: Request, db: Session = Depends(get_db)):
     """API xóa hoạt động, chỉ dành cho Admin."""
@@ -5176,7 +5446,7 @@ def get_admin_logs(request: Request, db: Session = Depends(get_db)):
     import os
     import json
     
-    backup_file = "static/uploads/deleted_activities_backup.jsonl"
+    backup_file = get_private_audit_log_path()
     logs = []
     if os.path.exists(backup_file):
         try:
@@ -5291,9 +5561,10 @@ def edit_activity(
         return JSONResponse(status_code=404, content={"error": "Không tìm thấy hoạt động"})
         
     try:
+        old_distance_display = activity.distance_km
+        old_kcal_display = activity.kcal_burned
         activity.name = name.strip()
         activity.sport_type = sport_type.strip()
-        activity.distance_km = distance_km
         activity.moving_time_min = moving_time_min
         activity.elapsed_time_min = elapsed_time_min
         activity.elevation_gain_m = elevation_gain_m
@@ -5305,7 +5576,7 @@ def edit_activity(
         # Ta cần tính toán lại cự ly gốc bằng cách chia cho multiplier hiện tại.
         old_multiplier = activity.multiplier if (activity.multiplier and activity.multiplier > 0) else 1.0
         
-        if distance_km != activity.distance_km:
+        if old_distance_display is None or abs(float(distance_km) - float(old_distance_display)) > 1e-9:
             distance_km_raw = distance_km / old_multiplier
         else:
             distance_km_raw = activity.distance_km_raw if activity.distance_km_raw is not None else (distance_km / old_multiplier)
@@ -5325,7 +5596,7 @@ def edit_activity(
         activity.mets_value = mets_val
         
         # Nếu Admin sửa trực tiếp Calo trên form (calo gửi lên khác calo hiển thị hiện tại trong DB)
-        if kcal_burned is not None and kcal_burned != activity.kcal_burned:
+        if kcal_burned is not None and (old_kcal_display is None or abs(float(kcal_burned) - float(old_kcal_display)) > 1e-9):
             # Ép hệ số nhân về 1.0 và lưu trực tiếp giá trị Admin sửa
             activity.multiplier = 1.0
             activity.distance_km = distance_km
@@ -5346,6 +5617,26 @@ def edit_activity(
             activity.pace_min_km = round(moving_time_min / distance_km_raw, 2)
         else:
             activity.pace_min_km = 0.0
+
+        # Admin sửa dữ liệu vật lý thì phải chạy lại anti-cheat; hoạt động đã sửa hợp lệ
+        # sẽ tự được gỡ cờ và quay lại BXH, còn hoạt động vẫn bất thường tiếp tục bị loại.
+        event_obj = None
+        if activity.event_id:
+            event_obj = db.query(CompetitionEvent).filter(CompetitionEvent.id == activity.event_id).first()
+        configs = get_config_dict(db)
+        activity.is_suspicious, activity.suspicion_reason = check_suspicious_activity(
+            sport_type=activity.sport_type,
+            distance_km=distance_km_raw,
+            pace_min_km=activity.pace_min_km,
+            elevation_gain_m=activity.elevation_gain_m or 0.0,
+            configs=configs,
+            is_manual=bool(activity.is_manual),
+            has_heartrate=bool(activity.has_heartrate),
+            average_heartrate=activity.average_heartrate,
+            moving_time_min=activity.moving_time_min or 0.0,
+            elapsed_time_min=activity.elapsed_time_min or 0.0,
+            event_obj=event_obj,
+        )
             
         db.commit()
         return JSONResponse(content={"status": "success", "message": "Cập nhật hoạt động thành công"})
@@ -5415,7 +5706,7 @@ def export_excel(
             if not end_date:
                 end_date = selected_event.end_date
         else:
-            base_query = db.query(func.max(Activity.activity_date))
+            base_query = db.query(func.max(Activity.activity_date)).filter(_valid_activity_clause())
             if event_id:
                 base_query = base_query.filter(Activity.event_id == event_id)
             max_date_str = base_query.scalar()
@@ -5435,7 +5726,7 @@ def export_excel(
                 end_date = end_dt.strftime("%Y-%m-%d")
 
     # Xây dựng bộ lọc cơ bản cho giải đấu + khoảng thời gian
-    base_filters = [Activity.activity_date >= start_date, Activity.activity_date <= end_date]
+    base_filters = [Activity.activity_date >= start_date, Activity.activity_date <= end_date, _valid_activity_clause()]
     if event_id:
         base_filters.append(Activity.event_id == event_id)
         if selected_event:
@@ -5708,7 +5999,7 @@ def export_rewards_excel(
     # 3. Tính toán thành tích và giải thưởng
     data = []
     for ath in athletes:
-        act_query = db.query(Activity).filter(Activity.athlete_id == ath.id)
+        act_query = db.query(Activity).filter(Activity.athlete_id == ath.id, _valid_activity_clause())
         if event_id:
             act_query = act_query.filter(Activity.event_id == event_id)
             if allowed_sports and "All" not in allowed_sports:
@@ -5765,6 +6056,7 @@ def export_rewards_excel(
                 Activity.event_id == event_id,
                 Activity.activity_date >= str(event_start),
                 Activity.activity_date <= str(event_end),
+                _valid_activity_clause(),
             ]
             
             total_valid_activities = db.query(Activity).filter(*base_act_filters).count()
@@ -5777,7 +6069,7 @@ def export_rewards_excel(
             from backend.calculations import get_award_info
             total_reward_val = 0.0
             for ath in athletes:
-                act_ath_q = db.query(Activity).filter(Activity.athlete_id == ath.id, Activity.event_id == event_id)
+                act_ath_q = db.query(Activity).filter(Activity.athlete_id == ath.id, Activity.event_id == event_id, _valid_activity_clause())
                 if allowed_sports and "All" not in allowed_sports:
                     act_ath_q = act_ath_q.filter(Activity.sport_type.in_(allowed_sports))
                 ath_acts = act_ath_q.all()
@@ -6090,7 +6382,9 @@ def strava_webhook_verification(request: Request):
     hub_challenge = params.get("hub.challenge")
     hub_verify_token = params.get("hub.verify_token")
     
-    EXPECTED_VERIFY_TOKEN = os.getenv("STRAVA_WEBHOOK_VERIFY_TOKEN", "SSO_HC_VERIFY_TOKEN")
+    EXPECTED_VERIFY_TOKEN = os.getenv("STRAVA_WEBHOOK_VERIFY_TOKEN", "").strip()
+    if not EXPECTED_VERIFY_TOKEN:
+        raise HTTPException(status_code=503, detail="STRAVA_WEBHOOK_VERIFY_TOKEN is not configured")
     
     if hub_mode == "subscribe" and hub_challenge:
         if hub_verify_token == EXPECTED_VERIFY_TOKEN:
@@ -6107,18 +6401,30 @@ async def strava_webhook_event(request: Request):
     """
     Tiếp nhận sự kiện webhook từ Strava khi có hoạt động mới, cập nhật hoặc xóa.
     """
+    if not _rate_limit(request, "strava_webhook", limit=60, window_seconds=60):
+        return HTMLResponse(content="RATE_LIMITED", status_code=429)
     try:
         payload = await request.json()
-        print(f"Strava Webhook: Received event payload: {payload}")
-        
+        if not isinstance(payload, dict):
+            return HTMLResponse(content="BAD_PAYLOAD", status_code=400)
+
+        expected_subscription = os.getenv("STRAVA_WEBHOOK_SUBSCRIPTION_ID", "").strip()
+        incoming_subscription = str(payload.get("subscription_id") or "").strip()
+        if expected_subscription and incoming_subscription != expected_subscription:
+            return HTMLResponse(content="INVALID_SUBSCRIPTION", status_code=403)
+
         object_type = payload.get("object_type")
         aspect_type = payload.get("aspect_type")
-        
-        if object_type == "activity":
-            if aspect_type in ("create", "update"):
-                print("Strava Webhook: New or updated activity event. Triggering sync thread...")
-                import threading
-                threading.Thread(target=run_background_sync, daemon=True).start()
+        object_id = payload.get("object_id")
+        owner_id = payload.get("owner_id")
+        if object_type != "activity" or aspect_type not in ("create", "update", "delete") or not object_id or not owner_id:
+            return HTMLResponse(content="IGNORED", status_code=200)
+
+        print(f"Strava Webhook: Received {aspect_type} activity event {object_id} for owner {owner_id}.")
+        if aspect_type in ("create", "update"):
+            print("Strava Webhook: Triggering serialized sync thread...")
+            import threading
+            threading.Thread(target=run_background_sync, daemon=True).start()
                 
         return HTMLResponse(content="EVENT_RECEIVED", status_code=200)
     except Exception as e:
@@ -6633,6 +6939,7 @@ def generate_event_analytics_summary(db: Session, event: CompetitionEvent) -> st
         Activity.event_id == event_id,
         Activity.activity_date >= str(event_start),
         Activity.activity_date <= str(event_end),
+        _valid_activity_clause(),
     ]
 
     # 1. KPIs tổng quan & Phân nhóm SSO / Ngoài SSO
@@ -6665,7 +6972,7 @@ def generate_event_analytics_summary(db: Session, event: CompetitionEvent) -> st
     total_reward_amount = 0.0
 
     for ath in athletes_for_reward:
-        act_ath_q = db.query(Activity).filter(Activity.event_id == event_id, Activity.athlete_id == ath.id)
+        act_ath_q = db.query(Activity).filter(Activity.event_id == event_id, Activity.athlete_id == ath.id, _valid_activity_clause())
         if allowed_sports and "All" not in allowed_sports:
             act_ath_q = act_ath_q.filter(Activity.sport_type.in_(allowed_sports))
         ath_acts = act_ath_q.all()
@@ -6988,15 +7295,12 @@ def admin_archive_competition(comp_id: int, request: Request, db: Session = Depe
 
 
 def run_sync_single_in_background(comp_id: int):
-    db = SessionLocal()
     try:
         res = sync_club_activities(event_id=comp_id)
         if res.get("status") in ("success", "partial"):
-            deduplicate_activities_logic(db)
+            _deduplicate_if_sync_idle()
     except Exception as e:
         print(f"Background Sync Single: Error: {e}")
-    finally:
-        db.close()
 
 
 @app.post("/admin/competitions/sync/{comp_id}")
@@ -7017,7 +7321,9 @@ def admin_sync_competition(comp_id: int, request: Request, background_tasks: Bac
 # --- SUPPORT TICKETS API ---
 @app.post("/api/support")
 async def api_submit_support(request: Request, db: Session = Depends(get_db)):
-    """API gửi phản hồi hoặc báo lỗi từ giao diện người dùng (không cần đăng nhập)."""
+    """API gửi phản hồi hoặc báo lỗi từ giao diện người dùng (có rate limit chống spam)."""
+    if not _rate_limit(request, "support", limit=5, window_seconds=600):
+        return JSONResponse(status_code=429, content={"status": "error", "message": "Bạn gửi phản hồi quá nhanh. Vui lòng thử lại sau."})
     try:
         data = await request.json()
         athlete_name = data.get("athlete_name", "").strip()
@@ -7026,6 +7332,8 @@ async def api_submit_support(request: Request, db: Session = Depends(get_db)):
         
         if not content:
             return JSONResponse(status_code=400, content={"status": "error", "message": "Nội dung phản hồi không được để trống."})
+        if len(content) > 5000 or len(athlete_name) > 200 or len(contact_info) > 300:
+            return JSONResponse(status_code=400, content={"status": "error", "message": "Nội dung phản hồi vượt quá giới hạn cho phép."})
             
         ticket = SupportTicket(
             athlete_name=athlete_name,
@@ -7038,6 +7346,7 @@ async def api_submit_support(request: Request, db: Session = Depends(get_db)):
         db.refresh(ticket)
         return {"status": "success", "message": "Gửi phản hồi thành công! Cảm ơn bạn đã đóng góp ý kiến."}
     except Exception as e:
+        db.rollback()
         return JSONResponse(status_code=500, content={"status": "error", "message": f"Lỗi hệ thống: {str(e)}"})
 
 # --- ATHLETE CONNECTION STATUS API ---
@@ -7081,10 +7390,7 @@ def search_athlete_connection(q: str, request: Request, db: Session = Depends(ge
     results = []
     for ath in athletes:
         is_linked = bool(ath.strava_refresh_token)
-        auth_url = ""
-        if not is_linked and client_id:
-            redirect_uri = f"{app_url}/exchange_user_token"
-            auth_url = f"https://www.strava.com/oauth/authorize?client_id={client_id}&response_type=code&redirect_uri={redirect_uri}&scope=activity:read_all,profile:read_all&state={ath.id}"
+        auth_url = f"/connect-existing/start/{ath.id}" if client_id else ""
             
         results.append({
             "id": ath.id,
@@ -7139,7 +7445,7 @@ async def admin_resolve_support(ticket_id: int, request: Request, db: Session = 
         ticket.status = status
         ticket.admin_notes = admin_notes
         if status in ("resolved", "processed"):
-            ticket.resolved_at = datetime.utcnow()
+            ticket.resolved_at = datetime.now(timezone.utc).replace(tzinfo=None)
         else:
             ticket.resolved_at = None
             

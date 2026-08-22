@@ -2,6 +2,7 @@ import sqlite3
 import os
 import sys
 import io
+from backend.database import get_private_backup_dir
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
@@ -10,7 +11,7 @@ def diagnose():
     root_dir = os.path.dirname(backend_dir)
     
     print(f"Thư mục gốc quét: {root_dir}")
-    print(f"Thư mục backup quét: {os.path.join(root_dir, 'static', 'uploads', 'backups')}")
+    print(f"Thư mục backup quét: {get_private_backup_dir()}")
     
     db_files = []
     
@@ -20,12 +21,12 @@ def diagnose():
             if f.endswith(".db"):
                 db_files.append((os.path.join(root_dir, f), "Thư mục gốc"))
                 
-    # 2. Quét thư mục backups
-    backups_dir = os.path.join(root_dir, "static", "uploads", "backups")
+    # 2. Quét thư mục backups riêng tư
+    backups_dir = get_private_backup_dir()
     if os.path.exists(backups_dir):
         for f in os.listdir(backups_dir):
             if f.endswith(".db"):
-                db_files.append((os.path.join(backups_dir, f), "Thư mục static backups"))
+                db_files.append((os.path.join(backups_dir, f), "Thư mục private backups"))
                 
     # 3. Quét thư mục old_and_backup nếu có
     old_backup_dir = os.path.join(root_dir, "old_and_backup")

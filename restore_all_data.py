@@ -2,6 +2,7 @@
 import sqlite3
 import os
 import unicodedata
+from backend.database import get_private_backup_dir, get_sqlite_db_path
 
 def normalize_name(name):
     if not name:
@@ -20,8 +21,8 @@ def restore_all():
         if f.endswith(".db") and f != "SSO_HC.db" and f != "test_sync_grace.db":
             db_files.append(os.path.join(root_dir, f))
             
-    # Quét thư mục backup tự động
-    backups_dir = os.path.join(root_dir, "static", "uploads", "backups")
+    # Quét thư mục backup riêng tư cạnh file SQLite (không nằm dưới /static)
+    backups_dir = get_private_backup_dir()
     if os.path.exists(backups_dir):
         for f in os.listdir(backups_dir):
             if f.endswith(".db"):
@@ -57,13 +58,24 @@ def restore_all():
         cur_b.execute("SELECT id, full_name, strava_name FROM athletes")
         backup_athletes = cur_b.fetchall()
         
+        # Xác định phạm vi của giải lịch sử ID=1 trực tiếp từ dữ liệu, không dùng mốc ngày hard-code.
+        cur_b.execute("SELECT start_date, end_date FROM competition_events WHERE id = 1")
+        hist_row = cur_b.fetchone()
+        if not hist_row:
+            raise RuntimeError("Khong tim thay giai lich su ID=1 trong backup")
+        historical_start = hist_row[0] or "0001-01-01"
+        historical_end = hist_row[1] or "9999-12-31"
+
         # Đọc tất cả đăng ký giải đấu từ bản backup để làm cơ sở khôi phục đúng giải đấu VĐV tham gia
         cur_b.execute("SELECT athlete_id, event_id FROM competition_registrations")
         backup_regs = set(cur_b.fetchall())
         
         backup_data = {}
         for a_id, name, s_name in backup_athletes:
-            cur_b.execute("SELECT * FROM activities WHERE athlete_id = ? AND activity_date < '2026-06-16'", (a_id,))
+            cur_b.execute(
+                "SELECT * FROM activities WHERE athlete_id = ? AND event_id = 1 AND activity_date >= ? AND activity_date <= ?",
+                (a_id, historical_start, historical_end),
+            )
             col_names = [desc[0] for desc in cur_b.description]
             rows = cur_b.fetchall()
             backup_data[a_id] = {
@@ -78,7 +90,7 @@ def restore_all():
         conn_b.close()
         
     # 3. Connect to live database (SSO_HC.db)
-    live_db = os.path.join(root_dir, "SSO_HC.db")
+    live_db = get_sqlite_db_path() or os.path.join(root_dir, "SSO_HC.db")
     if not os.path.exists(live_db):
         print(f"[!] Khong tim thay CSDL hien tai '{live_db}' trong thu muc goc.")
         live_db = input("Vui long nhap duong dan den file CSDL live (vi du: SSO_HC.db): ").strip()

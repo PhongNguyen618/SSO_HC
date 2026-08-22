@@ -21,7 +21,7 @@ COPY . /app
 EXPOSE 8000
 
 # Volume cho uploads để tránh mất dữ liệu khi rebuild image
-VOLUME ["/app/static/uploads"]
+VOLUME ["/app/data", "/app/static/uploads"]
 
 # Khởi chạy ứng dụng
 CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers"]

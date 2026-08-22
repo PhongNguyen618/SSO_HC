@@ -38,3 +38,7 @@ tests/
 .DS_Store
 *.swp
 *.swo
+scratch/
+backups/
+audit/
+*.jsonl

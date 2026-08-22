@@ -7,6 +7,12 @@ Verifies:
 """
 import sys
 import os
+import tempfile
+
+_tmpdir = tempfile.TemporaryDirectory(prefix="sso_hc_multiplier_test_")
+os.environ["DATABASE_URL"] = "sqlite:///" + os.path.join(_tmpdir.name, "test.db")
+os.environ["DEFAULT_ADMIN_PASSWORD"] = "test-only-admin-password"
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from backend.database import SessionLocal, EventMultiplier, Activity, CompetitionEvent, init_db
@@ -16,6 +22,7 @@ print("=" * 60)
 print("TEST: EventMultiplier Feature")
 print("=" * 60)
 
+init_db(excel_filepath=os.path.join(_tmpdir.name, "missing.xlsx"))
 db = SessionLocal()
 
 try:
@@ -137,3 +144,4 @@ except Exception as e:
     traceback.print_exc()
 finally:
     db.close()
+    _tmpdir.cleanup()

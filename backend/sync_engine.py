@@ -1,11 +1,26 @@
 import time
 import requests
 import hashlib
-from datetime import datetime, timedelta
+import threading
+from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 from fastapi import UploadFile
-from backend.database import SessionLocal, Config, Athlete, Activity, CompetitionEvent, CompetitionRegistration
+from backend.database import SessionLocal, Config, Athlete, Activity, CompetitionEvent, CompetitionRegistration, get_sqlite_db_path, backup_sqlite_database, get_private_backup_dir, get_private_audit_log_path
 from backend.calculations import get_mets_value, calculate_kcal, check_suspicious_activity, get_multiplier_for_date
+
+_sync_lock = threading.Lock()
+
+def run_serialized_maintenance(callback):
+    """Run a short DB maintenance callback only when no Strava sync is active.
+
+    Returns (acquired, result). If another sync owns the lock, no callback is run.
+    """
+    if not _sync_lock.acquire(blocking=False):
+        return False, None
+    try:
+        return True, callback()
+    finally:
+        _sync_lock.release()
 
 def get_config_dict(db: Session) -> dict:
     configs = db.query(Config).all()
@@ -59,46 +74,34 @@ def refresh_strava_token(db: Session, configs: dict) -> str:
         return None
 
 def backup_db_file(reason: str = "auto"):
-    """
-    Tạo bản sao lưu CSDL vật lý trước các thao tác chỉnh sửa dữ liệu quan trọng.
-    Chỉ giữ lại tối đa 5 bản sao lưu gần nhất để tránh đầy ổ cứng VPS.
-    """
+    """Tạo SQLite backup nhất quán trước thao tác quan trọng, hỗ trợ đúng DATABASE_URL trong Docker."""
     import os
-    import shutil
     from datetime import datetime
-    
-    db_path = "SSO_HC.db"
-    if not os.path.exists(db_path):
-        return
-        
-    backup_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static", "uploads", "backups")
-    os.makedirs(backup_dir, exist_ok=True)
-    
-    time_str = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-    backup_filename = f"SSO_HC_link_backup_{time_str}_{reason}.db"
-    backup_path = os.path.join(backup_dir, backup_filename)
-    
+
+    db_path = get_sqlite_db_path()
+    if not db_path or not os.path.exists(db_path):
+        print(f"Backup Engine: Main DB not found at {db_path}; skipping backup.")
+        return None
+
+    backup_dir = get_private_backup_dir()
+    time_str = datetime.now(timezone.utc).replace(tzinfo=None).strftime("%Y%m%d_%H%M%S")
+    safe_reason = "".join(c if c.isalnum() or c in "-_" else "_" for c in str(reason))[:80]
+    backup_path = os.path.join(backup_dir, f"SSO_HC_link_backup_{time_str}_{safe_reason}.db")
     try:
-        shutil.copyfile(db_path, backup_path)
-        print(f"Backup Engine: Created instant DB backup at {backup_path} for reason: {reason}")
-        
-        # Xoay vòng bản sao lưu (Rotate): Giữ lại tối đa 5 bản backup loại link_backup
-        backups = [
-            os.path.join(backup_dir, f) 
-            for f in os.listdir(backup_dir) 
-            if f.startswith("SSO_HC_link_backup_") and f.endswith(".db")
-        ]
+        backup_sqlite_database(backup_path)
+        print(f"Backup Engine: Created consistent DB backup at {backup_path} for reason: {reason}")
+        backups = [os.path.join(backup_dir, f) for f in os.listdir(backup_dir) if f.startswith("SSO_HC_link_backup_") and f.endswith(".db")]
         backups.sort(key=os.path.getmtime)
-        
         while len(backups) > 5:
             oldest = backups.pop(0)
             try:
                 os.remove(oldest)
-                print(f"Backup Engine: Removed oldest link backup to save space: {oldest}")
             except Exception as e:
                 print(f"Backup Engine: Error removing old backup {oldest}: {e}")
+        return backup_path
     except Exception as e:
         print(f"Backup Engine: Error creating DB backup: {e}")
+        return None
 
 def parse_time_str_to_seconds(time_str: str) -> float:
     import re
@@ -563,18 +566,12 @@ def sync_athlete_activities_api(db, athlete, access_token, start_date_str: str =
             
     if target_start_date:
         try:
-            # Ví dụ: start_date = "2026-06-16"
-            # Cần lấy đúng 00:00:00 ngày start_date theo giờ Việt Nam (GMT+7)
+            # Lấy đúng 00:00:00 ngày bắt đầu của chính giải đấu theo giờ Việt Nam (GMT+7).
             from datetime import timezone
             dt = datetime.strptime(target_start_date, "%Y-%m-%d")
             tz_vn = timezone(timedelta(hours=7))
             dt_vn = dt.replace(tzinfo=tz_vn)
             after_timestamp = int(dt_vn.timestamp())
-            
-            # Giới hạn cứng không lấy dữ liệu trước ngày 16/06/2026 cho cả 2 giải
-            min_timestamp = 1781542800  # Epoch tương ứng 2026-06-16 00:00:00 GMT+7
-            if after_timestamp < min_timestamp:
-                after_timestamp = min_timestamp
         except Exception as te:
             print(f"Sync Engine (User API): Error calculating after_timestamp: {te}")
 
@@ -695,9 +692,7 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
             time.sleep(1.5)
             u_token = refresh_user_strava_token(db, ath, configs)
             if u_token:
-                start_date = event.start_date if event.start_date else "2026-06-16"
-                if start_date < "2026-06-16":
-                    start_date = "2026-06-16"
+                start_date = event.start_date or None
                 ath_acts = sync_athlete_activities_api(db, ath, u_token, start_date)
                 if ath_acts is not None:
                     # Gán cờ để nhận biết đây là hoạt động API cá nhân
@@ -713,9 +708,7 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
                             import json
                             import os
                             
-                            clean_start_date = start_date
-                            if clean_start_date < "2026-06-16":
-                                clean_start_date = "2026-06-16"
+                            clean_start_date = start_date or event.start_date or "1970-01-01"
                                 
                             club_acts = db.query(Activity).filter(
                                 Activity.athlete_id == ath.id,
@@ -725,8 +718,8 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
                             ).all()
                             
                             if club_acts:
-                                backup_file = "static/uploads/deleted_activities_backup.jsonl"
-                                os.makedirs("static/uploads", exist_ok=True)
+                                backup_file = get_private_audit_log_path()
+                                os.makedirs(os.path.dirname(backup_file), exist_ok=True)
                                 with open(backup_file, "a", encoding="utf-8") as f:
                                     for act in club_acts:
                                         act_dict = {
@@ -751,7 +744,7 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
                                             "distance_km_raw": act.distance_km_raw,
                                             "kcal_burned_raw": act.kcal_burned_raw,
                                             "multiplier": act.multiplier,
-                                            "backup_time": datetime.utcnow().isoformat(),
+                                            "backup_time": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
                                             "reason": f"Nang cap len API ca nhan cho {ath.full_name}"
                                         }
                                         f.write(json.dumps(act_dict, ensure_ascii=False) + "\n")
@@ -843,7 +836,7 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
     print(f"Sync Engine: Total downloaded activities to process: {len(all_activities)} (Personal API: {len(user_api_activities)}, Club/Scraper: {len(club_activities)}) for event '{event.title}'.")
     
     new_count = 0
-    gmt7_now = datetime.utcnow() + timedelta(hours=7)
+    gmt7_now = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=7)
     today_str = gmt7_now.strftime("%Y-%m-%d")
     seen_ids = set()
 
@@ -1232,6 +1225,21 @@ def _sync_single_event(db, configs, access_token, event) -> dict:
 
 
 def sync_club_activities(event_id: int = None) -> dict:
+    """Serialize all global/event sync jobs to prevent overlapping SQLite/Strava writes."""
+    if not _sync_lock.acquire(blocking=False):
+        return {
+            "status": "busy",
+            "new_activities": 0,
+            "error": "Một tiến trình đồng bộ khác đang chạy. Yêu cầu này được bỏ qua để tránh ghi đè dữ liệu.",
+            "details": [],
+        }
+    try:
+        return _sync_club_activities_unlocked(event_id=event_id)
+    finally:
+        _sync_lock.release()
+
+
+def _sync_club_activities_unlocked(event_id: int = None) -> dict:
     """
     Đồng bộ hoạt động từ Strava Club và lưu vào SQLite Database.
     Nếu truyền event_id: chỉ đồng bộ cho giải đấu đó.
@@ -1241,7 +1249,7 @@ def sync_club_activities(event_id: int = None) -> dict:
     result = {"status": "idle", "new_activities": 0, "error": None, "details": []}
     try:
         # 1. Tự động đóng các giải đấu đã hết hạn trước tiên
-        today_str = (datetime.utcnow() + timedelta(hours=7)).strftime("%Y-%m-%d")
+        today_str = (datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=7)).strftime("%Y-%m-%d")
         if not event_id:
             expired_events = db.query(CompetitionEvent).filter(
                 CompetitionEvent.is_active == True,
@@ -1331,7 +1339,7 @@ def sync_club_activities(event_id: int = None) -> dict:
     finally:
         try:
             if "status" in result and result["status"] != "idle":
-                gmt7_now = datetime.utcnow() + timedelta(hours=7)
+                gmt7_now = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=7)
                 now_str = gmt7_now.strftime("%Y-%m-%d %H:%M:%S")
                 update_config(db, "last_sync_time", now_str)
                 update_config(db, "last_sync_status", result["status"])
@@ -1489,9 +1497,9 @@ async def import_excel_files(files: list[UploadFile], db: Session, event_id: int
                         if match:
                             activity_date = datetime.strptime(match.group(), "%d-%m-%Y").strftime("%Y-%m-%d")
                         else:
-                            activity_date = (datetime.utcnow() + timedelta(hours=7)).strftime("%Y-%m-%d")
+                            activity_date = (datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=7)).strftime("%Y-%m-%d")
                     except Exception:
-                        activity_date = (datetime.utcnow() + timedelta(hours=7)).strftime("%Y-%m-%d")
+                        activity_date = (datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=7)).strftime("%Y-%m-%d")
                 
                 # Nghi vấn gian lận
                 susp_val = row.get(col_map.get("Nghi_ngo_Gian_lan"))
@@ -1578,6 +1586,17 @@ async def import_excel_files(files: list[UploadFile], db: Session, event_id: int
     }
 
 def sync_single_athlete_all_events(db: Session, athlete):
+    """Serialize instant OAuth sync with periodic/manual sync jobs."""
+    if not _sync_lock.acquire(blocking=False):
+        print(f"Sync Single Athlete: skipped {athlete.full_name}; another sync is already running.")
+        return {"status": "busy", "new_activities": 0}
+    try:
+        return _sync_single_athlete_all_events_unlocked(db, athlete)
+    finally:
+        _sync_lock.release()
+
+
+def _sync_single_athlete_all_events_unlocked(db: Session, athlete):
     """
     Đồng bộ ngay lập tức toàn bộ hoạt động của 1 VĐV vừa mới ủy quyền.
     An toàn: Chỉ dọn dẹp hoạt động cào web cũ SAU KHI đã xác nhận có dữ liệu API mới thay thế.
@@ -1612,11 +1631,9 @@ def sync_single_athlete_all_events(db: Session, athlete):
         
     for event in registered_events:
         event_id = event.id
-        start_date = event.start_date if event.start_date else "2026-06-16"
-        if start_date < "2026-06-16":
-            start_date = "2026-06-16"
+        start_date = event.start_date or None
         
-        # Gọi API lấy các hoạt động kể cả ngày bắt đầu giải (bị cap mốc tối thiểu 16/06/2026)
+        # Gọi API từ đúng ngày bắt đầu của từng giải, không dùng mốc ngày hard-code.
         ath_acts = sync_athlete_activities_api(db, athlete, u_token, start_date)
         if ath_acts is None:
             print(f"Sync Single Athlete: API returned None for {athlete.full_name} in event '{event.title}'. Keeping existing data.")
@@ -1765,9 +1782,7 @@ def sync_single_athlete_all_events(db: Session, athlete):
         # Chỉ xóa hoạt động cào Club cũ nếu API trả về ít nhất 1 hoạt động mới HOẶC đã có dữ liệu API trước đó
         if len(ath_acts) > 0:
             try:
-                clean_start_date = start_date
-                if clean_start_date < "2026-06-16":
-                    clean_start_date = "2026-06-16"
+                clean_start_date = start_date or event.start_date or "1970-01-01"
                     
                 club_acts = db.query(Activity).filter(
                     Activity.athlete_id == athlete.id,
@@ -1777,7 +1792,7 @@ def sync_single_athlete_all_events(db: Session, athlete):
                 ).all()
                 
                 if club_acts:
-                    backup_file = "static/uploads/deleted_activities_backup.jsonl"
+                    backup_file = get_private_audit_log_path()
                     os.makedirs(os.path.dirname(backup_file), exist_ok=True)
                     with open(backup_file, "a", encoding="utf-8") as f:
                         for act in club_acts:
@@ -1803,7 +1818,7 @@ def sync_single_athlete_all_events(db: Session, athlete):
                                 "distance_km_raw": act.distance_km_raw,
                                 "kcal_burned_raw": act.kcal_burned_raw,
                                 "multiplier": act.multiplier,
-                                "backup_time": datetime.utcnow().isoformat(),
+                                "backup_time": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
                                 "reason": f"Nang cap tuc thi khi vua uy quyen cho {athlete.full_name}"
                             }
                             f.write(json.dumps(act_dict, ensure_ascii=False) + "\n")
