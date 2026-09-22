@@ -62,6 +62,39 @@ def _set_oauth_nonce_cookie(response, request: Request, nonce: str):
     return response
 
 
+def get_effective_strava_config(request: Request, db: Session):
+    """
+    Trả về (client_id, client_secret, redirect_base_url).
+    Tự động phân biệt môi trường Localhost (chạy qua run.bat / port 8008) và VPS Production:
+    - Nếu request tới từ localhost / 127.0.0.1:
+      + Ưu tiên sử dụng STRAVA_CLIENT_ID / STRAVA_CLIENT_SECRET từ .env nếu có (App 164041 hỗ trợ localhost).
+      + Sử dụng base URL của request hiện tại (ví dụ http://localhost:8008 hoặc http://127.0.0.1:8008).
+    - Nếu request tới từ VPS / domain production (như ssohc.ppt-sso.com):
+      + Ưu tiên sử dụng Client ID/Secret từ bảng configs (hoặc .env) và APP_URL.
+    """
+    configs = get_config_dict(db)
+    host = (request.headers.get("host") or "").lower()
+    is_local = "localhost" in host or "127.0.0.1" in host
+    scheme = "https" if _request_is_https(request) else "http"
+
+    env_client_id = (os.getenv("STRAVA_CLIENT_ID") or os.getenv("\ufeffSTRAVA_CLIENT_ID") or "").strip()
+    env_client_secret = (os.getenv("STRAVA_CLIENT_SECRET") or os.getenv("\ufeffSTRAVA_CLIENT_SECRET") or "").strip()
+    db_client_id = (configs.get("strava_client_id") or "").strip()
+    db_client_secret = (configs.get("strava_client_secret") or "").strip()
+
+    if is_local:
+        client_id = env_client_id or db_client_id
+        client_secret = env_client_secret or db_client_secret
+        app_url = f"{scheme}://{host}"
+    else:
+        client_id = db_client_id or env_client_id
+        client_secret = db_client_secret or env_client_secret
+        app_url = APP_URL or f"{scheme}://{host}"
+
+    return client_id, client_secret, app_url
+
+
+
 def _client_ip(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
@@ -97,8 +130,17 @@ def _identity_words(value: str):
 def _strava_identity_matches(athlete: Athlete, strava_data: dict) -> bool:
     """Verify that the OAuth identity plausibly belongs to the selected athlete."""
     incoming_id = str(strava_data.get("id") or "").strip()
-    if athlete.strava_athlete_id:
-        return bool(incoming_id) and incoming_id == str(athlete.strava_athlete_id)
+    if not incoming_id:
+        return False
+
+    # 1. Nếu ID trả về trùng khớp với ID đã lưu trong DB -> Hợp lệ ngay
+    if athlete.strava_athlete_id and incoming_id == str(athlete.strava_athlete_id).strip():
+        return True
+
+    # 2. Nếu VĐV này đã từng xác minh OAuth thật trước đó (đã có refresh_token trong DB),
+    # thì ID này là bất biến, ngăn chặn việc liên kết nhầm tài khoản Strava khác.
+    if athlete.strava_athlete_id and athlete.strava_refresh_token:
+        return False
 
     firstname = strava_data.get("firstname") or ""
     lastname = strava_data.get("lastname") or ""
@@ -3616,16 +3658,9 @@ def start_existing_athlete_oauth(
     if not athlete:
         return RedirectResponse("/connect-existing?error=Không tìm thấy VĐV", status_code=303)
 
-    configs = get_config_dict(db)
-    client_id = configs.get("strava_client_id")
+    client_id, client_secret, app_url = get_effective_strava_config(request, db)
     if not client_id:
         return RedirectResponse("/connect-existing?error=Hệ thống chưa cấu hình Strava Client ID", status_code=303)
-
-    app_url = APP_URL
-    if not app_url:
-        host = request.headers.get("host", "localhost:8080")
-        scheme = "https" if _request_is_https(request) else "http"
-        app_url = f"{scheme}://{host}"
 
     import urllib.parse
     redirect_uri = f"{app_url}/exchange_user_token"
@@ -3677,9 +3712,7 @@ def exchange_user_token(
     if not athlete:
         return RedirectResponse("/connect-existing?error=Vận động viên không tồn tại", status_code=303)
 
-    configs = get_config_dict(db)
-    client_id = configs.get("strava_client_id")
-    client_secret = configs.get("strava_client_secret")
+    client_id, client_secret, app_url = get_effective_strava_config(request, db)
     try:
         token_response = requests.post("https://www.strava.com/oauth/token", data={
             "client_id": client_id,
@@ -3700,10 +3733,17 @@ def exchange_user_token(
             Athlete.id != athlete.id,
         ).first()
         if conflict:
-            msg = "Tài khoản Strava này đã được liên kết với một VĐV khác. Vui lòng liên hệ Admin để xử lý."
-            response = RedirectResponse(f"/connect-existing?error={urllib.parse.quote(msg)}", status_code=303)
-            response.delete_cookie(OAUTH_NONCE_COOKIE)
-            return response
+            if not conflict.strava_refresh_token:
+                # Tài khoản conflict này chưa từng xác minh OAuth cá nhân (ID chỉ do bot Scraper gán phỏng đoán).
+                # Ta giải phóng ID này để ưu tiên cho VĐV vừa hoàn tất xác thực OAuth thật.
+                print(f"OAuth Notice: Releasing unverified strava_athlete_id {incoming_id} from athlete {conflict.full_name} (ID {conflict.id}) to true owner {athlete.full_name} (ID {athlete.id})")
+                conflict.strava_athlete_id = None
+                db.commit()
+            else:
+                msg = "Tài khoản Strava này đã được liên kết với một VĐV khác. Vui lòng liên hệ Admin để xử lý."
+                response = RedirectResponse(f"/connect-existing?error={urllib.parse.quote(msg)}", status_code=303)
+                response.delete_cookie(OAUTH_NONCE_COOKIE)
+                return response
 
         if not _strava_identity_matches(athlete, strava_data):
             msg = "Tài khoản Strava vừa xác thực không khớp với hồ sơ VĐV đã chọn. Hệ thống không thay đổi dữ liệu."
@@ -3721,7 +3761,10 @@ def exchange_user_token(
         lastname = strava_data.get("lastname") or ""
         full_strava_name = f"{firstname} {lastname}".strip()
         if full_strava_name:
-            athlete.strava_name = full_strava_name
+            existing_aliases = [x.strip() for x in (athlete.strava_name or "").split(",") if x.strip()]
+            if full_strava_name not in existing_aliases:
+                existing_aliases.append(full_strava_name)
+            athlete.strava_name = ", ".join(existing_aliases) if existing_aliases else full_strava_name
 
         profile_url = strava_data.get("profile")
         if profile_url and "avatar/athlete" not in profile_url:
@@ -3761,12 +3804,10 @@ def start_admin_strava_oauth(request: Request, db: Session = Depends(get_db)):
     """Bắt đầu OAuth global Strava chỉ khi Admin đang đăng nhập."""
     if not get_admin_session(request, db):
         return RedirectResponse("/admin?error=Chua dang nhap", status_code=303)
-    configs = get_config_dict(db)
-    client_id = configs.get("strava_client_id")
+    client_id, client_secret, app_url = get_effective_strava_config(request, db)
     if not client_id:
         return RedirectResponse("/admin?error=Chua cau hinh Strava Client ID", status_code=303)
 
-    app_url = APP_URL or str(request.base_url).rstrip("/")
     redirect_uri = f"{app_url}/exchange_token"
     state, nonce = create_oauth_state(db, "admin_strava", "admin")
     import urllib.parse
@@ -3800,9 +3841,7 @@ def exchange_token(
     if verify_oauth_state(request, db, state, "admin_strava") != "admin":
         return RedirectResponse("/admin?error=OAuth state khong hop le hoac da het han", status_code=303)
 
-    configs = get_config_dict(db)
-    client_id = configs.get("strava_client_id")
-    client_secret = configs.get("strava_client_secret")
+    client_id, client_secret, app_url = get_effective_strava_config(request, db)
     try:
         token_response = requests.post("https://www.strava.com/oauth/token", data={
             "client_id": client_id,

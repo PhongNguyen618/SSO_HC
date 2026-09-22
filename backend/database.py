@@ -42,7 +42,7 @@ class Athlete(Base):
     department = Column(String)
     gender = Column(String) # Nam / Nữ
     weight = Column(Float)
-    strava_name = Column(String, unique=True, index=True)
+    strava_name = Column(String, index=True)
     is_active = Column(Boolean, default=True)
     avatar_url = Column(String, nullable=True)
     strava_athlete_id = Column(String, unique=True, index=True, nullable=True)
@@ -316,6 +316,19 @@ def init_db(excel_filepath: str = "TDTT_SSO.xlsx"):
         with engine.connect() as conn:
             conn.execute(text("ALTER TABLE athletes ADD COLUMN strava_expires_at TEXT"))
             conn.commit()
+
+    # Di trú chỉ mục cho strava_name: gỡ bỏ ràng buộc UNIQUE để cho phép nhiều VĐV có cùng tên hiển thị Strava
+    try:
+        with engine.connect() as conn:
+            idx_row = conn.execute(text("SELECT sql FROM sqlite_master WHERE type='index' AND name='ix_athletes_strava_name'")).fetchone()
+            if idx_row and idx_row[0] and "UNIQUE" in idx_row[0].upper():
+                print("Database Migration: Dropping UNIQUE index ix_athletes_strava_name...")
+                conn.execute(text("DROP INDEX ix_athletes_strava_name"))
+                conn.execute(text("CREATE INDEX ix_athletes_strava_name ON athletes (strava_name)"))
+                conn.commit()
+                print("Database Migration: Recreated ix_athletes_strava_name as standard non-unique index.")
+    except Exception as e:
+        print(f"Database Migration notice (ix_athletes_strava_name): {e}")
 
     columns = [c['name'] for c in inspector.get_columns('activities')]
     if 'event_id' not in columns:

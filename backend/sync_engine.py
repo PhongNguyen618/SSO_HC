@@ -511,28 +511,44 @@ def refresh_user_strava_token(db, athlete, configs) -> str:
         return athlete.strava_access_token
         
     print(f"Sync Engine: User token expired for {athlete.full_name}. Refreshing...")
-    try:
-        response = requests.post("https://www.strava.com/oauth/token", data={
-            "client_id": client_id,
-            "client_secret": client_secret,
-            "grant_type": "refresh_token",
-            "refresh_token": refresh_token
-        }, timeout=10)
-        response.raise_for_status()
-        token_data = response.json()
-        
-        athlete.strava_access_token = token_data["access_token"]
-        athlete.strava_refresh_token = token_data["refresh_token"]
-        athlete.strava_expires_at = str(token_data["expires_at"])
-        db.commit()
-        
-        print(f"Sync Engine: User token refreshed successfully for {athlete.full_name}.")
-        return token_data["access_token"]
-    except Exception as e:
-        print(f"Sync Engine: Error refreshing user token for {athlete.full_name}: {e}")
-        # Tự động hủy liên kết nếu refresh token bị vô hiệu hóa (400, 401 hoặc 403)
-        if any(err_code in str(e) for err_code in ["400", "401", "403"]):
-            print(f"Sync Engine: Refresh token invalid for {athlete.full_name}. Unlinking automatically...")
+
+    # Tạo danh sách các cặp Client ID / Secret ứng viên (từ DB và từ .env)
+    candidate_creds = []
+    c1 = (configs.get("strava_client_id"), configs.get("strava_client_secret"))
+    if c1[0] and c1[1]:
+        candidate_creds.append(c1)
+    c2 = (os.getenv("STRAVA_CLIENT_ID"), os.getenv("STRAVA_CLIENT_SECRET"))
+    if c2[0] and c2[1] and c2 != c1:
+        candidate_creds.append(c2)
+
+    last_error_resp = None
+
+    for cid, sec in candidate_creds:
+        try:
+            response = requests.post("https://www.strava.com/oauth/token", data={
+                "client_id": cid,
+                "client_secret": sec,
+                "grant_type": "refresh_token",
+                "refresh_token": refresh_token
+            }, timeout=10)
+            if response.status_code == 200:
+                token_data = response.json()
+                athlete.strava_access_token = token_data["access_token"]
+                athlete.strava_refresh_token = token_data["refresh_token"]
+                athlete.strava_expires_at = str(token_data["expires_at"])
+                db.commit()
+                print(f"Sync Engine: User token refreshed successfully for {athlete.full_name} (using Client ID {cid}).")
+                return token_data["access_token"]
+            else:
+                last_error_resp = response
+        except Exception as conn_err:
+            print(f"Sync Engine: Connection error refreshing token with client {cid}: {conn_err}")
+
+    # Chỉ tự động hủy liên kết nếu Strava phản hồi dứt khoát rằng refresh_token bị thu hồi/vô hiệu hóa (invalid_grant hoặc invalid refresh_token)
+    if last_error_resp is not None and last_error_resp.status_code in [400, 401]:
+        err_text = last_error_resp.text.lower()
+        if "invalid" in err_text and ("refresh_token" in err_text or "invalid_grant" in err_text):
+            print(f"Sync Engine: Refresh token revoked for {athlete.full_name}. Unlinking automatically...")
             try:
                 athlete.strava_access_token = None
                 athlete.strava_refresh_token = None
@@ -540,7 +556,7 @@ def refresh_user_strava_token(db, athlete, configs) -> str:
                 db.commit()
             except Exception as db_err:
                 print(f"Sync Engine: Error clearing credentials: {db_err}")
-        return None
+    return None
 
 def sync_athlete_activities_api(db, athlete, access_token, start_date_str: str = None) -> list:
     """

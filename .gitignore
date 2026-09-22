@@ -54,3 +54,4 @@ test_output.xlsx
 backups/
 audit/
 *.jsonl
+scratch/
