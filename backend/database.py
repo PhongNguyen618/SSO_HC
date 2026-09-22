@@ -550,6 +550,7 @@ def init_db(excel_filepath: str = "TDTT_SSO.xlsx"):
         "rule_swim_elev_max": "10.0",
         "department_members": json.dumps(default_department_members, ensure_ascii=False),
         "rules_group_qr": "/branding/Group.jpg",
+        "rules_banner_image": "/branding/default_banner.jpg",
         "rules_banner_mode": "version",
         "rules_banner_reset_days": "1"
     }
