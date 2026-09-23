@@ -6,7 +6,7 @@ import requests
 from typing import Optional
 from datetime import datetime, timedelta, timezone
 from fastapi import FastAPI, Depends, Request, Form, HTTPException, status, File, UploadFile, BackgroundTasks
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -284,6 +284,13 @@ os.makedirs("static/js", exist_ok=True)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/branding", StaticFiles(directory="branding"), name="branding")
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def get_favicon():
+    favicon_path = "static/favicon.ico"
+    if os.path.exists(favicon_path):
+        return FileResponse(favicon_path, media_type="image/x-icon")
+    return Response(status_code=204)
 APP_VERSION = "v1.4.0"
 # Lấy thời gian deploy tự động từ ngày sửa đổi file main.py
 try:
