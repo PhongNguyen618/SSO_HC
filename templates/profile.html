@@ -273,10 +273,22 @@
             </span>
             <span><i class="fa-solid fa-weight-scale"></i> {{ athlete.weight }} kg</span>
             <span>
+                {% if athlete.strava_athlete_id %}
+                <a href="https://www.strava.com/athletes/{{ athlete.strava_athlete_id }}" target="_blank" style="color: #ff5e36; text-decoration: none; display: inline-flex; align-items: center; gap: 0.25rem;" title="Mở trang hồ sơ Strava cá nhân (ID: #{{ athlete.strava_athlete_id }})">
+                    <i class="fa-brands fa-strava" style="color: #ff5e36;"></i> @{{ athlete.strava_name }}
+                    <i class="fa-solid fa-arrow-up-right-from-square" style="font-size: 0.65rem; opacity: 0.7;"></i>
+                </a>
+                {% else %}
                 <i class="fa-brands fa-strava" style="color: #ff5e36;"></i> @{{ athlete.strava_name }}
+                {% endif %}
+
                 {% if athlete.strava_refresh_token %}
-                <a href="javascript:void(0)" onclick="confirmSelfUnlink()" style="color: #ff6b6b; margin-left: 8px; font-size: 0.8rem; text-decoration: none;" title="Hủy liên kết tài khoản Strava">
+                <a href="javascript:void(0)" onclick="confirmSelfUnlink()" style="color: #ff6b6b; margin-left: 8px; font-size: 0.8rem; text-decoration: none; display: inline-flex; align-items: center; gap: 0.25rem;" title="Hủy liên kết tài khoản Strava">
                     <i class="fa-solid fa-unlink"></i> Hủy kết nối
+                </a>
+                {% else %}
+                <a href="/connect-existing/start/{{ athlete.id }}" style="color: #00adb5; margin-left: 8px; font-size: 0.8rem; text-decoration: none; font-weight: 600; display: inline-flex; align-items: center; gap: 0.25rem; background: rgba(0, 173, 181, 0.1); padding: 0.2rem 0.5rem; border-radius: 4px; border: 1px solid rgba(0, 173, 181, 0.25);" title="Liên kết tài khoản Strava cá nhân qua OAuth để tự động đồng bộ tức thì">
+                    <i class="fa-solid fa-link"></i> Liên kết Strava API
                 </a>
                 {% endif %}
             </span>

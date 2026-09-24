@@ -1369,14 +1369,20 @@
             <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem;">
                 <h3 class="admin-section-title" style="margin: 0;">Danh Sách Thành Viên ({{ athletes|length }} VĐV)</h3>
                 
-                <div style="display: flex; align-items: center; gap: 0.5rem; background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.08); padding: 0.4rem 1rem; border-radius: 8px;">
-                    <label style="font-weight: 600; font-size: 0.85rem; color: var(--text-muted); margin: 0; white-space: nowrap;">Giải đấu đang lọc:</label>
-                    <select class="form-control" onchange="window.location.href='/admin?event_id=' + this.value + '#tab-athletes'" style="background: rgba(10, 8, 20, 0.8); border: 1px solid var(--border-color); color: var(--text-color); padding: 0.2rem 0.5rem; height: auto; font-size: 0.85rem; width: auto; min-width: 180px;">
-                        <option value="" {% if not selected_event_id %}selected{% endif %}>Hiển thị tất cả giải đấu</option>
-                        {% for comp in all_competitions %}
-                        <option value="{{ comp.id }}" {% if selected_event_id == comp.id %}selected{% endif %}>{{ comp.title }} (ID: {{ comp.id }})</option>
-                        {% endfor %}
-                    </select>
+                <div style="display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap;">
+                    <div style="position: relative;">
+                        <input type="text" id="athleteSearchInput" placeholder="Tìm tên, phòng ban, Strava..." onkeyup="filterAthleteTable()" style="background: rgba(10, 8, 20, 0.8); border: 1px solid var(--border-color); color: var(--text-color); padding: 0.35rem 0.6rem 0.35rem 2rem; border-radius: 6px; font-size: 0.85rem; width: 220px;" autocomplete="off">
+                        <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 0.65rem; top: 50%; transform: translateY(-50%); font-size: 0.75rem; color: var(--text-muted);"></i>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.5rem; background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.08); padding: 0.4rem 1rem; border-radius: 8px;">
+                        <label style="font-weight: 600; font-size: 0.85rem; color: var(--text-muted); margin: 0; white-space: nowrap;">Giải đấu đang lọc:</label>
+                        <select class="form-control" onchange="window.location.href='/admin?event_id=' + this.value + '#tab-athletes'" style="background: rgba(10, 8, 20, 0.8); border: 1px solid var(--border-color); color: var(--text-color); padding: 0.2rem 0.5rem; height: auto; font-size: 0.85rem; width: auto; min-width: 180px;">
+                            <option value="" {% if not selected_event_id %}selected{% endif %}>Hiển thị tất cả giải đấu</option>
+                            {% for comp in all_competitions %}
+                            <option value="{{ comp.id }}" {% if selected_event_id == comp.id %}selected{% endif %}>{{ comp.title }} (ID: {{ comp.id }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
                 </div>
             </div>
             <div class="table-responsive">
@@ -1394,7 +1400,7 @@
                             <th style="text-align: center;">Hành động</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody id="athleteTableBody">
                         {% for ath in athletes %}
                         <tr>
                             <form action="/admin/athlete/edit/{{ ath.id }}?event_id={{ selected_event_id or '' }}" method="POST">
@@ -1418,12 +1424,17 @@
                                 </td>
                                 <td style="text-align: center; vertical-align: middle;">
                                     {% if ath.strava_refresh_token %}
-                                    <span class="badge" style="background: rgba(255, 94, 54, 0.12); color: #ff5e36; border: 1px solid rgba(255, 94, 54, 0.25); padding: 0.25rem 0.6rem; border-radius: 6px; font-weight: 600; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 0.35rem;" title="VĐV đã cấp quyền OAuth cá nhân, hoạt động được đồng bộ trực tiếp qua API chính xác 100%">
+                                    <span class="badge" style="background: rgba(255, 94, 54, 0.15); color: #ff5e36; border: 1px solid rgba(255, 94, 54, 0.35); padding: 0.25rem 0.6rem; border-radius: 6px; font-weight: 600; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 0.35rem;" title="VĐV đã cấp quyền OAuth cá nhân, hoạt động được đồng bộ trực tiếp qua API chính xác 100%">
                                         <i class="fa-brands fa-strava"></i> Đã Liên Kết API
                                     </span>
+                                    {% elif ath.strava_athlete_id %}
+                                    <a href="https://www.strava.com/athletes/{{ ath.strava_athlete_id }}" target="_blank" class="badge" style="background: rgba(0, 173, 181, 0.12); color: #00adb5; border: 1px solid rgba(0, 173, 181, 0.3); padding: 0.25rem 0.6rem; border-radius: 6px; font-weight: 600; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 0.35rem; text-decoration: none; transition: all 0.2s;" onmouseover="this.style.background='rgba(0, 173, 181, 0.25)'" onmouseout="this.style.background='rgba(0, 173, 181, 0.12)'" title="Đã khớp Strava ID (#{{ ath.strava_athlete_id }}) qua CLB. Nhấp để mở hồ sơ Strava cá nhân">
+                                        <i class="fa-solid fa-id-badge"></i> ID: {{ ath.strava_athlete_id }}
+                                        <i class="fa-solid fa-arrow-up-right-from-square" style="font-size: 0.65rem; opacity: 0.7;"></i>
+                                    </a>
                                     {% else %}
-                                    <span class="badge" style="background: rgba(255, 255, 255, 0.04); color: var(--text-muted); border: 1px solid rgba(255, 255, 255, 0.08); padding: 0.25rem 0.6rem; border-radius: 6px; font-weight: 500; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 0.35rem;" title="Chưa cấp quyền cá nhân. Hệ thống đang đồng bộ hoạt động bằng bộ cào web tự động qua Club">
-                                        <i class="fa-solid fa-cloud"></i> Cào Web (Club)
+                                    <span class="badge" style="background: rgba(255, 255, 255, 0.04); color: var(--text-muted); border: 1px solid rgba(255, 255, 255, 0.08); padding: 0.25rem 0.6rem; border-radius: 6px; font-weight: 500; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 0.35rem;" title="Chưa nhận diện Strava ID cá nhân trong Club, hệ thống đang đồng bộ bằng cách so khớp tạm theo tên">
+                                        <i class="fa-solid fa-cloud"></i> Cào Web (Theo Tên)
                                     </span>
                                     {% endif %}
                                 </td>
@@ -5539,6 +5550,24 @@
         } catch (err) {
             alert('Lỗi kết nối: ' + err.message);
         }
+    }
+
+    // Lọc tìm kiếm nhanh danh sách VĐV trong bảng Admin
+    function filterAthleteTable() {
+        const input = document.getElementById('athleteSearchInput');
+        if (!input) return;
+        const q = input.value.toLowerCase().trim();
+        const tbody = document.getElementById('athleteTableBody');
+        if (!tbody) return;
+        const rows = tbody.querySelectorAll('tr');
+        rows.forEach(row => {
+            const inputs = row.querySelectorAll('input');
+            let combined = row.innerText.toLowerCase();
+            inputs.forEach(inp => {
+                combined += ' ' + (inp.value || '').toLowerCase();
+            });
+            row.style.display = combined.includes(q) ? '' : 'none';
+        });
     }
 
 </script>
